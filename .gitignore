@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment
+.env
+.env.local
+
+# Certs (never commit private keys)
+certs/
+
+# Vite
+.vite/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
