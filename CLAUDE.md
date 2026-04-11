@@ -189,11 +189,26 @@ Integrate Rapier: ball rigid body with initial velocity from throw values, pin r
 Build `BowlingGame` class: frame tracking, strike/spare detection, bonus roll calculation, turn rotation, 10th frame rules, score totalling. No UI dependencies.
 **Test:** Unit test known games — perfect game = 300, all spares = 150, gutter game = 0. Verify two-player turn rotation.
 
-### Part 7: Full Integration
-Wire all parts together: throw events from real phones → physics → scoring → turn advancement → score broadcast → phone feedback. Connect pos stream to ball preview. Add scoreboard overlay.
-**Test:** Full end-to-end with real phones. Play 3+ complete frames, verify scores, verify turn rotation, verify game over screen.
+### Part 7: Production Hosting
+Refactor env vars and deploy all three components so real phones can join without local network or cert setup.
 
-### Part 8: Polish and Edge Cases
+**Env var refactor:**
+- Replace `VITE_LOCAL_IP` with `VITE_RELAY_URL` (e.g. `wss://relay.yourdomain.com`) and `VITE_PHONE_URL` (e.g. `https://yourdomain.com/phone`) in both Vite apps
+- Relay reads port from `process.env.PORT` with fallback to 8080
+- Relay runs as plain WS (no cert files in code) — TLS handled by reverse proxy
+
+**Hosting targets:**
+- **Relay** — any Node.js host (Railway, Render, Fly.io). Add a `start` script, ensure WebSocket connections are supported
+- **Host client** — static site host (Vercel, Netlify, GitHub Pages). Run `vite build` in `/host`, deploy `/host/dist`
+- **Phone client** — same static host as above, or subdirectory. Run `vite build` in `/phone`, deploy `/phone/dist`
+
+**Test:** Deploy all three. On a phone with no special cert setup and on a different network, scan the QR code and join the lobby successfully.
+
+### Part 8: Full Integration
+Wire all parts together: throw events from real phones → physics → scoring → turn advancement → score broadcast → phone feedback. Connect pos stream to ball preview. Add scoreboard overlay.
+**Test:** Full end-to-end with real phones on the production deployment. Play 3+ complete frames, verify scores, verify turn rotation, verify game over screen.
+
+### Part 9: Polish and Edge Cases
 - Host: camera pan during roll, strike/spare overlay animations, pin reset animation between frames
 - Phone: live power meter while holding, result feedback text, haptics (Android)
 - Edge cases: player disconnects mid-game (skip turn, allow rejoin), throw too short < 150ms (ignore + prompt), no motion permission (persistent explanation screen), host refresh (broadcast session ended to all phones)
