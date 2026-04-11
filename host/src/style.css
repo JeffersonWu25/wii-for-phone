@@ -1,0 +1,179 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  background: #0d0d1a;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+}
+
+/* ── Lobby ───────────────────────────────────────────────────── */
+
+.lobby {
+  display: flex;
+  height: 100%;
+}
+
+.lobby-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  border-right: 1px solid #222;
+  padding: 48px;
+}
+
+.lobby-left h1 {
+  font-size: 3rem;
+  font-weight: 800;
+}
+
+.lobby-sub {
+  font-size: 1.1rem;
+  opacity: 0.6;
+}
+
+.qr-wrap {
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-placeholder {
+  width: 260px;
+  height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 0.95rem;
+}
+
+.session-id {
+  font-size: 0.9rem;
+  opacity: 0.5;
+}
+
+.lobby-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 48px;
+  gap: 24px;
+}
+
+.lobby-right h2 {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.player-count {
+  opacity: 0.5;
+  font-weight: 400;
+}
+
+.player-list {
+  flex: 1;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.player-empty {
+  opacity: 0.4;
+  font-style: italic;
+  font-size: 1rem;
+}
+
+.player-item {
+  background: #1e1e3a;
+  border-radius: 10px;
+  padding: 14px 20px;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.btn-start {
+  padding: 18px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  background: #7c7cff;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-start:hover:not(:disabled) {
+  background: #6060ee;
+}
+
+.btn-start:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Game placeholder ────────────────────────────────────────── */
+
+.game-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.game-placeholder h1 {
+  font-size: 2.5rem;
+}
+
+.game-placeholder .sub {
+  opacity: 0.4;
+  font-size: 0.95rem;
+}
+
+/* ── Lost connection ─────────────────────────────────────────── */
+
+.lost-connection {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  text-align: center;
+  padding: 48px;
+}
+
+.lost-connection h1 {
+  font-size: 2rem;
+}
+
+.lost-connection p {
+  opacity: 0.6;
+}
+
+.lost-connection button {
+  padding: 14px 32px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  background: #7c7cff;
+  color: #fff;
+  cursor: pointer;
+}
