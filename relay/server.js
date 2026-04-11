@@ -81,8 +81,9 @@ wss.on('connection', (ws, req) => {
       if (!session) return;
 
       if (msg.type === 'join') {
-        // Consumed by relay — register name and notify host
+        // Consumed by relay — register name, confirm to phone, notify host
         player.name = msg.name;
+        send(ws, { type: 'joined', playerId });
         send(session.hostWs, { type: 'player_joined', playerId, name: msg.name });
         console.log(`[relay] Player joined: ${msg.name} (${playerId})`);
       } else if (msg.type === 'pos' || msg.type === 'throw') {
