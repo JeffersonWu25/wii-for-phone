@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
+import Scene from './Scene.jsx';
 
 const RELAY_URL = `wss://${import.meta.env.VITE_LOCAL_IP}:8080`;
 const PHONE_BASE = `https://${import.meta.env.VITE_LOCAL_IP}:5174`;
@@ -121,10 +122,8 @@ function LobbyScreen({ sessionId, players, canvasRef, onStart }) {
 
 function GameScreen({ players }) {
   return (
-    <div className="game-placeholder">
-      <h1>Game Started</h1>
-      <p>Players: {players.map((p) => p.name).join(', ')}</p>
-      <p className="sub">3D scene coming in Part 4</p>
+    <div style={{ width: '100%', height: '100%' }}>
+      <Scene />
     </div>
   );
 }
