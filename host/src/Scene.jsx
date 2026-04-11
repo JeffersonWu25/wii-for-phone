@@ -12,7 +12,7 @@ const BALL_RADIUS = 0.11;
 // Foul line at z = 0. Ball starts just behind it (positive Z side).
 const PIN_START_Z = -15.0; // front of pin deck (head pin)
 const PIN_SPACING = 0.305; // 12 inches center-to-center
-const BALL_START = new THREE.Vector3(0, BALL_RADIUS, 2.5);
+const BALL_START = new THREE.Vector3(0, BALL_RADIUS, 0);
 
 // 10-pin positions in triangle — row 1 (head pin) nearest camera, row 4 furthest.
 // Row n has n pins, centered on x=0.
@@ -143,8 +143,8 @@ export default function Scene() {
       0.1,
       100
     );
-    camera.position.set(0, 1.5, 4);
-    camera.lookAt(0, 0, -16);
+    camera.position.set(0, 2.0, 5);
+    camera.lookAt(0, 0, -14);
 
     // Lights
     const ambient = new THREE.AmbientLight('#ffffff', 0.5);
@@ -197,4 +197,4 @@ export default function Scene() {
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
 }
 
-export { BALL_START, PIN_START_Z, PIN_SPACING, BALL_RADIUS, getPinPositions };
+export { BALL_START, PIN_START_Z, PIN_SPACING, BALL_RADIUS, LANE_LENGTH, getPinPositions };
