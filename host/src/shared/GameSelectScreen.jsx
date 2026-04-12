@@ -1,19 +1,17 @@
 // Game selection screen — shown after lobby, before a game starts.
 // Broadcasts game_selected to the relay so phones can load the right UI.
-// Only Bowling is active; all other games show "Coming Soon".
 
 const GAMES = [
-  { id: 'bowling',     label: 'Bowling',       emoji: '🎳', active: true  },
-  { id: 'wizard-duel', label: 'Wizard Duel',   emoji: '🧙', active: false },
-  { id: '3pt-contest', label: '3PT Contest',   emoji: '🏀', active: false },
-  { id: 'tennis',      label: 'Tennis',        emoji: '🎾', active: false },
-  { id: 'golf',        label: 'Golf',          emoji: '⛳', active: false },
-  { id: 'piano-master',label: 'Piano Master',  emoji: '🎹', active: false },
+  { id: 'bowling',      label: 'Bowling',      emoji: '🎳', built: true  },
+  { id: 'wizard-duel',  label: 'Wizard Duel',  emoji: '🧙', built: false },
+  { id: '3pt-contest',  label: '3PT Contest',  emoji: '🏀', built: false },
+  { id: 'tennis',       label: 'Tennis',       emoji: '🎾', built: false },
+  { id: 'golf',         label: 'Golf',         emoji: '⛳', built: false },
+  { id: 'piano-master', label: 'Piano Master', emoji: '🎹', built: false },
 ];
 
 export default function GameSelectScreen({ send, onSelect }) {
   function handleSelect(game) {
-    if (!game.active) return;
     send({ type: 'game_selected', game: game.id });
     onSelect(game.id);
   }
@@ -25,13 +23,12 @@ export default function GameSelectScreen({ send, onSelect }) {
         {GAMES.map((game) => (
           <button
             key={game.id}
-            className={`game-card${game.active ? '' : ' disabled'}`}
+            className={`game-card${game.built ? '' : ' coming-soon'}`}
             onClick={() => handleSelect(game)}
-            disabled={!game.active}
           >
             <span className="game-card-emoji">{game.emoji}</span>
             <span className="game-card-label">{game.label}</span>
-            {!game.active && <span className="game-card-soon">Coming Soon</span>}
+            {!game.built && <span className="game-card-soon">Coming Soon</span>}
           </button>
         ))}
       </div>

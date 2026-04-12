@@ -24,28 +24,37 @@ html, body, #root {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  border-right: 1px solid #222;
+  gap: 24px;
+  border-right: 1px solid #1e1e3a;
   padding: 48px;
+  background: radial-gradient(ellipse at 50% 0%, #1a1a40 0%, transparent 70%);
 }
 
 .lobby-left h1 {
   font-size: 3rem;
-  font-weight: 800;
+  font-weight: 900;
+  background: linear-gradient(135deg, #a78bfa, #7c7cff, #60a5fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+  text-align: center;
 }
 
 .lobby-sub {
-  font-size: 1.1rem;
-  opacity: 0.6;
+  font-size: 1.05rem;
+  color: #8888aa;
+  letter-spacing: 0.02em;
 }
 
 .qr-wrap {
   background: #fff;
-  border-radius: 16px;
-  padding: 12px;
+  border-radius: 20px;
+  padding: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 0 0 4px #2a2a50, 0 8px 32px rgba(124, 124, 255, 0.2);
 }
 
 .qr-placeholder {
@@ -54,13 +63,14 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: #555;
   font-size: 0.95rem;
 }
 
 .session-id {
-  font-size: 0.9rem;
-  opacity: 0.5;
+  font-size: 0.85rem;
+  color: #555577;
+  letter-spacing: 0.05em;
 }
 
 .lobby-right {
@@ -72,13 +82,16 @@ html, body, #root {
 }
 
 .lobby-right h2 {
-  font-size: 1.8rem;
-  font-weight: 700;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #ccd;
+  letter-spacing: -0.01em;
 }
 
 .player-count {
-  opacity: 0.5;
-  font-weight: 400;
+  color: #6666aa;
+  font-weight: 500;
+  font-size: 1.1rem;
 }
 
 .player-list {
@@ -86,22 +99,36 @@ html, body, #root {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   overflow-y: auto;
 }
 
 .player-empty {
-  opacity: 0.4;
+  color: #44446a;
   font-style: italic;
   font-size: 1rem;
+  padding: 16px 0;
 }
 
 .player-item {
-  background: #1e1e3a;
+  background: #14142a;
+  border: 1px solid #2a2a4a;
+  border-left: 3px solid #7c7cff;
   border-radius: 10px;
   padding: 14px 20px;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 600;
+  color: #e8e8ff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-item::before {
+  content: '●';
+  color: #7c7cff;
+  font-size: 0.6rem;
+  flex-shrink: 0;
 }
 
 .btn-start {
@@ -110,19 +137,28 @@ html, body, #root {
   font-weight: 700;
   border: none;
   border-radius: 12px;
-  background: #7c7cff;
+  background: linear-gradient(135deg, #7c7cff, #6060ee);
   color: #fff;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+  box-shadow: 0 4px 20px rgba(124, 124, 255, 0.35);
+  letter-spacing: 0.02em;
 }
 
 .btn-start:hover:not(:disabled) {
-  background: #6060ee;
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 28px rgba(124, 124, 255, 0.5);
+}
+
+.btn-start:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-start:disabled {
-  opacity: 0.35;
+  opacity: 0.25;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 /* ── Game layout ─────────────────────────────────────────────── */
@@ -325,6 +361,10 @@ html, body, #root {
 .game-select-title {
   font-size: 2.8rem;
   font-weight: 900;
+  background: linear-gradient(135deg, #a78bfa, #7c7cff, #60a5fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .game-select-grid {
@@ -332,7 +372,7 @@ html, body, #root {
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   width: 100%;
-  max-width: 760px;
+  max-width: 800px;
 }
 
 .game-card {
@@ -342,26 +382,35 @@ html, body, #root {
   justify-content: center;
   gap: 10px;
   padding: 28px 16px;
-  background: #1a1a35;
-  border: 2px solid #2a2a50;
+  background: #14142a;
+  border: 1px solid #2a2a50;
   border-radius: 16px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+  color: #fff;
 }
 
-.game-card:hover:not(:disabled) {
-  background: #22225a;
+.game-card:hover {
+  background: #1c1c40;
   border-color: #7c7cff;
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(124, 124, 255, 0.2);
 }
 
-.game-card:active:not(:disabled) {
-  transform: translateY(0);
+.game-card:active {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 124, 255, 0.15);
 }
 
-.game-card.disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+/* Coming-soon cards are fully visible but subtly marked */
+.game-card.coming-soon {
+  border-style: dashed;
+  border-color: #2a2a45;
+}
+
+.game-card.coming-soon:hover {
+  border-color: #5555aa;
+  box-shadow: 0 8px 24px rgba(80, 80, 160, 0.15);
 }
 
 .game-card-emoji {
@@ -372,16 +421,18 @@ html, body, #root {
 .game-card-label {
   font-size: 1.1rem;
   font-weight: 700;
+  color: #e8e8ff;
 }
 
 .game-card-soon {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.6;
-  background: #333;
-  padding: 2px 8px;
+  letter-spacing: 0.1em;
+  color: #6666aa;
+  background: #1e1e40;
+  border: 1px solid #2a2a55;
+  padding: 3px 10px;
   border-radius: 20px;
 }
 
@@ -437,4 +488,51 @@ html, body, #root {
   background: #7c7cff;
   color: #fff;
   cursor: pointer;
+}
+
+/* ── Coming soon ─────────────────────────────────────────────── */
+
+.coming-soon-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  text-align: center;
+  padding: 48px;
+}
+
+.coming-soon-emoji {
+  font-size: 4rem;
+}
+
+.coming-soon-screen h1 {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #ccd;
+}
+
+.coming-soon-screen p {
+  color: #6666aa;
+  font-size: 1.05rem;
+}
+
+.coming-soon-screen button {
+  margin-top: 8px;
+  padding: 14px 32px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  background: #1e1e40;
+  border: 1px solid #3a3a60;
+  color: #aab;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.coming-soon-screen button:hover {
+  background: #28284a;
+  color: #fff;
 }

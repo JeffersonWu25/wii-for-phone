@@ -80,8 +80,8 @@ export default function App() {
     );
   }
 
-  // Fallback — should never reach here
-  return null;
+  // Unimplemented game selected — show coming-soon placeholder
+  return <ComingSoonScreen onBack={() => setScreen('game-select')} />;
 }
 
 // ── LostConnectionScreen ──────────────────────────────────────────────────────
@@ -92,6 +92,19 @@ function LostConnectionScreen({ onReconnect }) {
       <h1>Lost Connection</h1>
       <p>Could not reach the relay server.</p>
       <button onClick={onReconnect}>Reconnect</button>
+    </div>
+  );
+}
+
+// ── ComingSoonScreen ──────────────────────────────────────────────────────────
+
+function ComingSoonScreen({ onBack }) {
+  return (
+    <div className="coming-soon-screen">
+      <div className="coming-soon-emoji">🚧</div>
+      <h1>Coming Soon</h1>
+      <p>This game is still in development. Check back later!</p>
+      <button onClick={onBack}>← Back to Games</button>
     </div>
   );
 }
