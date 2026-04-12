@@ -495,7 +495,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
 
         if (previewActiveRef.current) {
           const aimAngleRad = targetAimAngleRef.current * (AIM_ANGLE_DEG * Math.PI / 180);
-          aimArrowRef.current.rotation.y = aimAngleRad;
+          aimArrowRef.current.rotation.y = -aimAngleRad;
           aimArrowRef.current.visible = true;
         } else {
           aimArrowRef.current.visible = false;
