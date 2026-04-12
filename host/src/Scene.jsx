@@ -400,10 +400,11 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
           const progress = Math.max(0, Math.min(1, -ball.z / 15));
           const followOffset = THREE.MathUtils.lerp(3.0, 0.5, progress);
           const followX = ball.x * 0.3;
-          const followZ = Math.max(ball.z + followOffset, 0.5);
-          camera.position.x = THREE.MathUtils.lerp(camera.position.x, followX, 0.3);
-          camera.position.y = THREE.MathUtils.lerp(camera.position.y, 0.9, 0.3);
-          camera.position.z = THREE.MathUtils.lerp(camera.position.z, followZ, 0.3);
+          // Cap target Z so the camera glides to a stop ~5m before the pins
+          const followZ = Math.max(ball.z + followOffset, -10);
+          camera.position.x = THREE.MathUtils.lerp(camera.position.x, followX, 0.1);
+          camera.position.y = THREE.MathUtils.lerp(camera.position.y, 0.9, 0.1);
+          camera.position.z = THREE.MathUtils.lerp(camera.position.z, followZ, 0.1);
           camera.lookAt(ball.x * 0.3, 0.3, ball.z - 2);
         }
       }
