@@ -310,6 +310,103 @@ html, body, #root {
   color: #ffe066;
 }
 
+/* ── Game select ─────────────────────────────────────────────── */
+
+.game-select-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 48px;
+}
+
+.game-select-title {
+  font-size: 2.8rem;
+  font-weight: 900;
+}
+
+.game-select-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px;
+  background: #1a1a35;
+  border: 2px solid #2a2a50;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.game-card:hover:not(:disabled) {
+  background: #22225a;
+  border-color: #7c7cff;
+  transform: translateY(-2px);
+}
+
+.game-card:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.game-card.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.game-card-emoji {
+  font-size: 2.8rem;
+  line-height: 1;
+}
+
+.game-card-label {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.game-card-soon {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+  background: #333;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+/* ── Abandon button (in-game back arrow) ─────────────────────── */
+
+.btn-abandon {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.15s;
+}
+
+.btn-abandon:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
 /* ── Lost connection ─────────────────────────────────────────── */
 
 .lost-connection {

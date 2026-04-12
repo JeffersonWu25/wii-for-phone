@@ -11,7 +11,7 @@ const server = http.createServer((_req, res) => {
 
 const wss = new WebSocketServer({ server });
 
-// sessions: { [sessionId]: { hostWs, players: [{ id, ws, name }] } }
+// sessions: { [sessionId]: { hostWs, players: [{ id, ws, name }], currentGame: null | string } }
 const sessions = {};
 
 function generateSessionId() {
@@ -31,7 +31,7 @@ wss.on('connection', (ws, req) => {
 
   if (role === 'host') {
     const id = generateSessionId();
-    sessions[id] = { hostWs: ws, players: [] };
+    sessions[id] = { hostWs: ws, players: [], currentGame: null };
     send(ws, { type: 'session_created', sessionId: id });
     console.log(`[relay] Session created: ${id}`);
 
@@ -39,7 +39,13 @@ wss.on('connection', (ws, req) => {
       const msg = JSON.parse(data);
       const session = sessions[id];
       if (!session) return;
-      // Forward host messages to all phones
+
+      // Store selected game so late-joining / reconnecting phones get it immediately.
+      if (msg.type === 'game_selected') {
+        session.currentGame = msg.game;
+      }
+
+      // Forward all host messages to all phones.
       for (const player of session.players) {
         send(player.ws, msg);
       }
@@ -48,7 +54,6 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => {
       const session = sessions[id];
       if (!session) return;
-      // Notify all phones then clean up
       for (const player of session.players) {
         send(player.ws, { type: 'session_ended' });
       }
@@ -75,13 +80,16 @@ wss.on('connection', (ws, req) => {
       if (!session) return;
 
       if (msg.type === 'join') {
-        // Consumed by relay — register name, confirm to phone, notify host
         player.name = msg.name;
         send(ws, { type: 'joined', playerId });
         send(session.hostWs, { type: 'player_joined', playerId, name: msg.name });
+        // If a game is already running, tell this phone immediately so it loads
+        // the right UI without waiting for another game_selected broadcast.
+        if (session.currentGame) {
+          send(ws, { type: 'game_selected', game: session.currentGame });
+        }
         console.log(`[relay] Player joined: ${msg.name} (${playerId})`);
       } else if (msg.type === 'pos' || msg.type === 'throw' || msg.type === 'aim') {
-        // Forward to host
         send(session.hostWs, { ...msg, playerId });
       }
     });
