@@ -2,6 +2,8 @@
 
 A browser-based multiplayer bowling game. The host runs on a laptop (connected to a TV), and players join as controllers by scanning a QR code on their phones — no app install required.
 
+**The app is hosted!! check it out at [Wildhacks Arcade](https://wii-for-phone-host.vercel.app/)**
+
 ---
 
 ## Local Dev Setup
