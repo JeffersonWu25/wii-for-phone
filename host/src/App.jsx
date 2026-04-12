@@ -119,12 +119,15 @@ export default function App() {
         }
       }, RESET_DELAY_MS);
     } else {
-      // First roll done, second roll coming — store standing count, re-signal same player
+      // First roll done, second roll coming — reset ball, re-signal same player
       pinsStandingBeforeRoll.current = standingCount;
-      throwInFlight.current = false;
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'your_turn', playerId: currentPlayerIdRef.current }));
-      }
+      setTimeout(() => {
+        sceneRef.current?.resetBall();
+        throwInFlight.current = false;
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'your_turn', playerId: currentPlayerIdRef.current }));
+        }
+      }, RESET_DELAY_MS);
     }
   }
 

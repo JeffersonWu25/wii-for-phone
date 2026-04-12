@@ -129,6 +129,13 @@ export class PhysicsWorld {
 
     this.ballBody.setLinvel({ x: vx, y: 0, z: vz }, true);
     this.ballBody.setAngvel({ x: 0, y: spin * MAX_SPIN, z: 0 }, true);
+
+    // Hard deadline: settle after 5 seconds regardless of physics state
+    this._forceSettleTimer = setTimeout(() => {
+      if (this.settled) return;
+      this.settled = true;
+      this.onSettle?.(this.getStandingPinCount());
+    }, 5000);
   }
 
   step() {
@@ -174,6 +181,7 @@ export class PhysicsWorld {
       this.settleCounter++;
       if (this.settleCounter >= SETTLE_FRAMES) {
         this.settled = true;
+        clearTimeout(this._forceSettleTimer);
         const standing = this.getStandingPinCount();
         this.onSettle?.(standing);
       }
@@ -198,7 +206,18 @@ export class PhysicsWorld {
     }).length;
   }
 
+  resetBall() {
+    this.ballBody.setTranslation(BALL_START, true);
+    this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.thrown = false;
+    this.settled = false;
+    this.settleCounter = 0;
+  }
+
   resetPins() {
+    clearTimeout(this._forceSettleTimer);
+
     // Remove existing pin bodies
     this.pinBodies.forEach((body) => this.world.removeRigidBody(body));
     this.pinBodies = [];
@@ -217,6 +236,7 @@ export class PhysicsWorld {
   }
 
   destroy() {
+    clearTimeout(this._forceSettleTimer);
     this.world = null;
     this.ballBody = null;
     this.pinBodies = [];

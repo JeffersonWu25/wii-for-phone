@@ -256,6 +256,15 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       previewActiveRef.current = false;
       physicsRef.current?.applyThrow(power, angle, spin);
     },
+    resetBall() {
+      physicsRef.current?.resetBall();
+      targetBallXRef.current = 0;
+      previewActiveRef.current = true;
+      if (ballMeshRef.current) {
+        ballMeshRef.current.position.copy(BALL_START);
+        ballMeshRef.current.quaternion.set(0, 0, 0, 1);
+      }
+    },
     resetPins() {
       physicsRef.current?.resetPins();
       targetBallXRef.current = 0;
