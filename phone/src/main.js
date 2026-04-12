@@ -94,13 +94,11 @@ function showBowlScreen() {
           <button id="btn-left"  class="btn-dpad">◀</button>
           <div class="dpad-tracks">
             <div class="dpad-track-wrap" id="track-move-wrap">
-              <span class="track-label">Position</span>
               <div class="dpad-track">
                 <div class="dpad-dot" id="dot-move"></div>
               </div>
             </div>
             <div class="dpad-track-wrap inactive" id="track-aim-wrap">
-              <span class="track-label">Aim</span>
               <div class="dpad-track">
                 <div class="dpad-dot" id="dot-aim"></div>
               </div>

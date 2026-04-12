@@ -80,6 +80,7 @@ button:active {
   font-weight: 800;
   background: #e63946;
   user-select: none;
+  -webkit-user-select: none;
   touch-action: none;
 }
 
@@ -168,22 +169,10 @@ button:active {
 .dpad-track-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
 .dpad-track-wrap.inactive {
   opacity: 0.35;
-}
-
-.track-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #aaa;
-  width: 44px;
-  flex-shrink: 0;
-  text-align: right;
 }
 
 .dpad-track {
