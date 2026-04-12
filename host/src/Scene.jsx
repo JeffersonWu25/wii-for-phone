@@ -12,6 +12,8 @@ const PIN_START_Z = -15.0;
 const PIN_SPACING = 0.305;
 const BALL_START = new THREE.Vector3(0, BALL_RADIUS, 0);
 
+const LANE_SPACING = 1.8;  // center-to-center distance between adjacent lanes
+
 const PREVIEW_MAX_X = 0.3; // ±0.3m lateral range for aim preview
 const LERP_FACTOR = 0.15;  // per frame — smooth but responsive
 
@@ -64,18 +66,6 @@ function makeLane(geometries, materials) {
     group.add(gutter);
   });
 
-  // Bumper rails — just outside the outer rim of each gutter
-  const gutterOuterEdge = LANE_WIDTH / 2 + GUTTER_RADIUS * 2;
-  const bumperGeo = new THREE.BoxGeometry(0.04, 0.2, LANE_LENGTH);
-  const bumperMat = new THREE.MeshStandardMaterial({ color: '#cc3333', roughness: 0.4, metalness: 0.2 });
-  geometries.push(bumperGeo); materials.push(bumperMat);
-  [-1, 1].forEach((side) => {
-    const bumper = new THREE.Mesh(bumperGeo, bumperMat);
-    bumper.position.set(side * gutterOuterEdge, 0.1, -LANE_LENGTH / 2 + 2);
-    bumper.castShadow = true;
-    bumper.receiveShadow = true;
-    group.add(bumper);
-  });
 
   const foulGeo = new THREE.BoxGeometry(LANE_WIDTH, 0.005, 0.03);
   const foulMat = new THREE.MeshStandardMaterial({ color: '#ffffff' });
@@ -120,6 +110,126 @@ function makePinMeshes(geometries, materials) {
     pin.receiveShadow = true;
     return pin;
   });
+}
+
+// ── Bowling-center environment ────────────────────────────────────────────────
+function makeEnvironment(geometries, materials) {
+  const group = new THREE.Group();
+  const laneZ = -LANE_LENGTH / 2 + 2;   // same centre-Z as the main lane box
+  const farZ  = laneZ - LANE_LENGTH / 2; // = -16.3 m (pin-deck end)
+
+  // Carpet floor — sits below the gutter bottoms (Y < -GUTTER_RADIUS)
+  const carpetGeo = new THREE.PlaneGeometry(50, LANE_LENGTH + 14);
+  const carpetMat = new THREE.MeshStandardMaterial({ color: '#1c1830', roughness: 1.0 });
+  geometries.push(carpetGeo); materials.push(carpetMat);
+  const carpet = new THREE.Mesh(carpetGeo, carpetMat);
+  carpet.rotation.x = -Math.PI / 2;
+  carpet.position.set(0, -(GUTTER_RADIUS + 0.07), laneZ); // well below gutter bottoms
+  carpet.receiveShadow = true;
+  group.add(carpet);
+
+  // Wooden approach platform — spans all lanes at lane-surface level.
+  // Starts at the foul line (Z=0) and extends behind the camera, connecting
+  // the near ends of every lane into one continuous wooden surface.
+  const platformW = LANE_SPACING * 6 + LANE_WIDTH + GUTTER_RADIUS * 4 + 2; // covers all 7 lanes
+  const platformGeo = new THREE.BoxGeometry(platformW, 0.05, 10);
+  const platformMat = new THREE.MeshStandardMaterial({ color: '#c8a96e', roughness: 0.65, metalness: 0.1 });
+  geometries.push(platformGeo); materials.push(platformMat);
+  const platform = new THREE.Mesh(platformGeo, platformMat);
+  platform.position.set(0, -0.025, 5); // Z 0→10, top surface flush with lane top (Y=0)
+  platform.receiveShadow = true;
+  group.add(platform);
+
+  // Ceiling
+  const ceilGeo = new THREE.PlaneGeometry(50, LANE_LENGTH + 14);
+  const ceilMat = new THREE.MeshStandardMaterial({ color: '#d8d4cc', roughness: 1.0 });
+  geometries.push(ceilGeo); materials.push(ceilMat);
+  const ceil = new THREE.Mesh(ceilGeo, ceilMat);
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.set(0, 4.5, laneZ);
+  group.add(ceil);
+
+  // Back wall at the pin-deck end
+  const backWallGeo = new THREE.PlaneGeometry(50, 6);
+  const backWallMat = new THREE.MeshStandardMaterial({ color: '#b8a88a', roughness: 0.8 });
+  geometries.push(backWallGeo); materials.push(backWallMat);
+  const backWall = new THREE.Mesh(backWallGeo, backWallMat);
+  backWall.position.set(0, 3.0, farZ - 0.5);
+  group.add(backWall);
+
+  // Shared geometry for all background lanes and their decorations
+  const bgLaneGeo   = new THREE.BoxGeometry(LANE_WIDTH, 0.05, LANE_LENGTH);
+  const bgLaneMat   = new THREE.MeshStandardMaterial({ color: '#c8a96e', roughness: 0.6, metalness: 0.1 });
+  const bgGutterGeo = new THREE.BoxGeometry(GUTTER_RADIUS * 2, 0.03, LANE_LENGTH);
+  const bgGutterMat = new THREE.MeshStandardMaterial({ color: '#5a3c10', roughness: 0.9 });
+  const bgPinGeo    = new THREE.CylinderGeometry(0.045, 0.045, 0.32, 8);
+  const bgPinMat    = new THREE.MeshStandardMaterial({ color: '#f8f8f8', roughness: 0.3 });
+  const brGeo       = new THREE.BoxGeometry(0.45, 0.55, 1.8);
+  const brMat       = new THREE.MeshStandardMaterial({ color: '#2e3e50', roughness: 0.5, metalness: 0.3 });
+  // Emissive light panel above each lane (main lane gets one too, added below)
+  const lightGeo    = new THREE.BoxGeometry(LANE_WIDTH * 0.85, 0.04, LANE_LENGTH * 0.65);
+  const lightMat    = new THREE.MeshStandardMaterial({
+    color: '#fffce8', emissive: '#fffce8', emissiveIntensity: 1.2,
+  });
+  geometries.push(bgLaneGeo, bgGutterGeo, bgPinGeo, brGeo, lightGeo);
+  materials.push(bgLaneMat, bgGutterMat, bgPinMat, brMat, lightMat);
+
+  // Front-six pin positions used on every background lane
+  const bgPinOffsets = [
+    [0, 0], [-0.152, -0.264], [0.152, -0.264],
+    [-0.305, -0.528], [0, -0.528], [0.305, -0.528],
+  ];
+
+  for (let i = 1; i <= 3; i++) {
+    [-1, 1].forEach((side) => {
+      const lx = side * i * LANE_SPACING;
+
+      // Lane surface
+      const lane = new THREE.Mesh(bgLaneGeo, bgLaneMat);
+      lane.position.set(lx, -0.025, laneZ);
+      lane.receiveShadow = true;
+      group.add(lane);
+
+      // Flat gutter strips (simpler than halfpipe for bg lanes)
+      [-1, 1].forEach((gs) => {
+        const gutter = new THREE.Mesh(bgGutterGeo, bgGutterMat);
+        gutter.position.set(lx + gs * (LANE_WIDTH / 2 + GUTTER_RADIUS), -0.036, laneZ);
+        gutter.receiveShadow = true;
+        group.add(gutter);
+      });
+
+      // Simplified pin cluster
+      bgPinOffsets.forEach(([dx, dz]) => {
+        const pin = new THREE.Mesh(bgPinGeo, bgPinMat);
+        pin.position.set(lx + dx, 0.16, PIN_START_Z + dz);
+        group.add(pin);
+      });
+
+      // Overhead light strip
+      const strip = new THREE.Mesh(lightGeo, lightMat);
+      strip.position.set(lx, 4.46, laneZ);
+      group.add(strip);
+
+      // Ball-return unit between this lane and the next one toward centre
+      const br = new THREE.Mesh(brGeo, brMat);
+      br.position.set(side * (i - 0.5) * LANE_SPACING, 0.275, laneZ + LANE_LENGTH / 2 + 2);
+      group.add(br);
+    });
+  }
+
+  // Overhead light strip for the main (playable) lane
+  const mainStrip = new THREE.Mesh(lightGeo, lightMat);
+  mainStrip.position.set(0, 4.46, laneZ);
+  group.add(mainStrip);
+
+  // Ball-return unit between main lane and lane ±1 on each side
+  [-1, 1].forEach((side) => {
+    const br = new THREE.Mesh(brGeo, brMat);
+    br.position.set(side * LANE_SPACING / 2, 0.275, laneZ + LANE_LENGTH / 2 + 2);
+    group.add(br);
+  });
+
+  return group;
 }
 
 // ── Scene component ───────────────────────────────────────────────────────────
@@ -184,7 +294,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
 
     // Scene + camera
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#1a1a2e');
+    scene.background = new THREE.Color('#d8d4cc'); // matches ceiling colour
 
     const camera = new THREE.PerspectiveCamera(60, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.position.set(0, 2.0, 5);
@@ -205,6 +315,9 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
     dirLight.shadow.camera.near = 0.1;
     dirLight.shadow.camera.far = 30;
     scene.add(dirLight);
+
+    // Environment (background lanes, ceiling, floor, walls)
+    scene.add(makeEnvironment(geometries, materials));
 
     // Lane (static geometry)
     scene.add(makeLane(geometries, materials));
