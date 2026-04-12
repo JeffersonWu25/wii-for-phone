@@ -33,6 +33,36 @@ function getPinPositions() {
   return positions;
 }
 
+// ── Bowling pin lathe profile ─────────────────────────────────────────────────
+// Creates a surface-of-revolution centred at y=0 (body spans -halfH to +halfH).
+// Profile matches standard regulation pin proportions.
+function makePinGeometry(halfH = 0.19, radialSegments = 16) {
+  const s = halfH / 0.19; // scale factor relative to reference half-height
+  const pts = [
+    // bottom to top — [radius, y]
+    [0.000, -0.190], // centre of flat base
+    [0.045, -0.190], // base outer edge (45mm)
+    [0.049, -0.178], // convex curve — widens going up
+    [0.053, -0.158],
+    [0.056, -0.130],
+    [0.057, -0.100],
+    [0.057, -0.070], // belly max
+    [0.053, -0.022],
+    [0.038,  0.018], // tapering to neck
+    [0.024,  0.040],
+    [0.022,  0.055], // neck minimum
+    [0.026,  0.070],
+    [0.038,  0.092], // head widens
+    [0.041,  0.112], // head maximum
+    [0.035,  0.142],
+    [0.022,  0.170],
+    [0.008,  0.186],
+    [0.000,  0.190], // rounded tip
+  ].map(([x, y]) => new THREE.Vector2(x * s, y * s));
+
+  return new THREE.LatheGeometry(pts, radialSegments);
+}
+
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 function makeLane(geometries, materials) {
   const group = new THREE.Group();
@@ -101,12 +131,13 @@ function makeBall(geometries, materials) {
 }
 
 function makePinMeshes(geometries, materials) {
-  const pinGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.38, 16);
+  const pinGeo = makePinGeometry(0.19, 16);
   const pinMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.3, metalness: 0.1 });
   geometries.push(pinGeo); materials.push(pinMat);
 
   return getPinPositions().map((pos) => {
     const pin = new THREE.Mesh(pinGeo, pinMat);
+    // Physics body origin is at the pin centre (y=0.19), geometry is centred at y=0
     pin.position.set(pos.x, 0.19, pos.z);
     pin.castShadow = true;
     pin.receiveShadow = true;
@@ -241,7 +272,7 @@ function makeEnvironment(geometries, materials) {
   const bgLaneMat   = new THREE.MeshStandardMaterial({ color: '#c8a96e', roughness: 0.6, metalness: 0.1 });
   const bgGutterGeo = new THREE.BoxGeometry(GUTTER_RADIUS * 2, 0.03, LANE_LENGTH);
   const bgGutterMat = new THREE.MeshStandardMaterial({ color: '#5a3c10', roughness: 0.9 });
-  const bgPinGeo    = new THREE.CylinderGeometry(0.045, 0.045, 0.32, 8);
+  const bgPinGeo    = makePinGeometry(0.19, 10);
   const bgPinMat    = new THREE.MeshStandardMaterial({ color: '#f8f8f8', roughness: 0.3 });
   const brGeo       = new THREE.BoxGeometry(0.45, 0.55, 1.8);
   const brMat       = new THREE.MeshStandardMaterial({ color: '#2e3e50', roughness: 0.5, metalness: 0.3 });
@@ -275,7 +306,7 @@ function makeEnvironment(geometries, materials) {
 
       bgPinOffsets.forEach(([dx, dz]) => {
         const pin = new THREE.Mesh(bgPinGeo, bgPinMat);
-        pin.position.set(lx + dx, 0.16, PIN_START_Z + dz);
+        pin.position.set(lx + dx, 0.19, PIN_START_Z + dz);
         group.add(pin);
       });
 
