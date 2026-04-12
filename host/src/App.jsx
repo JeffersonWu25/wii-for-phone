@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import Scene from './Scene.jsx';
 
-const RELAY_URL = `wss://${import.meta.env.VITE_LOCAL_IP}:8080`;
-const PHONE_BASE = `https://${import.meta.env.VITE_LOCAL_IP}:5174`;
+const RELAY_URL = import.meta.env.VITE_RELAY_URL;
+const PHONE_BASE = import.meta.env.VITE_PHONE_URL;
 
 export default function App() {
   const [sessionId, setSessionId] = useState(null);

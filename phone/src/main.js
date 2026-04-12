@@ -1,6 +1,6 @@
 import './style.css';
 
-const RELAY_URL = `wss://${import.meta.env.VITE_LOCAL_IP}:8080`;
+const RELAY_URL = import.meta.env.VITE_RELAY_URL;
 const SESSION_ID = new URLSearchParams(window.location.search).get('session');
 const STREAM_HZ = 20;
 const MIN_HOLD_MS = 150;

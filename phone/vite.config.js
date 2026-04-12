@@ -2,14 +2,21 @@ import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
 
+const certDir = path.resolve(__dirname, '../certs');
+const certKey = path.join(certDir, 'localhost-key.pem');
+const certFile = path.join(certDir, 'localhost.pem');
+const hasLocalCert = fs.existsSync(certKey) && fs.existsSync(certFile);
+
 export default defineConfig({
   envDir: '../',
   server: {
     host: '0.0.0.0',
     port: 5174,
-    https: {
-      key: fs.readFileSync(path.resolve(__dirname, '../certs/10.105.169.219-key.pem')),
-      cert: fs.readFileSync(path.resolve(__dirname, '../certs/10.105.169.219.pem')),
-    },
+    ...(hasLocalCert && {
+      https: {
+        key: fs.readFileSync(certKey),
+        cert: fs.readFileSync(certFile),
+      },
+    }),
   },
 });

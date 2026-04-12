@@ -1,18 +1,12 @@
-import 'dotenv/config';
-import https from 'https';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import http from 'http';
 import { WebSocketServer } from 'ws';
 import crypto from 'crypto';
 
-const PORT = 8080;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CERT_DIR = path.resolve(__dirname, '../certs');
+const PORT = process.env.PORT || 8080;
 
-const server = https.createServer({
-  key: fs.readFileSync(`${CERT_DIR}/10.105.169.219-key.pem`),
-  cert: fs.readFileSync(`${CERT_DIR}/10.105.169.219.pem`),
+const server = http.createServer((_req, res) => {
+  res.writeHead(200);
+  res.end('ok');
 });
 
 const wss = new WebSocketServer({ server });
@@ -31,7 +25,7 @@ function send(ws, obj) {
 }
 
 wss.on('connection', (ws, req) => {
-  const url = new URL(req.url, `https://${req.headers.host}`);
+  const url = new URL(req.url, `http://${req.headers.host}`);
   const role = url.searchParams.get('role');
   const sessionId = url.searchParams.get('session');
 
@@ -105,5 +99,5 @@ wss.on('connection', (ws, req) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[relay] Listening on wss://10.105.169.219:${PORT}`);
+  console.log(`[relay] Listening on port ${PORT}`);
 });
