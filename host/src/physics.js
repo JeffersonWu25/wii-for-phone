@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { getPinPositions, BALL_START, BALL_RADIUS, GUTTER_RADIUS } from './Scene.jsx';
+import { getPinPositions, BALL_START, BALL_RADIUS, GUTTER_RADIUS, AIM_MAX_X } from './Scene.jsx';
 
 const SETTLE_FRAMES = 20;
 const SETTLE_LIN_THRESHOLD = 0.1;  // m/s
@@ -10,10 +10,15 @@ const LANE_HALF_WIDTH = 0.525;
 const LANE_HALF_LENGTH = 9.15;
 
 // Normalize throw values to physics units
-const MIN_SPEED = 3;
-const MAX_SPEED = 12;
-const MAX_ANGLE_DEG = 15;
+const MIN_SPEED = 6;    // raised from 3 — prevents slow lateral drift into gutter
+const MAX_SPEED = 14;
+const MAX_ANGLE_DEG = 3; // reduced from 15 — throw is fine-tune only, not primary aim
 const MAX_SPIN = 10; // rad/s
+const MAX_START_X = 0.45; // clamp on combined aimOffset starting position
+
+// Magnus effect coefficient — spin curves the ball during roll.
+// Too high = violent hook; too low = invisible. Start at 0.005 and tune.
+const MAGNUS_COEFFICIENT = 0.005;
 
 export class PhysicsWorld {
   constructor() {
@@ -92,6 +97,7 @@ export class PhysicsWorld {
       .setAngularDamping(0.5);
     this.ballBody = this.world.createRigidBody(bodyDesc);
     const colliderDesc = RAPIER.ColliderDesc.ball(BALL_RADIUS)
+      .setDensity(1000)  // ~5.6 kg — realistic bowling ball; default 1.0 kg/m³ gives 5g (ping-pong ball)
       .setRestitution(0.3)
       .setFriction(0.8);
     this.world.createCollider(colliderDesc, this.ballBody);
@@ -114,11 +120,17 @@ export class PhysicsWorld {
     });
   }
 
-  applyThrow(power, angle, spin) {
+  applyThrow(power, angle, spin, aimOffset = 0) {
     if (this.thrown) return;
     this.thrown = true;
     this.settled = false;
     this.settleCounter = 0;
+
+    // Set starting X from aimOffset, clamped to stay within lane
+    const startX = Math.max(-MAX_START_X, Math.min(MAX_START_X, aimOffset * AIM_MAX_X));
+    this.ballBody.setTranslation({ x: startX, y: BALL_START.y, z: BALL_START.z }, true);
+    this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
     const speed = MIN_SPEED + power * (MAX_SPEED - MIN_SPEED);
     const angleRad = angle * (MAX_ANGLE_DEG * Math.PI / 180);
@@ -144,8 +156,20 @@ export class PhysicsWorld {
     this._syncMeshes();
 
     if (this.thrown && !this.settled) {
+      this._applyMagnusForce();
       this._checkSettle();
     }
+  }
+
+  // Simulate a hook/curve by applying a lateral impulse proportional to
+  // spin (angvel.y) and current forward speed. MAGNUS_COEFFICIENT controls
+  // how aggressively the ball curves — tune this constant as needed.
+  _applyMagnusForce() {
+    if (!this.ballBody) return;
+    const vel = this.ballBody.linvel();
+    const angvel = this.ballBody.angvel();
+    const lateralForce = angvel.y * Math.abs(vel.z) * MAGNUS_COEFFICIENT;
+    this.ballBody.applyImpulse({ x: lateralForce, y: 0, z: 0 }, true);
   }
 
   _syncMeshes() {

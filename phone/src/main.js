@@ -4,9 +4,9 @@ const RELAY_URL = import.meta.env.VITE_RELAY_URL;
 const SESSION_ID = new URLSearchParams(window.location.search).get('session');
 const STREAM_HZ = 20;
 const MIN_HOLD_MS = 150;
-const MAX_ACCEL = 30;    // m/s² — clamp for power normalization
-const MAX_YAW = 180;     // deg/s — clamp for angle normalization
-const MAX_ROLL = 360;    // deg/s — clamp for spin normalization
+const MAX_ROLL = 360;  // deg/s — clamp for spin normalization
+const MAX_ACCEL = 30;  // m/s² — clamp for power normalization
+const AIM_STEP = 0.25; // each arrow tap moves aim by this much (-1 to 1 range)
 
 // --- State ---
 let ws = null;
@@ -16,6 +16,7 @@ let streamInterval = null;
 let holdStart = null;
 let wakeLock = null;
 let lastRotation = { alpha: 0, beta: 0, gamma: 0 };
+let aimOffset = 0; // -1 (far left) to 1 (far right), set by aim arrows before throw
 
 // --- App container ---
 const app = document.getElementById('app');
@@ -74,13 +75,29 @@ function updateWaitingLabel(label) {
 }
 
 function showBowlScreen() {
+  // Reset aim to center each new turn
+  aimOffset = 0;
+
   render(`
     <div class="screen" id="screen-bowl">
-      <p id="bowl-prompt">Hold the button and swing!</p>
+      <div class="aim-controls">
+        <button id="btn-aim-left" class="btn-aim">◀</button>
+        <div class="aim-track">
+          <div class="aim-dot" id="aim-dot"></div>
+        </div>
+        <button id="btn-aim-right" class="btn-aim">▶</button>
+      </div>
+      <p id="bowl-prompt">Aim, then hold and swing!</p>
       <button id="btn-bowl">BOWL</button>
       <p id="bowl-hint"></p>
     </div>
   `);
+
+  updateAimDot();
+
+  document.getElementById('btn-aim-left').addEventListener('click', () => adjustAim(-AIM_STEP));
+  document.getElementById('btn-aim-right').addEventListener('click', () => adjustAim(AIM_STEP));
+
   const btn = document.getElementById('btn-bowl');
   btn.addEventListener('touchstart', onHoldStart, { passive: true });
   btn.addEventListener('touchend', onHoldEnd, { passive: true });
@@ -107,6 +124,21 @@ function showSessionEndedScreen() {
       <p>Host disconnected.</p>
     </div>
   `);
+}
+
+// --- Aim controls ---
+
+function adjustAim(delta) {
+  aimOffset = Math.max(-1, Math.min(1, aimOffset + delta));
+  updateAimDot();
+  sendMsg({ type: 'aim', aimOffset });
+}
+
+function updateAimDot() {
+  const dot = document.getElementById('aim-dot');
+  if (!dot) return;
+  // Map aimOffset (-1 to 1) → left position (5% to 95% within track)
+  dot.style.left = `${((aimOffset + 1) / 2) * 90 + 5}%`;
 }
 
 // --- Permission ---
@@ -136,7 +168,7 @@ function startMotionListener() {
     if (!accelerationIncludingGravity || !rotationRate) return;
 
     lastRotation = {
-      alpha: rotationRate.alpha ?? 0, // yaw (deg/s) — assumes portrait orientation
+      alpha: rotationRate.alpha ?? 0, // yaw (deg/s)
       beta: rotationRate.beta ?? 0,   // pitch (deg/s)
       gamma: rotationRate.gamma ?? 0, // roll (deg/s)
     };
@@ -224,16 +256,22 @@ function onHoldStart() {
   holdStart = Date.now();
   motionBuffer = [];
 
-  // Request wake lock only while actively bowling
+  // Disable aim arrows while swinging
+  const btnLeft = document.getElementById('btn-aim-left');
+  const btnRight = document.getElementById('btn-aim-right');
+  if (btnLeft) btnLeft.disabled = true;
+  if (btnRight) btnRight.disabled = true;
+
   acquireWakeLock();
 
-  // 20hz position stream
+  // 20hz position stream — includes current aimOffset so TV preview tracks it
   streamInterval = setInterval(() => {
     sendMsg({
       type: 'pos',
       yaw: lastRotation.alpha,
       pitch: lastRotation.beta,
       roll: lastRotation.gamma,
+      aimOffset,
     });
   }, 1000 / STREAM_HZ);
 }
@@ -244,6 +282,12 @@ function onHoldEnd() {
   clearInterval(streamInterval);
   streamInterval = null;
   releaseWakeLock();
+
+  // Re-enable aim arrows
+  const btnLeft = document.getElementById('btn-aim-left');
+  const btnRight = document.getElementById('btn-aim-right');
+  if (btnLeft) btnLeft.disabled = false;
+  if (btnRight) btnRight.disabled = false;
 
   if (holdDuration < MIN_HOLD_MS) {
     const hint = document.getElementById('bowl-hint');
@@ -257,7 +301,7 @@ function onHoldEnd() {
   motionBuffer = [];
   holdStart = null;
 
-  sendMsg({ type: 'throw', ...throwData });
+  sendMsg({ type: 'throw', ...throwData, aimOffset });
 
   // Haptics on Android (fails silently on iOS)
   if (navigator.vibrate) navigator.vibrate(100);
@@ -280,21 +324,17 @@ function extractThrow(buffer) {
 
   // Find peak acceleration magnitude
   let peakMag = 0;
-  let peakIndex = 0;
   for (let i = 0; i < buffer.length; i++) {
     const { ax, ay, az } = buffer[i];
     const mag = Math.sqrt(ax * ax + ay * ay + az * az);
-    if (mag > peakMag) {
-      peakMag = mag;
-      peakIndex = i;
-    }
+    if (mag > peakMag) peakMag = mag;
   }
 
   const power = clamp(peakMag / MAX_ACCEL, 0, 1);
 
-  // Angle = yaw rate at moment of peak acceleration
-  // NOTE: assumes phone held vertically in portrait orientation
-  const angle = normalize(buffer[peakIndex].alpha, MAX_YAW);
+  // Direction is controlled entirely by aimOffset (the aim arrows).
+  // Throw motion only contributes power and spin — not angle.
+  const angle = 0;
 
   // Spin = roll rate delta from start to end of swing
   const rollStart = buffer[0].gamma;

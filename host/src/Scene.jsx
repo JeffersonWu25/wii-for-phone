@@ -14,8 +14,10 @@ const BALL_START = new THREE.Vector3(0, BALL_RADIUS, 0);
 
 const LANE_SPACING = 1.8;  // center-to-center distance between adjacent lanes
 
-const PREVIEW_MAX_X = 0.3; // ±0.3m lateral range for aim preview
-const LERP_FACTOR = 0.15;  // per frame — smooth but responsive
+const AIM_MAX_X = 0.4;        // ±0.4m lateral range from pre-aim offset
+const THROW_FINE_X = 0.08;    // small additional fine-tune from throw angle
+const PREVIEW_CLAMP = 0.45;   // combined clamp — must match physics MAX_START_X
+const LERP_FACTOR = 0.15;     // per frame — smooth but responsive
 
 function getPinPositions() {
   const positions = [];
@@ -248,13 +250,14 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
   });
 
   useImperativeHandle(ref, () => ({
-    previewBall(angle) {
-      // angle is -1 to 1; mapped to ±PREVIEW_MAX_X meters
-      targetBallXRef.current = angle * PREVIEW_MAX_X;
+    previewBall(angle, aimOffset = 0) {
+      // aimOffset (-1–1) coarse lane position; angle (-1–1) small fine-tune during swing
+      const combined = aimOffset * AIM_MAX_X + angle * THROW_FINE_X;
+      targetBallXRef.current = Math.max(-PREVIEW_CLAMP, Math.min(PREVIEW_CLAMP, combined));
     },
-    throwBall(power, angle, spin) {
+    throwBall(power, angle, spin, aimOffset = 0) {
       previewActiveRef.current = false;
-      physicsRef.current?.applyThrow(power, angle, spin);
+      physicsRef.current?.applyThrow(power, angle, spin, aimOffset);
     },
     resetBall() {
       physicsRef.current?.resetBall();
@@ -392,4 +395,4 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
 });
 
 export default Scene;
-export { BALL_START, PIN_START_Z, PIN_SPACING, BALL_RADIUS, GUTTER_RADIUS, LANE_LENGTH, getPinPositions };
+export { BALL_START, PIN_START_Z, PIN_SPACING, BALL_RADIUS, GUTTER_RADIUS, LANE_LENGTH, AIM_MAX_X, getPinPositions };

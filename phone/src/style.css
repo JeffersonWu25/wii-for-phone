@@ -93,3 +93,52 @@ button:active {
   color: #ffb703;
   min-height: 1.2em;
 }
+
+/* ── Aim controls ────────────────────────────────────────────────────────────── */
+
+.aim-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.btn-aim {
+  width: 52px;
+  height: 52px;
+  min-width: unset;
+  max-width: unset;
+  padding: 0;
+  font-size: 1.3rem;
+  border-radius: 50%;
+  background: #3a3a5e;
+  flex-shrink: 0;
+}
+
+.btn-aim:active {
+  background: #5a5aee;
+}
+
+.btn-aim:disabled {
+  opacity: 0.3;
+}
+
+.aim-track {
+  flex: 1;
+  height: 12px;
+  background: #2a2a4e;
+  border-radius: 6px;
+  position: relative;
+}
+
+.aim-dot {
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #7c7cff;
+  transform: translate(-50%, -50%);
+  transition: left 0.1s ease;
+}
