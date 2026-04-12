@@ -192,7 +192,8 @@ export default function App() {
 
   useEffect(() => {
     if (!sessionId || !canvasRef.current) return;
-    const url = `${PHONE_BASE}?session=${sessionId}`;
+    const base = PHONE_BASE?.startsWith('http') ? PHONE_BASE : `https://${PHONE_BASE}`;
+    const url = `${base}?session=${sessionId}`;
     QRCode.toCanvas(canvasRef.current, url, { width: 260, margin: 2 });
   }, [sessionId]);
 
