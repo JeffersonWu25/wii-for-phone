@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { getPinPositions, BALL_START, BALL_RADIUS } from './Scene.jsx';
+import { getPinPositions, BALL_START, BALL_RADIUS, GUTTER_RADIUS } from './Scene.jsx';
 
 const SETTLE_FRAMES = 20;
 const SETTLE_LIN_THRESHOLD = 0.1;  // m/s
@@ -32,19 +32,57 @@ export class PhysicsWorld {
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
 
     this._createFloor();
+    this._createGutterFloors();
+    this._createGutterWalls();
     this._createBall();
     this._createPins();
   }
 
   _createFloor() {
+    // Covers the lane only — gutters have their own lower floor
     const bodyDesc = RAPIER.RigidBodyDesc.fixed();
     const body = this.world.createRigidBody(bodyDesc);
     const colliderDesc = RAPIER.ColliderDesc.cuboid(
-      LANE_HALF_WIDTH + 0.2,
+      LANE_HALF_WIDTH,
       0.025,
       LANE_HALF_LENGTH
     ).setTranslation(0, -0.025, -LANE_HALF_LENGTH + 2);
     this.world.createCollider(colliderDesc, body);
+  }
+
+  _createGutterFloors() {
+    // Flat floor at the bottom of each halfpipe trough.
+    // Top surface at Y = -GUTTER_RADIUS so the ball sits inside the curve.
+    const floorHalfThickness = 0.025;
+    const gutterFloorY = -(GUTTER_RADIUS + floorHalfThickness);
+    [-1, 1].forEach((side) => {
+      const bodyDesc = RAPIER.RigidBodyDesc.fixed();
+      const body = this.world.createRigidBody(bodyDesc);
+      const colliderDesc = RAPIER.ColliderDesc.cuboid(
+        GUTTER_RADIUS,
+        floorHalfThickness,
+        LANE_HALF_LENGTH
+      ).setTranslation(side * (LANE_HALF_WIDTH + GUTTER_RADIUS), gutterFloorY, -LANE_HALF_LENGTH + 2);
+      this.world.createCollider(colliderDesc, body);
+    });
+  }
+
+  _createGutterWalls() {
+    // Outer bumper walls just beyond the halfpipe outer rim
+    const wallHalfHeight = 0.2;
+    const wallHalfThickness = 0.02;
+    const gutterOuterEdge = LANE_HALF_WIDTH + GUTTER_RADIUS * 2 + wallHalfThickness;
+
+    [-1, 1].forEach((side) => {
+      const bodyDesc = RAPIER.RigidBodyDesc.fixed();
+      const body = this.world.createRigidBody(bodyDesc);
+      const colliderDesc = RAPIER.ColliderDesc.cuboid(
+        wallHalfThickness,
+        wallHalfHeight,
+        LANE_HALF_LENGTH
+      ).setTranslation(side * gutterOuterEdge, wallHalfHeight - GUTTER_RADIUS, -LANE_HALF_LENGTH + 2);
+      this.world.createCollider(colliderDesc, body);
+    });
   }
 
   _createBall() {

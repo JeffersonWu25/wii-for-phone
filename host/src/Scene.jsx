@@ -5,8 +5,7 @@ import { PhysicsWorld } from './physics.js';
 // ── Lane constants (meters) ───────────────────────────────────────────────────
 const LANE_LENGTH = 18.3;
 const LANE_WIDTH = 1.05;
-const GUTTER_WIDTH = 0.1;
-const GUTTER_DEPTH = 0.04;
+const GUTTER_RADIUS = 0.13; // halfpipe radius — must be > BALL_RADIUS so ball fits
 const BALL_RADIUS = 0.11;
 
 const PIN_START_Z = -15.0;
@@ -41,14 +40,41 @@ function makeLane(geometries, materials) {
   lane.receiveShadow = true;
   group.add(lane);
 
-  const gutterGeo = new THREE.BoxGeometry(GUTTER_WIDTH, GUTTER_DEPTH, LANE_LENGTH);
-  const gutterMat = new THREE.MeshStandardMaterial({ color: '#8B6914', roughness: 0.8 });
+  // Halfpipe gutter — bottom half of a cylinder (U-shape opening upward).
+  // After rotateX(π/2) the cylinder lies along Z. With thetaStart=3π/2, thetaLength=π
+  // the surface runs from the left rim (−r,0) through the bottom (0,−r) to the right rim (r,0).
+  // Rims sit flush with the lane surface (Y=0); the trough bottom is at Y=−GUTTER_RADIUS.
+  const gutterGeo = new THREE.CylinderGeometry(
+    GUTTER_RADIUS, GUTTER_RADIUS,
+    LANE_LENGTH,
+    24, 1,
+    true,                          // open-ended — no caps
+    Math.PI * 1.5, Math.PI,        // bottom half: left-rim → trough → right-rim
+  );
+  gutterGeo.rotateX(Math.PI / 2);  // lay cylinder along Z (lane direction)
+  const gutterMat = new THREE.MeshStandardMaterial({
+    color: '#8B6914', roughness: 0.8, side: THREE.DoubleSide,
+  });
   geometries.push(gutterGeo); materials.push(gutterMat);
   [-1, 1].forEach((side) => {
     const gutter = new THREE.Mesh(gutterGeo, gutterMat);
-    gutter.position.set(side * (LANE_WIDTH / 2 + GUTTER_WIDTH / 2), -0.045, -LANE_LENGTH / 2 + 2);
+    // Center the cylinder axis so its rims land exactly at the lane edge
+    gutter.position.set(side * (LANE_WIDTH / 2 + GUTTER_RADIUS), 0, -LANE_LENGTH / 2 + 2);
     gutter.receiveShadow = true;
     group.add(gutter);
+  });
+
+  // Bumper rails — just outside the outer rim of each gutter
+  const gutterOuterEdge = LANE_WIDTH / 2 + GUTTER_RADIUS * 2;
+  const bumperGeo = new THREE.BoxGeometry(0.04, 0.2, LANE_LENGTH);
+  const bumperMat = new THREE.MeshStandardMaterial({ color: '#cc3333', roughness: 0.4, metalness: 0.2 });
+  geometries.push(bumperGeo); materials.push(bumperMat);
+  [-1, 1].forEach((side) => {
+    const bumper = new THREE.Mesh(bumperGeo, bumperMat);
+    bumper.position.set(side * gutterOuterEdge, 0.1, -LANE_LENGTH / 2 + 2);
+    bumper.castShadow = true;
+    bumper.receiveShadow = true;
+    group.add(bumper);
   });
 
   const foulGeo = new THREE.BoxGeometry(LANE_WIDTH, 0.005, 0.03);
@@ -244,4 +270,4 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
 });
 
 export default Scene;
-export { BALL_START, PIN_START_Z, PIN_SPACING, BALL_RADIUS, LANE_LENGTH, getPinPositions };
+export { BALL_START, PIN_START_Z, PIN_SPACING, BALL_RADIUS, GUTTER_RADIUS, LANE_LENGTH, getPinPositions };
