@@ -14,10 +14,11 @@ const BALL_START = new THREE.Vector3(0, BALL_RADIUS, 0);
 
 const LANE_SPACING = 1.8;  // center-to-center distance between adjacent lanes
 
-const AIM_MAX_X = 0.4;        // ±0.4m lateral range from pre-aim offset
-const THROW_FINE_X = 0.08;    // small additional fine-tune from throw angle
-const PREVIEW_CLAMP = 0.45;   // combined clamp — must match physics MAX_START_X
-const LERP_FACTOR = 0.15;     // per frame — smooth but responsive
+const AIM_MAX_X = 0.4;      // ±0.4m lateral range from pre-aim offset
+const PREVIEW_CLAMP = 0.45; // max |startX| — must match physics MAX_START_X
+
+// Must match MAX_ANGLE_DEG in physics.js
+const AIM_ANGLE_DEG = 3;
 
 function getPinPositions() {
   const positions = [];
@@ -67,7 +68,6 @@ function makeLane(geometries, materials) {
     gutter.receiveShadow = true;
     group.add(gutter);
   });
-
 
   const foulGeo = new THREE.BoxGeometry(LANE_WIDTH, 0.005, 0.03);
   const foulMat = new THREE.MeshStandardMaterial({ color: '#ffffff' });
@@ -126,19 +126,17 @@ function makeEnvironment(geometries, materials) {
   geometries.push(carpetGeo); materials.push(carpetMat);
   const carpet = new THREE.Mesh(carpetGeo, carpetMat);
   carpet.rotation.x = -Math.PI / 2;
-  carpet.position.set(0, -(GUTTER_RADIUS + 0.07), laneZ); // well below gutter bottoms
+  carpet.position.set(0, -(GUTTER_RADIUS + 0.07), laneZ);
   carpet.receiveShadow = true;
   group.add(carpet);
 
-  // Wooden approach platform — spans all lanes at lane-surface level.
-  // Starts at the foul line (Z=0) and extends behind the camera, connecting
-  // the near ends of every lane into one continuous wooden surface.
-  const platformW = LANE_SPACING * 6 + LANE_WIDTH + GUTTER_RADIUS * 4 + 2; // covers all 7 lanes
+  // Wooden approach platform
+  const platformW = LANE_SPACING * 6 + LANE_WIDTH + GUTTER_RADIUS * 4 + 2;
   const platformGeo = new THREE.BoxGeometry(platformW, 0.05, 10);
   const platformMat = new THREE.MeshStandardMaterial({ color: '#c8a96e', roughness: 0.65, metalness: 0.1 });
   geometries.push(platformGeo); materials.push(platformMat);
   const platform = new THREE.Mesh(platformGeo, platformMat);
-  platform.position.set(0, -0.025, 5); // Z 0→10, top surface flush with lane top (Y=0)
+  platform.position.set(0, -0.025, 5);
   platform.receiveShadow = true;
   group.add(platform);
 
@@ -168,7 +166,6 @@ function makeEnvironment(geometries, materials) {
   const bgPinMat    = new THREE.MeshStandardMaterial({ color: '#f8f8f8', roughness: 0.3 });
   const brGeo       = new THREE.BoxGeometry(0.45, 0.55, 1.8);
   const brMat       = new THREE.MeshStandardMaterial({ color: '#2e3e50', roughness: 0.5, metalness: 0.3 });
-  // Emissive light panel above each lane (main lane gets one too, added below)
   const lightGeo    = new THREE.BoxGeometry(LANE_WIDTH * 0.85, 0.04, LANE_LENGTH * 0.65);
   const lightMat    = new THREE.MeshStandardMaterial({
     color: '#fffce8', emissive: '#fffce8', emissiveIntensity: 1.2,
@@ -176,7 +173,6 @@ function makeEnvironment(geometries, materials) {
   geometries.push(bgLaneGeo, bgGutterGeo, bgPinGeo, brGeo, lightGeo);
   materials.push(bgLaneMat, bgGutterMat, bgPinMat, brMat, lightMat);
 
-  // Front-six pin positions used on every background lane
   const bgPinOffsets = [
     [0, 0], [-0.152, -0.264], [0.152, -0.264],
     [-0.305, -0.528], [0, -0.528], [0.305, -0.528],
@@ -186,13 +182,11 @@ function makeEnvironment(geometries, materials) {
     [-1, 1].forEach((side) => {
       const lx = side * i * LANE_SPACING;
 
-      // Lane surface
       const lane = new THREE.Mesh(bgLaneGeo, bgLaneMat);
       lane.position.set(lx, -0.025, laneZ);
       lane.receiveShadow = true;
       group.add(lane);
 
-      // Flat gutter strips (simpler than halfpipe for bg lanes)
       [-1, 1].forEach((gs) => {
         const gutter = new THREE.Mesh(bgGutterGeo, bgGutterMat);
         gutter.position.set(lx + gs * (LANE_WIDTH / 2 + GUTTER_RADIUS), -0.036, laneZ);
@@ -200,31 +194,26 @@ function makeEnvironment(geometries, materials) {
         group.add(gutter);
       });
 
-      // Simplified pin cluster
       bgPinOffsets.forEach(([dx, dz]) => {
         const pin = new THREE.Mesh(bgPinGeo, bgPinMat);
         pin.position.set(lx + dx, 0.16, PIN_START_Z + dz);
         group.add(pin);
       });
 
-      // Overhead light strip
       const strip = new THREE.Mesh(lightGeo, lightMat);
       strip.position.set(lx, 4.46, laneZ);
       group.add(strip);
 
-      // Ball-return unit between this lane and the next one toward centre
       const br = new THREE.Mesh(brGeo, brMat);
       br.position.set(side * (i - 0.5) * LANE_SPACING, 0.275, laneZ + LANE_LENGTH / 2 + 2);
       group.add(br);
     });
   }
 
-  // Overhead light strip for the main (playable) lane
   const mainStrip = new THREE.Mesh(lightGeo, lightMat);
   mainStrip.position.set(0, 4.46, laneZ);
   group.add(mainStrip);
 
-  // Ball-return unit between main lane and lane ±1 on each side
   [-1, 1].forEach((side) => {
     const br = new THREE.Mesh(brGeo, brMat);
     br.position.set(side * LANE_SPACING / 2, 0.275, laneZ + LANE_LENGTH / 2 + 2);
@@ -240,28 +229,32 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
   const physicsRef = useRef(null);
   const ballMeshRef = useRef(null);
   const pinMeshesRef = useRef([]);
+  const aimArrowRef = useRef(null);
   const targetBallXRef = useRef(0);
+  const targetAimAngleRef = useRef(0); // -1 to 1, maps to ±AIM_ANGLE_DEG
   const previewActiveRef = useRef(true);
   const onSettleRef = useRef(onSettle);
 
-  // Keep onSettleRef pointing at the latest callback every render
   useEffect(() => {
     onSettleRef.current = onSettle;
   });
 
   useImperativeHandle(ref, () => ({
-    previewBall(angle, aimOffset = 0) {
-      // aimOffset (-1–1) coarse lane position; angle (-1–1) small fine-tune during swing
-      const combined = aimOffset * AIM_MAX_X + angle * THROW_FINE_X;
-      targetBallXRef.current = Math.max(-PREVIEW_CLAMP, Math.min(PREVIEW_CLAMP, combined));
+    // aimOffset (-1–1): ball starting lane position
+    // aimAngle  (-1–1): trajectory direction, maps to ±AIM_ANGLE_DEG
+    previewBall(aimOffset = 0, aimAngle = 0) {
+      const targetX = Math.max(-PREVIEW_CLAMP, Math.min(PREVIEW_CLAMP, aimOffset * AIM_MAX_X));
+      targetBallXRef.current = targetX;
+      targetAimAngleRef.current = aimAngle;
     },
-    throwBall(power, angle, spin, aimOffset = 0) {
+    throwBall(power, aimAngle, spin, aimOffset = 0) {
       previewActiveRef.current = false;
-      physicsRef.current?.applyThrow(power, angle, spin, aimOffset);
+      physicsRef.current?.applyThrow(power, aimAngle, spin, aimOffset);
     },
     resetBall() {
       physicsRef.current?.resetBall();
       targetBallXRef.current = 0;
+      targetAimAngleRef.current = 0;
       previewActiveRef.current = true;
       if (ballMeshRef.current) {
         ballMeshRef.current.position.copy(BALL_START);
@@ -271,15 +264,14 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
     resetPins() {
       physicsRef.current?.resetPins();
       targetBallXRef.current = 0;
+      targetAimAngleRef.current = 0;
       previewActiveRef.current = true;
 
-      // Snap ball mesh back immediately (physics body already moved by resetPins())
       if (ballMeshRef.current) {
         ballMeshRef.current.position.copy(BALL_START);
         ballMeshRef.current.quaternion.set(0, 0, 0, 1);
       }
 
-      // Snap pin meshes back to upright starting positions
       const positions = getPinPositions();
       pinMeshesRef.current.forEach((mesh, i) => {
         if (mesh && positions[i]) {
@@ -306,7 +298,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
 
     // Scene + camera
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#d8d4cc'); // matches ceiling colour
+    scene.background = new THREE.Color('#d8d4cc');
 
     const camera = new THREE.PerspectiveCamera(60, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.position.set(0, 2.0, 5);
@@ -328,21 +320,29 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
     dirLight.shadow.camera.far = 30;
     scene.add(dirLight);
 
-    // Environment (background lanes, ceiling, floor, walls)
     scene.add(makeEnvironment(geometries, materials));
-
-    // Lane (static geometry)
     scene.add(makeLane(geometries, materials));
 
-    // Ball mesh
     const ballMesh = makeBall(geometries, materials);
     ballMeshRef.current = ballMesh;
     scene.add(ballMesh);
 
-    // Pin meshes
     const pinMeshes = makePinMeshes(geometries, materials);
     pinMeshesRef.current = pinMeshes;
     pinMeshes.forEach((m) => scene.add(m));
+
+    // Aim arrow — shown during pre-shot setup, hidden after throw
+    const aimArrow = new THREE.ArrowHelper(
+      new THREE.Vector3(0, 0, -1), // initial direction: straight ahead
+      new THREE.Vector3(0, BALL_RADIUS + 0.05, 0),
+      13,    // length — reaches just past the pin deck
+      0xffee00, // yellow
+      0.8,   // head length
+      0.35,  // head width
+    );
+    aimArrow.line.material.linewidth = 2; // hint — WebGL ignores >1 on most GPUs
+    aimArrowRef.current = aimArrow;
+    scene.add(aimArrow);
 
     // Physics
     const physics = new PhysicsWorld();
@@ -355,24 +355,41 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       };
     });
 
+    // Persistent temp vector — avoids allocation in the render loop
+    const _aimDir = new THREE.Vector3();
+
     // Render loop
     function animate() {
       animFrameId = requestAnimationFrame(animate);
 
-      // In preview mode, move the ball body to the lerped target X so the
-      // ball is in the right lane position when throwBall() fires.
+      // In preview mode, snap the physics ball body to the target X immediately.
+      // This makes D-pad adjustments feel instant on the TV.
       if (previewActiveRef.current && physics.ballBody) {
         const pos = physics.ballBody.translation();
-        const newX = pos.x + (targetBallXRef.current - pos.x) * LERP_FACTOR;
-        physics.ballBody.setTranslation({ x: newX, y: pos.y, z: pos.z }, true);
+        physics.ballBody.setTranslation({ x: targetBallXRef.current, y: pos.y, z: pos.z }, true);
       }
 
-      physicsRef.current?.step();
+      physicsRef.current?.step(); // syncs meshes from physics bodies
+
+      // Update aim arrow to track ball position and current aim angle
+      if (aimArrowRef.current) {
+        const ballX = ballMeshRef.current?.position.x ?? 0;
+        aimArrowRef.current.position.set(ballX, BALL_RADIUS + 0.05, 0);
+
+        if (previewActiveRef.current) {
+          const aimAngleRad = targetAimAngleRef.current * (AIM_ANGLE_DEG * Math.PI / 180);
+          _aimDir.set(Math.sin(aimAngleRad), 0, -Math.cos(aimAngleRad));
+          aimArrowRef.current.setDirection(_aimDir);
+          aimArrowRef.current.visible = true;
+        } else {
+          aimArrowRef.current.visible = false;
+        }
+      }
+
       renderer.render(scene, camera);
     }
     animate();
 
-    // Resize
     function onResize() {
       camera.aspect = mount.clientWidth / mount.clientHeight;
       camera.updateProjectionMatrix();
@@ -385,6 +402,11 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       window.removeEventListener('resize', onResize);
       geometries.forEach((g) => g.dispose());
       materials.forEach((m) => m.dispose());
+      // Dispose ArrowHelper internals
+      aimArrow.line.geometry.dispose();
+      aimArrow.line.material.dispose();
+      aimArrow.cone.geometry.dispose();
+      aimArrow.cone.material.dispose();
       renderer.dispose();
       physics.destroy();
       mount.removeChild(renderer.domElement);

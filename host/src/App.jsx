@@ -6,7 +6,6 @@ import { BowlingGame } from './BowlingGame.js';
 const RELAY_URL = import.meta.env.VITE_RELAY_URL;
 const PHONE_BASE = import.meta.env.VITE_PHONE_URL;
 const RESET_DELAY_MS = 1500;
-const MAX_YAW = 180; // deg/s — normalization ceiling for preview angle
 
 export default function App() {
   const [sessionId, setSessionId] = useState(null);
@@ -37,15 +36,14 @@ export default function App() {
     if (!bowlingGameRef.current) return;
     if (msg.playerId !== currentPlayerIdRef.current) return;
     if (throwInFlight.current) return;
-    const angle = Math.max(-1, Math.min(1, msg.yaw / MAX_YAW));
-    sceneRef.current?.previewBall(angle, msg.aimOffset ?? 0);
+    sceneRef.current?.previewBall(msg.aimOffset ?? 0, msg.aimAngle ?? 0);
   }
 
   function handleAim(msg) {
     if (!bowlingGameRef.current) return;
     if (msg.playerId !== currentPlayerIdRef.current) return;
     if (throwInFlight.current) return;
-    sceneRef.current?.previewBall(0, msg.aimOffset ?? 0);
+    sceneRef.current?.previewBall(msg.aimOffset ?? 0, msg.aimAngle ?? 0);
   }
 
   function handleThrow(msg) {
@@ -53,7 +51,7 @@ export default function App() {
     if (msg.playerId !== currentPlayerIdRef.current) return;
     if (throwInFlight.current) return;
     throwInFlight.current = true;
-    sceneRef.current?.throwBall(msg.power, msg.angle, msg.spin, msg.aimOffset ?? 0);
+    sceneRef.current?.throwBall(msg.power, msg.aimAngle ?? 0, msg.spin, msg.aimOffset ?? 0);
   }
 
   // ── Settle callback (called by physics after pins come to rest) ─────────────

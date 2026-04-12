@@ -94,51 +94,116 @@ button:active {
   min-height: 1.2em;
 }
 
-/* ── Aim controls ────────────────────────────────────────────────────────────── */
+/* ── Mode tabs ───────────────────────────────────────────────────────────────── */
 
-.aim-controls {
+.mode-tabs {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   max-width: 280px;
 }
 
-.btn-aim {
-  width: 52px;
-  height: 52px;
+.mode-tab {
+  flex: 1;
+  padding: 10px 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border-radius: 10px;
+  background: #2a2a4e;
+  color: #888;
+  max-width: unset;
+}
+
+.mode-tab.active {
+  background: #7c7cff;
+  color: #fff;
+}
+
+.mode-tab:disabled {
+  opacity: 0.4;
+}
+
+/* ── D-pad section ───────────────────────────────────────────────────────────── */
+
+.dpad-section {
+  width: 100%;
+  max-width: 300px;
+}
+
+.dpad-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-dpad {
+  width: 56px;
+  height: 56px;
   min-width: unset;
   max-width: unset;
   padding: 0;
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   border-radius: 50%;
   background: #3a3a5e;
   flex-shrink: 0;
 }
 
-.btn-aim:active {
+.btn-dpad:active {
   background: #5a5aee;
+  transform: scale(0.93);
 }
 
-.btn-aim:disabled {
+.btn-dpad:disabled {
   opacity: 0.3;
 }
 
-.aim-track {
+.dpad-tracks {
   flex: 1;
-  height: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dpad-track-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dpad-track-wrap.inactive {
+  opacity: 0.35;
+}
+
+.track-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #aaa;
+  width: 44px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.dpad-track {
+  flex: 1;
+  height: 10px;
   background: #2a2a4e;
-  border-radius: 6px;
+  border-radius: 5px;
   position: relative;
 }
 
-.aim-dot {
+.dpad-dot {
   position: absolute;
   top: 50%;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: #7c7cff;
   transform: translate(-50%, -50%);
-  transition: left 0.1s ease;
+  transition: left 0.08s ease;
 }
+
+/* Position dot = blue, Aim dot = yellow (matches TV arrow colour) */
+#dot-move { background: #7c7cff; }
+#dot-aim  { background: #ffee00; }

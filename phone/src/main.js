@@ -6,7 +6,7 @@ const STREAM_HZ = 20;
 const MIN_HOLD_MS = 150;
 const MAX_ROLL = 360;  // deg/s — clamp for spin normalization
 const MAX_ACCEL = 30;  // m/s² — clamp for power normalization
-const AIM_STEP = 0.25; // each arrow tap moves aim by this much (-1 to 1 range)
+const D_STEP = 0.2;    // each D-pad tap moves aim or position by this much
 
 // --- State ---
 let ws = null;
@@ -16,7 +16,9 @@ let streamInterval = null;
 let holdStart = null;
 let wakeLock = null;
 let lastRotation = { alpha: 0, beta: 0, gamma: 0 };
-let aimOffset = 0; // -1 (far left) to 1 (far right), set by aim arrows before throw
+let aimOffset = 0;  // -1 (far left) to 1 (far right) — ball lane position
+let aimAngle = 0;   // -1 (max left) to 1 (max right) — trajectory direction
+let aimMode = 'move'; // 'move' | 'aim'
 
 // --- App container ---
 const app = document.getElementById('app');
@@ -77,37 +79,60 @@ function updateWaitingLabel(label) {
 function showBowlScreen() {
   // Reset aim to center each new turn
   aimOffset = 0;
+  aimAngle = 0;
+  aimMode = 'move';
 
   render(`
     <div class="screen" id="screen-bowl">
-      <div class="aim-controls">
-        <button id="btn-aim-left" class="btn-aim">◀</button>
-        <div class="aim-track">
-          <div class="aim-dot" id="aim-dot"></div>
-        </div>
-        <button id="btn-aim-right" class="btn-aim">▶</button>
+      <div class="mode-tabs">
+        <button id="tab-move" class="mode-tab active">MOVE</button>
+        <button id="tab-aim"  class="mode-tab">AIM</button>
       </div>
-      <p id="bowl-prompt">Aim, then hold and swing!</p>
+
+      <div class="dpad-section">
+        <div class="dpad-row">
+          <button id="btn-left"  class="btn-dpad">◀</button>
+          <div class="dpad-tracks">
+            <div class="dpad-track-wrap" id="track-move-wrap">
+              <span class="track-label">Position</span>
+              <div class="dpad-track">
+                <div class="dpad-dot" id="dot-move"></div>
+              </div>
+            </div>
+            <div class="dpad-track-wrap inactive" id="track-aim-wrap">
+              <span class="track-label">Aim</span>
+              <div class="dpad-track">
+                <div class="dpad-dot" id="dot-aim"></div>
+              </div>
+            </div>
+          </div>
+          <button id="btn-right" class="btn-dpad">▶</button>
+        </div>
+      </div>
+
+      <p id="bowl-prompt">Hold and swing to bowl!</p>
       <button id="btn-bowl">BOWL</button>
       <p id="bowl-hint"></p>
     </div>
   `);
 
-  updateAimDot();
+  refreshDots();
 
-  document.getElementById('btn-aim-left').addEventListener('click', () => adjustAim(-AIM_STEP));
-  document.getElementById('btn-aim-right').addEventListener('click', () => adjustAim(AIM_STEP));
+  document.getElementById('tab-move').addEventListener('click', () => setMode('move'));
+  document.getElementById('tab-aim').addEventListener('click',  () => setMode('aim'));
+  document.getElementById('btn-left').addEventListener('click',  () => nudge(-D_STEP));
+  document.getElementById('btn-right').addEventListener('click', () => nudge(+D_STEP));
 
-  const btn = document.getElementById('btn-bowl');
-  btn.addEventListener('touchstart', onHoldStart, { passive: true });
-  btn.addEventListener('touchend', onHoldEnd, { passive: true });
+  const bowl = document.getElementById('btn-bowl');
+  bowl.addEventListener('touchstart', onHoldStart, { passive: true });
+  bowl.addEventListener('touchend',   onHoldEnd,   { passive: true });
 }
 
 function showResultScreen(result) {
   const { pinsKnocked, totalScore, frameScore } = result;
   let label = `${pinsKnocked} pin${pinsKnocked !== 1 ? 's' : ''} knocked down`;
   if (frameScore === 'strike') label = 'STRIKE!';
-  if (frameScore === 'spare') label = 'SPARE!';
+  if (frameScore === 'spare')  label = 'SPARE!';
   render(`
     <div class="screen" id="screen-result">
       <h1>${label}</h1>
@@ -126,19 +151,51 @@ function showSessionEndedScreen() {
   `);
 }
 
-// --- Aim controls ---
+// --- D-pad logic ---
 
-function adjustAim(delta) {
-  aimOffset = Math.max(-1, Math.min(1, aimOffset + delta));
-  updateAimDot();
-  sendMsg({ type: 'aim', aimOffset });
+function setMode(mode) {
+  aimMode = mode;
+
+  const tabMove = document.getElementById('tab-move');
+  const tabAim  = document.getElementById('tab-aim');
+  const wrapMove = document.getElementById('track-move-wrap');
+  const wrapAim  = document.getElementById('track-aim-wrap');
+  if (!tabMove) return;
+
+  if (mode === 'move') {
+    tabMove.classList.add('active');
+    tabAim.classList.remove('active');
+    wrapMove.classList.remove('inactive');
+    wrapAim.classList.add('inactive');
+  } else {
+    tabAim.classList.add('active');
+    tabMove.classList.remove('active');
+    wrapAim.classList.remove('inactive');
+    wrapMove.classList.add('inactive');
+  }
 }
 
-function updateAimDot() {
-  const dot = document.getElementById('aim-dot');
+function nudge(delta) {
+  if (aimMode === 'move') {
+    aimOffset = Math.max(-1, Math.min(1, aimOffset + delta));
+  } else {
+    aimAngle = Math.max(-1, Math.min(1, aimAngle + delta));
+  }
+  refreshDots();
+  sendMsg({ type: 'aim', aimOffset, aimAngle });
+}
+
+// Update both dot indicators to reflect current values
+function refreshDots() {
+  setDot('dot-move', aimOffset);
+  setDot('dot-aim',  aimAngle);
+}
+
+function setDot(id, value) {
+  const dot = document.getElementById(id);
   if (!dot) return;
-  // Map aimOffset (-1 to 1) → left position (5% to 95% within track)
-  dot.style.left = `${((aimOffset + 1) / 2) * 90 + 5}%`;
+  // value -1→1 maps to left 5%→95% within the track
+  dot.style.left = `${((value + 1) / 2) * 90 + 5}%`;
 }
 
 // --- Permission ---
@@ -168,9 +225,9 @@ function startMotionListener() {
     if (!accelerationIncludingGravity || !rotationRate) return;
 
     lastRotation = {
-      alpha: rotationRate.alpha ?? 0, // yaw (deg/s)
-      beta: rotationRate.beta ?? 0,   // pitch (deg/s)
-      gamma: rotationRate.gamma ?? 0, // roll (deg/s)
+      alpha: rotationRate.alpha ?? 0,
+      beta:  rotationRate.beta  ?? 0,
+      gamma: rotationRate.gamma ?? 0,
     };
 
     if (motionBuffer !== null && holdStart !== null) {
@@ -179,7 +236,7 @@ function startMotionListener() {
         ay: accelerationIncludingGravity.y ?? 0,
         az: accelerationIncludingGravity.z ?? 0,
         alpha: lastRotation.alpha,
-        beta: lastRotation.beta,
+        beta:  lastRotation.beta,
         gamma: lastRotation.gamma,
         t: Date.now(),
       });
@@ -205,10 +262,7 @@ function connectAndJoin(name) {
     handleMessage(msg);
   });
 
-  ws.addEventListener('close', () => {
-    showSessionEndedScreen();
-  });
-
+  ws.addEventListener('close', () => showSessionEndedScreen());
   ws.addEventListener('error', () => {
     alert('Could not connect to relay. Make sure you are on the same network.');
   });
@@ -223,7 +277,6 @@ function handleMessage(msg) {
       showWaitingScreen('Waiting for host to start...');
       break;
     case 'game_started':
-      // Cosmetic update only — your_turn will trigger the bowl screen
       updateWaitingLabel('Game started! Waiting for your turn...');
       break;
     case 'your_turn':
@@ -234,9 +287,7 @@ function handleMessage(msg) {
       }
       break;
     case 'throw_result':
-      if (msg.playerId === myPlayerId) {
-        showResultScreen(msg);
-      }
+      if (msg.playerId === myPlayerId) showResultScreen(msg);
       break;
     case 'session_ended':
       showSessionEndedScreen();
@@ -256,22 +307,17 @@ function onHoldStart() {
   holdStart = Date.now();
   motionBuffer = [];
 
-  // Disable aim arrows while swinging
-  const btnLeft = document.getElementById('btn-aim-left');
-  const btnRight = document.getElementById('btn-aim-right');
-  if (btnLeft) btnLeft.disabled = true;
-  if (btnRight) btnRight.disabled = true;
-
+  // Disable D-pad and mode tabs while swinging
+  setDpadEnabled(false);
   acquireWakeLock();
 
-  // 20hz position stream — includes current aimOffset so TV preview tracks it
+  // 20hz stream — carries current aimOffset + aimAngle so the TV tracks them
   streamInterval = setInterval(() => {
     sendMsg({
       type: 'pos',
       yaw: lastRotation.alpha,
-      pitch: lastRotation.beta,
-      roll: lastRotation.gamma,
       aimOffset,
+      aimAngle,
     });
   }, 1000 / STREAM_HZ);
 }
@@ -282,12 +328,7 @@ function onHoldEnd() {
   clearInterval(streamInterval);
   streamInterval = null;
   releaseWakeLock();
-
-  // Re-enable aim arrows
-  const btnLeft = document.getElementById('btn-aim-left');
-  const btnRight = document.getElementById('btn-aim-right');
-  if (btnLeft) btnLeft.disabled = false;
-  if (btnRight) btnRight.disabled = false;
+  setDpadEnabled(true);
 
   if (holdDuration < MIN_HOLD_MS) {
     const hint = document.getElementById('bowl-hint');
@@ -301,10 +342,16 @@ function onHoldEnd() {
   motionBuffer = [];
   holdStart = null;
 
-  sendMsg({ type: 'throw', ...throwData, aimOffset });
+  sendMsg({ type: 'throw', ...throwData, aimOffset, aimAngle });
 
-  // Haptics on Android (fails silently on iOS)
   if (navigator.vibrate) navigator.vibrate(100);
+}
+
+function setDpadEnabled(enabled) {
+  ['btn-left', 'btn-right', 'tab-move', 'tab-aim'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !enabled;
+  });
 }
 
 // --- Motion extraction ---
@@ -313,16 +360,9 @@ function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
 
-function normalize(val, absMax) {
-  return clamp(val / absMax, -1, 1);
-}
-
 function extractThrow(buffer) {
-  if (buffer.length === 0) {
-    return { power: 0.5, angle: 0, spin: 0 };
-  }
+  if (buffer.length === 0) return { power: 0.5, spin: 0 };
 
-  // Find peak acceleration magnitude
   let peakMag = 0;
   for (let i = 0; i < buffer.length; i++) {
     const { ax, ay, az } = buffer[i];
@@ -332,16 +372,11 @@ function extractThrow(buffer) {
 
   const power = clamp(peakMag / MAX_ACCEL, 0, 1);
 
-  // Direction is controlled entirely by aimOffset (the aim arrows).
-  // Throw motion only contributes power and spin — not angle.
-  const angle = 0;
-
-  // Spin = roll rate delta from start to end of swing
   const rollStart = buffer[0].gamma;
-  const rollEnd = buffer[buffer.length - 1].gamma;
-  const spin = normalize(rollEnd - rollStart, MAX_ROLL);
+  const rollEnd   = buffer[buffer.length - 1].gamma;
+  const spin = clamp((rollEnd - rollStart) / MAX_ROLL, -1, 1);
 
-  return { power, angle, spin };
+  return { power, spin };
 }
 
 // --- Wake Lock ---
@@ -349,9 +384,7 @@ function extractThrow(buffer) {
 async function acquireWakeLock() {
   try {
     wakeLock = await navigator.wakeLock.request('screen');
-  } catch (_) {
-    // Wake lock not supported or denied — game works without it
-  }
+  } catch (_) {}
 }
 
 function releaseWakeLock() {
@@ -364,7 +397,6 @@ function releaseWakeLock() {
 // --- Init ---
 
 function init() {
-  // Android / desktop: DeviceMotionEvent.requestPermission doesn't exist
   if (typeof DeviceMotionEvent.requestPermission === 'function') {
     showPermissionScreen();
   } else {
