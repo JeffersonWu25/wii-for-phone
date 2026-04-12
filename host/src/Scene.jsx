@@ -447,18 +447,22 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
     pinMeshesRef.current = pinMeshes;
     pinMeshes.forEach((m) => scene.add(m));
 
-    // Aim arrow — shown during pre-shot setup, hidden after throw
-    const aimArrow = new THREE.ArrowHelper(
-      new THREE.Vector3(0, 0, -1), // initial direction: straight ahead
-      new THREE.Vector3(0, BALL_RADIUS + 0.05, 0),
-      13,    // length — reaches just past the pin deck
-      0xffee00, // yellow
-      0.8,   // head length
-      0.35,  // head width
-    );
-    aimArrow.line.material.linewidth = 2; // hint — WebGL ignores >1 on most GPUs
-    aimArrowRef.current = aimArrow;
-    scene.add(aimArrow);
+    // Dashed aim line — shown during pre-shot setup, hidden after throw
+    const aimLineGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -13),
+    ]);
+    const aimLineMat = new THREE.LineDashedMaterial({
+      color: 0xffee00,
+      dashSize: 0.35,
+      gapSize: 0.2,
+    });
+    const aimLine = new THREE.Line(aimLineGeo, aimLineMat);
+    aimLine.computeLineDistances();
+    const aimHelper = new THREE.Group();
+    aimHelper.add(aimLine);
+    aimArrowRef.current = aimHelper;
+    scene.add(aimHelper);
 
     // Physics
     const physics = new PhysicsWorld();
@@ -470,9 +474,6 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
         onSettleRef.current?.(standingCount);
       };
     });
-
-    // Persistent temp vector — avoids allocation in the render loop
-    const _aimDir = new THREE.Vector3();
 
     // Render loop
     function animate() {
@@ -487,15 +488,14 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
 
       physicsRef.current?.step(); // syncs meshes from physics bodies
 
-      // Update aim arrow to track ball position and current aim angle
+      // Update dashed aim line to track ball position and current aim angle
       if (aimArrowRef.current) {
         const ballX = ballMeshRef.current?.position.x ?? 0;
         aimArrowRef.current.position.set(ballX, BALL_RADIUS + 0.05, 0);
 
         if (previewActiveRef.current) {
           const aimAngleRad = targetAimAngleRef.current * (AIM_ANGLE_DEG * Math.PI / 180);
-          _aimDir.set(Math.sin(aimAngleRad), 0, -Math.cos(aimAngleRad));
-          aimArrowRef.current.setDirection(_aimDir);
+          aimArrowRef.current.rotation.y = aimAngleRad;
           aimArrowRef.current.visible = true;
         } else {
           aimArrowRef.current.visible = false;
@@ -544,11 +544,8 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       geometries.forEach((g) => g.dispose());
       materials.forEach((m) => m.dispose());
       textures.forEach((t) => t.dispose());
-      // Dispose ArrowHelper internals
-      aimArrow.line.geometry.dispose();
-      aimArrow.line.material.dispose();
-      aimArrow.cone.geometry.dispose();
-      aimArrow.cone.material.dispose();
+      aimLineGeo.dispose();
+      aimLineMat.dispose();
       renderer.dispose();
       physics.destroy();
       mount.removeChild(renderer.domElement);
