@@ -233,6 +233,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
   const targetBallXRef = useRef(0);
   const targetAimAngleRef = useRef(0); // -1 to 1, maps to ±AIM_ANGLE_DEG
   const previewActiveRef = useRef(true);
+  const cameraFollowRef = useRef(false);
   const onSettleRef = useRef(onSettle);
 
   useEffect(() => {
@@ -249,6 +250,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
     },
     throwBall(power, aimAngle, spin, aimOffset = 0) {
       previewActiveRef.current = false;
+      cameraFollowRef.current = true;
       physicsRef.current?.applyThrow(power, aimAngle, spin, aimOffset);
     },
     resetBall() {
@@ -256,6 +258,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       targetBallXRef.current = 0;
       targetAimAngleRef.current = 0;
       previewActiveRef.current = true;
+      cameraFollowRef.current = false;
       if (ballMeshRef.current) {
         ballMeshRef.current.position.copy(BALL_START);
         ballMeshRef.current.quaternion.set(0, 0, 0, 1);
@@ -266,6 +269,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       targetBallXRef.current = 0;
       targetAimAngleRef.current = 0;
       previewActiveRef.current = true;
+      cameraFollowRef.current = false;
 
       if (ballMeshRef.current) {
         ballMeshRef.current.position.copy(BALL_START);
@@ -301,8 +305,8 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
     scene.background = new THREE.Color('#d8d4cc');
 
     const camera = new THREE.PerspectiveCamera(60, mount.clientWidth / mount.clientHeight, 0.1, 100);
-    camera.position.set(0, 2.0, 5);
-    camera.lookAt(0, 0, -14);
+    camera.position.set(0, 0.8, 2.0);
+    camera.lookAt(0, 0, -4);
 
     // Lights
     const ambient = new THREE.AmbientLight('#ffffff', 0.5);
@@ -384,6 +388,30 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
         } else {
           aimArrowRef.current.visible = false;
         }
+      }
+
+      // Camera follow — tracks ball after throw, restores on reset
+      if (!previewActiveRef.current && cameraFollowRef.current && ballMeshRef.current) {
+        const ball = ballMeshRef.current.position;
+        if (ball.y < -2 || ball.z < -20) {
+          cameraFollowRef.current = false;
+        } else {
+          // Close in as the ball travels: 3m behind at foul line → 0.5m behind at pins
+          const progress = Math.max(0, Math.min(1, -ball.z / 15));
+          const followOffset = THREE.MathUtils.lerp(3.0, 0.5, progress);
+          const followX = ball.x * 0.3;
+          const followZ = Math.max(ball.z + followOffset, 0.5);
+          camera.position.x = THREE.MathUtils.lerp(camera.position.x, followX, 0.3);
+          camera.position.y = THREE.MathUtils.lerp(camera.position.y, 0.9, 0.3);
+          camera.position.z = THREE.MathUtils.lerp(camera.position.z, followZ, 0.3);
+          camera.lookAt(ball.x * 0.3, 0.3, ball.z - 2);
+        }
+      }
+      if (previewActiveRef.current) {
+        camera.position.x = THREE.MathUtils.lerp(camera.position.x, 0, 0.08);
+        camera.position.y = THREE.MathUtils.lerp(camera.position.y, 0.8, 0.08);
+        camera.position.z = THREE.MathUtils.lerp(camera.position.z, 2.0, 0.08);
+        camera.lookAt(0, 0, -4);
       }
 
       renderer.render(scene, camera);
