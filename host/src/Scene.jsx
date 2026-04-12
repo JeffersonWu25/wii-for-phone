@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import * as THREE from 'three';
 import { PhysicsWorld } from './physics.js';
 
@@ -9,13 +9,13 @@ const GUTTER_WIDTH = 0.1;
 const GUTTER_DEPTH = 0.04;
 const BALL_RADIUS = 0.11;
 
-// Z convention: camera is at positive Z, pins are at negative Z.
-// Foul line at z = 0. Ball starts at foul line.
-const PIN_START_Z = -15.0; // head pin Z position
-const PIN_SPACING = 0.305; // 12 inches center-to-center
+const PIN_START_Z = -15.0;
+const PIN_SPACING = 0.305;
 const BALL_START = new THREE.Vector3(0, BALL_RADIUS, 0);
 
-// 10-pin positions — row 1 (head pin) nearest camera, row 4 furthest.
+const PREVIEW_MAX_X = 0.3; // ±0.3m lateral range for aim preview
+const LERP_FACTOR = 0.15;  // per frame — smooth but responsive
+
 function getPinPositions() {
   const positions = [];
   for (let row = 0; row < 4; row++) {
@@ -97,15 +97,56 @@ function makePinMeshes(geometries, materials) {
 }
 
 // ── Scene component ───────────────────────────────────────────────────────────
-export default function Scene({ onSettle }) {
+const Scene = forwardRef(function Scene({ onSettle }, ref) {
   const mountRef = useRef(null);
+  const physicsRef = useRef(null);
+  const ballMeshRef = useRef(null);
+  const pinMeshesRef = useRef([]);
+  const targetBallXRef = useRef(0);
+  const previewActiveRef = useRef(true);
+  const onSettleRef = useRef(onSettle);
+
+  // Keep onSettleRef pointing at the latest callback every render
+  useEffect(() => {
+    onSettleRef.current = onSettle;
+  });
+
+  useImperativeHandle(ref, () => ({
+    previewBall(angle) {
+      // angle is -1 to 1; mapped to ±PREVIEW_MAX_X meters
+      targetBallXRef.current = angle * PREVIEW_MAX_X;
+    },
+    throwBall(power, angle, spin) {
+      previewActiveRef.current = false;
+      physicsRef.current?.applyThrow(power, angle, spin);
+    },
+    resetPins() {
+      physicsRef.current?.resetPins();
+      targetBallXRef.current = 0;
+      previewActiveRef.current = true;
+
+      // Snap ball mesh back immediately (physics body already moved by resetPins())
+      if (ballMeshRef.current) {
+        ballMeshRef.current.position.copy(BALL_START);
+        ballMeshRef.current.quaternion.set(0, 0, 0, 1);
+      }
+
+      // Snap pin meshes back to upright starting positions
+      const positions = getPinPositions();
+      pinMeshesRef.current.forEach((mesh, i) => {
+        if (mesh && positions[i]) {
+          mesh.position.set(positions[i].x, 0.19, positions[i].z);
+          mesh.quaternion.set(0, 0, 0, 1);
+        }
+      });
+    },
+  }), []);
 
   useEffect(() => {
     const mount = mountRef.current;
     const geometries = [];
     const materials = [];
     let animFrameId;
-    let physicsWorld = null;
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -144,33 +185,38 @@ export default function Scene({ onSettle }) {
 
     // Ball mesh
     const ballMesh = makeBall(geometries, materials);
+    ballMeshRef.current = ballMesh;
     scene.add(ballMesh);
 
     // Pin meshes
     const pinMeshes = makePinMeshes(geometries, materials);
+    pinMeshesRef.current = pinMeshes;
     pinMeshes.forEach((m) => scene.add(m));
 
     // Physics
     const physics = new PhysicsWorld();
-    physicsWorld = physics;
+    physicsRef.current = physics;
     physics.init().then(() => {
       physics.ballMesh = ballMesh;
       physics.pinMeshes = pinMeshes;
       physics.onSettle = (standingCount) => {
-        console.log(`[physics] Settled — ${standingCount} pins standing, ${10 - standingCount} knocked down`);
-        onSettle?.(standingCount);
+        onSettleRef.current?.(standingCount);
       };
-
-      // Test throw: fires 1 second after physics init
-      setTimeout(() => {
-        physics.applyThrow(0.8, 0.05, 0.1);
-      }, 1000);
     });
 
     // Render loop
     function animate() {
       animFrameId = requestAnimationFrame(animate);
-      physicsWorld?.step();
+
+      // In preview mode, move the ball body to the lerped target X so the
+      // ball is in the right lane position when throwBall() fires.
+      if (previewActiveRef.current && physics.ballBody) {
+        const pos = physics.ballBody.translation();
+        const newX = pos.x + (targetBallXRef.current - pos.x) * LERP_FACTOR;
+        physics.ballBody.setTranslation({ x: newX, y: pos.y, z: pos.z }, true);
+      }
+
+      physicsRef.current?.step();
       renderer.render(scene, camera);
     }
     animate();
@@ -189,12 +235,13 @@ export default function Scene({ onSettle }) {
       geometries.forEach((g) => g.dispose());
       materials.forEach((m) => m.dispose());
       renderer.dispose();
-      physicsWorld?.destroy();
+      physics.destroy();
       mount.removeChild(renderer.domElement);
     };
   }, []);
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
-}
+});
 
+export default Scene;
 export { BALL_START, PIN_START_Z, PIN_SPACING, BALL_RADIUS, LANE_LENGTH, getPinPositions };

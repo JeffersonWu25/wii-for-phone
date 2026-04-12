@@ -125,25 +125,189 @@ html, body, #root {
   cursor: not-allowed;
 }
 
-/* ── Game placeholder ────────────────────────────────────────── */
+/* ── Game layout ─────────────────────────────────────────────── */
 
-.game-placeholder {
+.game-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.game-canvas-wrap {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+/* ── Frame result overlay (STRIKE! / SPARE!) ─────────────────── */
+
+.frame-result-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5rem;
+  font-weight: 900;
+  color: #ffe066;
+  text-shadow: 0 0 40px rgba(255, 220, 0, 0.7), 0 4px 12px rgba(0,0,0,0.8);
+  pointer-events: none;
+  animation: result-pop 0.2s ease-out;
+}
+
+@keyframes result-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* ── Scoreboard ──────────────────────────────────────────────── */
+
+.scoreboard {
+  width: 320px;
+  flex-shrink: 0;
+  background: #11112a;
+  border-left: 1px solid #222;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px 12px;
+  gap: 12px;
+}
+
+.scoreboard-title {
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.5;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #222;
+}
+
+.scoreboard-player {
+  background: #1a1a35;
+  border-radius: 10px;
+  padding: 10px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.scoreboard-player.active {
+  border-color: #7c7cff;
+  background: #1e1e45;
+}
+
+.scoreboard-name {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scoreboard-player.active .scoreboard-name::before {
+  content: '▶ ';
+  color: #7c7cff;
+}
+
+.scoreboard-frames {
+  display: flex;
+  gap: 2px;
+}
+
+.scoreboard-frame {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.scoreboard-frame.tenth {
+  flex: 1.5;
+}
+
+.frame-rolls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1px;
+  padding: 2px 3px;
+  min-height: 18px;
+}
+
+.roll-cell {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #aaa;
+  min-width: 10px;
+  text-align: center;
+}
+
+.roll-cell.strike {
+  color: #ffe066;
+}
+
+.frame-total {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 2px 0 3px;
+  border-top: 1px solid #2a2a4a;
+  min-height: 20px;
+}
+
+/* ── Game over ───────────────────────────────────────────────── */
+
+.game-over {
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 40px;
+  padding: 48px;
+}
+
+.game-over h1 {
+  font-size: 3.5rem;
+  font-weight: 900;
+}
+
+.game-over-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  text-align: center;
+  width: 100%;
+  max-width: 420px;
 }
 
-.game-placeholder h1 {
-  font-size: 2.5rem;
+.game-over-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1a1a35;
+  border-radius: 12px;
+  padding: 16px 24px;
+  font-size: 1.4rem;
 }
 
-.game-placeholder .sub {
-  opacity: 0.4;
-  font-size: 0.95rem;
+.game-over-item:first-child {
+  background: #2a2a5a;
+  border: 1px solid #7c7cff;
+  font-size: 1.6rem;
+}
+
+.go-name {
+  font-weight: 700;
+}
+
+.go-score {
+  font-weight: 900;
+  color: #ffe066;
 }
 
 /* ── Lost connection ─────────────────────────────────────────── */
