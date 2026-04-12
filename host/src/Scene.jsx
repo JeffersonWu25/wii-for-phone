@@ -114,6 +114,85 @@ function makePinMeshes(geometries, materials) {
   });
 }
 
+// ── WildHacks banner canvas texture ──────────────────────────────────────────
+function makeWildHacksBanner(geometries, materials, textures) {
+  const W = 1024, H = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Purple background
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#3a1a5c');
+  bg.addColorStop(0.45, '#4e2478');
+  bg.addColorStop(1, '#2a1040');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  const r = 22;
+  ctx.moveTo(r, 0); ctx.lineTo(W - r, 0); ctx.quadraticCurveTo(W, 0, W, r);
+  ctx.lineTo(W, H - r); ctx.quadraticCurveTo(W, H, W - r, H);
+  ctx.lineTo(r, H); ctx.quadraticCurveTo(0, H, 0, H - r);
+  ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Gold border
+  ctx.strokeStyle = '#c89020';
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  const ri = 17;
+  ctx.moveTo(ri + 4, 4); ctx.lineTo(W - ri - 4, 4); ctx.quadraticCurveTo(W - 4, 4, W - 4, ri + 4);
+  ctx.lineTo(W - 4, H - ri - 4); ctx.quadraticCurveTo(W - 4, H - 4, W - ri - 4, H - 4);
+  ctx.lineTo(ri + 4, H - 4); ctx.quadraticCurveTo(4, H - 4, 4, H - ri - 4);
+  ctx.lineTo(4, ri + 4); ctx.quadraticCurveTo(4, 4, ri + 4, 4);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Gold text gradient
+  const tg = ctx.createLinearGradient(0, H * 0.12, 0, H * 0.88);
+  tg.addColorStop(0, '#fdf080');
+  tg.addColorStop(0.28, '#f0c830');
+  tg.addColorStop(0.55, '#c88010');
+  tg.addColorStop(1, '#9a5c08');
+
+  // Fit "WILDHACKS" with padding — shrink font until text fits within banner minus padding
+  const textPad = 80; // px padding on each side inside border
+  const maxTextW = W - textPad * 2;
+  let fontSize = 148;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  do {
+    ctx.font = `bold italic ${fontSize}px Georgia, "Times New Roman", serif`;
+    fontSize -= 2;
+  } while (ctx.measureText('WILDHACKS').width > maxTextW && fontSize > 40);
+
+  const cy = H / 2 + 4;
+
+  // Text shadow / emboss
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillText('WILDHACKS', W / 2 + 3, cy + 4);
+
+  // Main text
+  ctx.fillStyle = tg;
+  ctx.fillText('WILDHACKS', W / 2, cy);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  textures.push(texture);
+
+  const bannerGeo = new THREE.PlaneGeometry(10, 2.5);
+  const bannerMat = new THREE.MeshStandardMaterial({
+    map: texture, roughness: 0.5, metalness: 0.1,
+  });
+  geometries.push(bannerGeo);
+  materials.push(bannerMat);
+
+  const mesh = new THREE.Mesh(bannerGeo, bannerMat);
+  const farZ = (-LANE_LENGTH / 2 + 2) - LANE_LENGTH / 2;
+  mesh.position.set(0, 2.8, farZ - 0.35);
+  return mesh;
+}
+
 // ── Bowling-center environment ────────────────────────────────────────────────
 function makeEnvironment(geometries, materials) {
   const group = new THREE.Group();
@@ -290,6 +369,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
     const mount = mountRef.current;
     const geometries = [];
     const materials = [];
+    const textures = [];
     let animFrameId;
 
     // Renderer
@@ -325,6 +405,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
     scene.add(dirLight);
 
     scene.add(makeEnvironment(geometries, materials));
+    scene.add(makeWildHacksBanner(geometries, materials, textures));
     scene.add(makeLane(geometries, materials));
 
     const ballMesh = makeBall(geometries, materials);
@@ -431,6 +512,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       window.removeEventListener('resize', onResize);
       geometries.forEach((g) => g.dispose());
       materials.forEach((m) => m.dispose());
+      textures.forEach((t) => t.dispose());
       // Dispose ArrowHelper internals
       aimArrow.line.geometry.dispose();
       aimArrow.line.material.dispose();
