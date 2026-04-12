@@ -80,7 +80,7 @@ wss.on('connection', (ws, req) => {
         send(ws, { type: 'joined', playerId });
         send(session.hostWs, { type: 'player_joined', playerId, name: msg.name });
         console.log(`[relay] Player joined: ${msg.name} (${playerId})`);
-      } else if (msg.type === 'pos' || msg.type === 'throw') {
+      } else if (msg.type === 'pos' || msg.type === 'throw' || msg.type === 'aim') {
         // Forward to host
         send(session.hostWs, { ...msg, playerId });
       }
