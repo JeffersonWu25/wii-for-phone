@@ -107,13 +107,35 @@ wss.on('connection', (ws, req) => {
       if (!session) return;
 
       if (msg.type === 'join') {
+        // Block duplicate names among currently connected players only.
         const nameTaken = session.players.some(
-          (p) => p.name === msg.name && p.id !== playerId
+          (p) => p.name === msg.name && p.id !== playerId && !p.disconnected
         );
         if (nameTaken) {
           send(ws, { type: 'name_taken' });
           return;
         }
+
+        // Reconnect: name matches a disconnected player — restore their identity.
+        // We update the current player entry in place (taking over the old id/name)
+        // and remove the stale old entry. This keeps the close-handler closure valid.
+        const returning = session.players.find(
+          (p) => p.name === msg.name && p.disconnected
+        );
+        if (returning) {
+          session.players = session.players.filter((p) => p !== returning);
+          player.id = returning.id;
+          player.name = returning.name;
+          send(ws, { type: 'rejoined', playerId: returning.id });
+          send(session.hostWs, { type: 'player_reconnected', playerId: returning.id, name: returning.name });
+          if (session.currentGame) {
+            send(ws, { type: 'game_selected', game: session.currentGame });
+          }
+          console.log(`[relay] Player reconnected: ${returning.name} (${returning.id})`);
+          return;
+        }
+
+        // Fresh join.
         player.name = msg.name;
         send(ws, { type: 'joined', playerId });
         send(session.hostWs, { type: 'player_joined', playerId, name: msg.name });
@@ -138,7 +160,7 @@ wss.on('connection', (ws, req) => {
         return;
       }
       player.disconnected = true;
-      send(session.hostWs, { type: 'player_disconnected', playerId, name: player.name });
+      send(session.hostWs, { type: 'player_disconnected', playerId: player.id, name: player.name });
       console.log(`[relay] Phone disconnected: ${player.name} (${playerId})`);
     });
 
