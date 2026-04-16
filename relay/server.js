@@ -13,7 +13,7 @@ const server = http.createServer((_req, res) => {
 
 const wss = new WebSocketServer({ server });
 
-// sessions: { [sessionId]: { hostWs, players: [{ id, ws, name }], currentGame: null | string } }
+// sessions: { [sessionId]: { hostWs, players: [{ id, ws, name, disconnected }], currentGame: null | string } }
 const sessions = {};
 
 function generateSessionId() {
@@ -66,9 +66,9 @@ wss.on('connection', (ws, req) => {
         session.currentGame = msg.game;
       }
 
-      // Forward all host messages to all phones.
+      // Forward all host messages to connected phones only.
       for (const player of session.players) {
-        send(player.ws, msg);
+        if (!player.disconnected) send(player.ws, msg);
       }
     });
 
@@ -91,7 +91,7 @@ wss.on('connection', (ws, req) => {
     }
 
     const playerId = crypto.randomBytes(4).toString('hex');
-    const player = { id: playerId, ws, name: null };
+    const player = { id: playerId, ws, name: null, disconnected: false };
     session.players.push(player);
     console.log(`[relay] Phone connected to session ${sessionId}, playerId: ${playerId}`);
 
@@ -131,8 +131,15 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => {
       const session = sessions[sessionId];
       if (!session) return;
-      session.players = session.players.filter((p) => p.id !== playerId);
-      console.log(`[relay] Phone disconnected: ${playerId}`);
+      // Only notify host if the player had fully joined (has a name).
+      // Anonymous connections that never completed join are just pruned.
+      if (!player.name) {
+        session.players = session.players.filter((p) => p.id !== playerId);
+        return;
+      }
+      player.disconnected = true;
+      send(session.hostWs, { type: 'player_disconnected', playerId, name: player.name });
+      console.log(`[relay] Phone disconnected: ${player.name} (${playerId})`);
     });
 
   } else {
