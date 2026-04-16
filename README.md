@@ -5,6 +5,8 @@ A browser-based multiplayer game hub. The host runs on a laptop (connected to a 
 Currently shipped: **Bowling**. Coming soon: Wizard Duel, 3PT Contest, Tennis, Golf, Piano Master.
 
 
+**The app is hosted!! check it out at [Wildhacks Arcade](https://wii-for-phone-host.vercel.app/)**
+
 ---
 
 ## Local Dev Setup
