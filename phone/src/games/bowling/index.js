@@ -220,7 +220,7 @@ export function mount(app, sendMsg, myPlayerId) {
 
   // ── Init ────────────────────────────────────────────────────────────────────
 
-  showWaitingScreen('Game starting...');
+  showWaitingScreen('Waiting for your turn...');
 
   // ── Public message handler ──────────────────────────────────────────────────
 

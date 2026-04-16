@@ -11,11 +11,12 @@ const RESET_DELAY_MS = 1500;
 //   players    — [{ playerId, name }] from lobby
 //   onGameOver — called when game ends (returns to hub)
 //   onAbandon  — called when host quits mid-game (returns to game-select)
-export default function BowlingApp({ wsRef, send, players, onGameOver, onAbandon }) {
+export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon }) {
   const [scores, setScores] = useState([]);
   const [currentPlayerId, setCurrentPlayerId] = useState(null);
   const [frameResultLabel, setFrameResultLabel] = useState(null);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [waitingForReconnect, setWaitingForReconnect] = useState(null); // { playerId, name } | null
 
   const sceneRef = useRef(null);
   const bowlingGameRef = useRef(null);
@@ -23,11 +24,21 @@ export default function BowlingApp({ wsRef, send, players, onGameOver, onAbandon
   const pinsStandingBeforeRoll = useRef(10);
   const currentPlayerIdRef = useRef(null);
   const startedRef = useRef(false);
+  const waitingForReconnectRef = useRef(null);
+  const disconnectedPlayerIdsRef = useRef(disconnectedPlayerIds);
 
-  // Keep ref in sync with state so message callbacks see the current value.
+  // Keep refs in sync with state/props so stale setTimeout closures see current values.
   useEffect(() => {
     currentPlayerIdRef.current = currentPlayerId;
   }, [currentPlayerId]);
+
+  useEffect(() => {
+    waitingForReconnectRef.current = waitingForReconnect;
+  }, [waitingForReconnect]);
+
+  useEffect(() => {
+    disconnectedPlayerIdsRef.current = disconnectedPlayerIds;
+  }, [disconnectedPlayerIds]);
 
   // ── Start game on mount (guarded against StrictMode double-invocation) ───────
 
@@ -70,6 +81,13 @@ export default function BowlingApp({ wsRef, send, players, onGameOver, onAbandon
           throwInFlight.current = true;
           sceneRef.current?.throwBall(msg.power, msg.aimAngle ?? 0, msg.spin, msg.aimOffset ?? 0);
           break;
+        case 'player_reconnected':
+          if (waitingForReconnectRef.current?.playerId === msg.playerId) {
+            throwInFlight.current = false;
+            setWaitingForReconnect(null);
+            send({ type: 'your_turn', playerId: msg.playerId, game_type: 'bowling' });
+          }
+          break;
       }
     }
 
@@ -78,6 +96,52 @@ export default function BowlingApp({ wsRef, send, players, onGameOver, onAbandon
   // wsRef is a stable ref object — this effect runs once on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Turn advancement ──────────────────────────────────────────────────────────
+
+  // Sends your_turn to a player, or pauses if they are currently disconnected.
+  function sendYourTurnOrPause(id) {
+    if (disconnectedPlayerIdsRef.current.has(id)) {
+      const info = players.find((p) => p.playerId === id);
+      throwInFlight.current = true;
+      setWaitingForReconnect({ playerId: id, name: info?.name ?? id });
+    } else {
+      throwInFlight.current = false;
+      setWaitingForReconnect(null);
+      send({ type: 'your_turn', playerId: id, game_type: 'bowling' });
+    }
+  }
+
+  // Skip the disconnected player's remaining rolls this frame (records 0s).
+  function handleSkip() {
+    const game = bowlingGameRef.current;
+    if (!game) return;
+
+    const skippedId = waitingForReconnectRef.current?.playerId ?? currentPlayerIdRef.current;
+
+    let result;
+    do {
+      result = game.recordRoll(0);
+    } while (!result.advancedPlayer);
+
+    const updatedScores = game.getScores();
+    setScores(updatedScores);
+    send({ type: 'throw_result', playerId: skippedId, pinsKnocked: 0, frameScore: null, totalScore: 0 });
+    setWaitingForReconnect(null);
+
+    if (result.gameOver) {
+      throwInFlight.current = false;
+      send({ type: 'game_over', scores: updatedScores });
+      setIsGameOver(true);
+    } else {
+      sceneRef.current?.resetPins();
+      pinsStandingBeforeRoll.current = 10;
+      const nextId = game.getCurrentPlayer().id;
+      currentPlayerIdRef.current = nextId;
+      setCurrentPlayerId(nextId);
+      sendYourTurnOrPause(nextId);
+    }
+  }
 
   // ── Settle callback (called by physics after pins come to rest) ───────────────
 
@@ -123,25 +187,23 @@ export default function BowlingApp({ wsRef, send, players, onGameOver, onAbandon
       setTimeout(() => {
         sceneRef.current?.resetPins();
         pinsStandingBeforeRoll.current = 10;
-        throwInFlight.current = false;
 
         if (gameOver) {
+          throwInFlight.current = false;
           send({ type: 'game_over', scores: updatedScores });
           setIsGameOver(true);
         } else {
-          const nextPlayer = game.getCurrentPlayer();
-          const nextId = nextPlayer.id;
+          const nextId = game.getCurrentPlayer().id;
           currentPlayerIdRef.current = nextId;
           setCurrentPlayerId(nextId);
-          send({ type: 'your_turn', playerId: nextId, game_type: 'bowling' });
+          sendYourTurnOrPause(nextId);
         }
       }, RESET_DELAY_MS);
     } else {
       pinsStandingBeforeRoll.current = standingCount;
       setTimeout(() => {
         sceneRef.current?.resetBall();
-        throwInFlight.current = false;
-        send({ type: 'your_turn', playerId: currentPlayerIdRef.current, game_type: 'bowling' });
+        sendYourTurnOrPause(currentPlayerIdRef.current);
       }, RESET_DELAY_MS);
     }
   }
@@ -158,6 +220,12 @@ export default function BowlingApp({ wsRef, send, players, onGameOver, onAbandon
         <Scene ref={sceneRef} onSettle={handleSettle} />
         {frameResultLabel && (
           <div className="frame-result-overlay">{frameResultLabel}</div>
+        )}
+        {waitingForReconnect && (
+          <div className="reconnect-overlay">
+            <p>Waiting for <strong>{waitingForReconnect.name}</strong> to reconnect…</p>
+            <button className="btn-skip" onClick={handleSkip}>Skip Turn</button>
+          </div>
         )}
         <button className="btn-abandon" onClick={onAbandon}>← Games</button>
       </div>
