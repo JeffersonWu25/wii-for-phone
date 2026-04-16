@@ -6,9 +6,13 @@ const SESSION_ID = new URLSearchParams(window.location.search).get('session');
 // ── State ─────────────────────────────────────────────────────────────────────
 let ws = null;
 let myPlayerId = null;
+let myName = null;
 let currentGame = null; // { onMessage, onMotion } returned by game module mount()
 let gameLoading = false; // true while the dynamic import is in flight
 let pendingMessages = []; // messages received while gameLoading — replayed on mount
+let sessionEnded = false; // set true when host sends session_ended — stop retrying
+let reconnectAttempt = 0;
+let reconnectTimer = null;
 
 const app = document.getElementById('app');
 
@@ -101,6 +105,31 @@ function showSessionEndedScreen() {
   `;
 }
 
+function showReconnectingScreen(attempt) {
+  app.innerHTML = `
+    <div class="screen" id="screen-reconnecting">
+      <h1>WildHacks Arcade</h1>
+      <p>Connection lost. Reconnecting${attempt > 1 ? ` (attempt ${attempt})` : ''}...</p>
+    </div>
+  `;
+}
+
+function showReconnectFailedScreen() {
+  app.innerHTML = `
+    <div class="screen" id="screen-reconnect-failed">
+      <h1>WildHacks Arcade</h1>
+      <p>Couldn't reconnect to the session.</p>
+      <button id="btn-retry">Try Again</button>
+    </div>
+  `;
+  document.getElementById('btn-retry').addEventListener('click', () => {
+    reconnectAttempt = 0;
+    sessionEnded = false;
+    openWebSocket();
+    showReconnectingScreen(1);
+  });
+}
+
 // ── Permission + motion ───────────────────────────────────────────────────────
 
 async function requestPermission() {
@@ -140,22 +169,49 @@ function connectAndJoin(name) {
     alert('No session ID in URL. Scan the QR code again.');
     return;
   }
+  myName = name;
+  sessionEnded = false;
+  reconnectAttempt = 0;
+  openWebSocket();
+  showWaitingScreen('Joining...');
+}
+
+function openWebSocket() {
   ws = new WebSocket(`${RELAY_URL}?role=phone&session=${SESSION_ID}`);
 
   ws.addEventListener('open', () => {
-    ws.send(JSON.stringify({ type: 'join', name }));
+    reconnectAttempt = 0;
+    ws.send(JSON.stringify({ type: 'join', name: myName }));
   });
 
   ws.addEventListener('message', (e) => {
     handleMessage(JSON.parse(e.data));
   });
 
-  ws.addEventListener('close', showSessionEndedScreen);
-  ws.addEventListener('error', () => {
-    alert('Could not connect to relay. Make sure you are on the same network.');
+  ws.addEventListener('close', () => {
+    if (sessionEnded) return;
+    scheduleReconnect();
   });
 
-  showWaitingScreen('Joining...');
+  ws.addEventListener('error', () => {
+    // error always fires before close — let the close handler drive reconnect
+  });
+}
+
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+function scheduleReconnect() {
+  reconnectAttempt++;
+  if (reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
+    showReconnectFailedScreen();
+    return;
+  }
+  // Cap backoff at 16s: 1s, 2s, 4s, 8s, 16s
+  const delay = Math.min(1000 * Math.pow(2, reconnectAttempt - 1), 16000);
+  showReconnectingScreen(reconnectAttempt);
+  reconnectTimer = setTimeout(() => {
+    if (!sessionEnded) openWebSocket();
+  }, delay);
 }
 
 function sendMsg(obj) {
@@ -179,8 +235,10 @@ function handleMessage(msg) {
       break;
 
     case 'name_taken':
+      sessionEnded = true; // stop reconnect loop before closing
       ws.close();
       ws = null;
+      sessionEnded = false; // allow a fresh connectAndJoin from the name screen
       showNameScreen('That name is already taken. Choose another.');
       break;
 
@@ -190,6 +248,8 @@ function handleMessage(msg) {
       break;
 
     case 'session_ended':
+      sessionEnded = true;
+      clearTimeout(reconnectTimer);
       showSessionEndedScreen();
       break;
 
