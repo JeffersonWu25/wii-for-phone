@@ -1,6 +1,9 @@
-# Wii Sports Resort Bowling — Web App
+# WildHacks Arcade — Web Multiplayer Hub
 
-A browser-based multiplayer bowling game. The host runs on a laptop (connected to a TV), and players join as controllers by scanning a QR code on their phones — no app install required.
+A browser-based multiplayer game hub. The host runs on a laptop (connected to a TV), and players join as controllers by scanning a QR code on their phones — no app install required.
+
+Currently shipped: **Bowling**. Coming soon: Wizard Duel, 3PT Contest, Tennis, Golf, Piano Master.
+
 
 ---
 
@@ -79,7 +82,7 @@ npm run dev
 2. The lobby screen shows a QR code — scan it with a phone on the same WiFi network.
 3. On iOS: tap **Enable motion sensors** when prompted (required by Safari).
 4. Enter a name → you appear in the lobby on the TV.
-5. Host clicks **Start** → game begins.
+5. Host clicks **Select Game** → choose a game from the hub → game begins.
 
 ---
 
@@ -87,21 +90,67 @@ npm run dev
 
 ```
 wii-for-phone/
-├── certs/          # mkcert-generated TLS certs (git-ignored)
-├── host/           # Vite + React app — game screen (Three.js + Rapier physics)
-├── phone/          # Vite + Vanilla JS app — mobile controller
-├── relay/          # Node.js WebSocket relay server
-├── .env            # Environment variables (see above)
-└── CLAUDE.md       # Architecture and implementation notes
+├── certs/                  # mkcert-generated TLS certs (git-ignored)
+├── relay/                  # Node.js WebSocket relay server
+├── host/                   # Vite + React — TV/laptop game screen
+│   └── src/
+│       ├── App.jsx         # Thin router: lobby → game-select → game
+│       ├── shared/
+│       │   ├── useRelay.js           # WebSocket hook (stable send)
+│       │   ├── LobbyScreen.jsx       # QR code + player list
+│       │   └── GameSelectScreen.jsx  # Game hub grid
+│       └── games/
+│           ├── bowling/
+│           │   ├── BowlingApp.jsx    # Bowling game logic + scoring
+│           │   ├── Scene.jsx         # Three.js lane, pins, ball
+│           │   ├── physics.js        # Rapier physics world
+│           │   └── BowlingGame.js    # Frame/score tracking
+│           ├── wizard-duel/          # (coming soon)
+│           ├── 3pt-contest/          # (coming soon)
+│           ├── tennis/               # (coming soon)
+│           ├── golf/                 # (coming soon)
+│           └── piano-master/         # (coming soon)
+├── phone/                  # Vite + Vanilla JS — mobile controller
+│   └── src/
+│       ├── main.js         # Thin bootstrap: connect, route game_selected
+│       └── games/
+│           ├── bowling/    # Bowl button, D-pad, motion capture
+│           └── ...         # (future game UIs)
+├── .env                    # Environment variables (see above)
+└── CLAUDE.md               # Architecture and implementation notes
 ```
 
 ---
 
 ## How it Works
 
-The relay server is a lightweight Node.js WebSocket broker. The host connects as `role=host` and gets a session ID. The QR code encodes `https://<ip>/phone?session=<id>`. Phones connect as `role=phone` with that session ID.
+### Hub flow
+
+```
+Host opens lobby → players scan QR → host clicks "Select Game"
+→ game-select screen → host picks a game
+→ relay broadcasts game_selected to all phones
+→ phones load the matching game UI
+→ game starts
+```
+
+### Relay
+
+The relay server is a lightweight Node.js WebSocket broker. The host connects as `role=host` and receives a session ID. The QR code encodes `https://<ip>/phone?session=<id>`. Phones connect as `role=phone` with that session ID.
+
+The relay stores the currently selected game in session state. If a phone joins or reconnects after game selection, the relay immediately sends `game_selected` so the phone loads the correct UI without waiting for another broadcast.
+
+### Bowling (motion controls)
 
 - While the player holds the bowl button, the phone streams orientation at 20 Hz (`pos` events) so the TV shows the ball moving in real time.
-- On release, the phone fires a single `throw` event with `power`, `angle`, and `spin` derived from the motion buffer. The physics engine takes over from there.
+- On release, the phone fires a single `throw` event with `power`, `angle`, and `spin` derived from the motion buffer. The Rapier physics engine takes over from there.
+- D-pad controls ball lane position (MOVE mode) and throw angle (AIM mode).
 
-See [CLAUDE.md](CLAUDE.md) for the full architecture, data flow, and build order.
+### Adding a new game
+
+1. Create `host/src/games/<id>/` with a default export component receiving `{ wsRef, send, players, onGameOver, onAbandon }`.
+2. Create `phone/src/games/<id>/index.js` exporting `mount(app, sendMsg, myPlayerId)` → `{ onMessage, onMotion }`.
+3. Add the game to the `GAMES` array in `GameSelectScreen.jsx` with `built: true`.
+4. Add a `case '<id>':` to the switch in `phone/src/main.js` and to `App.jsx`'s render block.
+
+See [CLAUDE.md](CLAUDE.md) for the full architecture, data flow, and message protocol.
