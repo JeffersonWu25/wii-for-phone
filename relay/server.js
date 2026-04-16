@@ -3,6 +3,8 @@ import { WebSocketServer } from 'ws';
 import crypto from 'crypto';
 
 const PORT = process.env.PORT || 8080;
+const RATE_LIMIT_WINDOW_MS = 1000;
+const RATE_LIMIT_MAX_MSGS = 60; // max messages per second per connection
 
 const server = http.createServer((_req, res) => {
   res.writeHead(200);
@@ -29,6 +31,19 @@ wss.on('connection', (ws, req) => {
   const role = url.searchParams.get('role');
   const sessionId = url.searchParams.get('session');
 
+  let msgCount = 0;
+  let windowStart = Date.now();
+
+  function isRateLimited() {
+    const now = Date.now();
+    if (now - windowStart >= RATE_LIMIT_WINDOW_MS) {
+      msgCount = 0;
+      windowStart = now;
+    }
+    msgCount++;
+    return msgCount > RATE_LIMIT_MAX_MSGS;
+  }
+
   if (role === 'host') {
     const id = generateSessionId();
     sessions[id] = { hostWs: ws, players: [], currentGame: null };
@@ -36,7 +51,13 @@ wss.on('connection', (ws, req) => {
     console.log(`[relay] Session created: ${id}`);
 
     ws.on('message', (data) => {
-      const msg = JSON.parse(data);
+      if (isRateLimited()) return;
+      let msg;
+      try {
+        msg = JSON.parse(data);
+      } catch {
+        return;
+      }
       const session = sessions[id];
       if (!session) return;
 
@@ -75,7 +96,13 @@ wss.on('connection', (ws, req) => {
     console.log(`[relay] Phone connected to session ${sessionId}, playerId: ${playerId}`);
 
     ws.on('message', (data) => {
-      const msg = JSON.parse(data);
+      if (isRateLimited()) return;
+      let msg;
+      try {
+        msg = JSON.parse(data);
+      } catch {
+        return;
+      }
       const session = sessions[sessionId];
       if (!session) return;
 
