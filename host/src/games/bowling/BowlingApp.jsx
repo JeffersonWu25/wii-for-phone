@@ -81,6 +81,13 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
           throwInFlight.current = true;
           sceneRef.current?.throwBall(msg.power, msg.aimAngle ?? 0, msg.spin, msg.aimOffset ?? 0);
           break;
+        case 'player_disconnected':
+          // If the current player disconnects before throwing, pause immediately.
+          if (msg.playerId === currentPlayerIdRef.current && !throwInFlight.current) {
+            throwInFlight.current = true;
+            setWaitingForReconnect({ playerId: msg.playerId, name: msg.name });
+          }
+          break;
         case 'player_reconnected':
           if (waitingForReconnectRef.current?.playerId === msg.playerId) {
             throwInFlight.current = false;
