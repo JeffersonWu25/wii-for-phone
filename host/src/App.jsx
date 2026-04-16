@@ -12,11 +12,22 @@ import BowlingApp from './games/bowling/BowlingApp.jsx';
 export default function App() {
   const [screen, setScreen] = useState('lobby');
   const [players, setPlayers] = useState([]);
+  const [disconnectedPlayerIds, setDisconnectedPlayerIds] = useState(() => new Set());
 
   const onMessage = useCallback((msg) => {
     switch (msg.type) {
       case 'player_joined':
         setPlayers((prev) => [...prev, { playerId: msg.playerId, name: msg.name }]);
+        break;
+      case 'player_disconnected':
+        setDisconnectedPlayerIds((prev) => new Set([...prev, msg.playerId]));
+        break;
+      case 'player_reconnected':
+        setDisconnectedPlayerIds((prev) => {
+          const next = new Set(prev);
+          next.delete(msg.playerId);
+          return next;
+        });
         break;
       // All game-specific messages (pos, aim, throw, etc.) are handled
       // inside each game component via their own ws.addEventListener.
@@ -74,6 +85,7 @@ export default function App() {
         wsRef={wsRef}
         send={send}
         players={players}
+        disconnectedPlayerIds={disconnectedPlayerIds}
         onGameOver={handleGameOver}
         onAbandon={handleAbandon}
       />
