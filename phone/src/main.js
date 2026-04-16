@@ -235,10 +235,10 @@ function handleMessage(msg) {
       break;
 
     case 'name_taken':
-      sessionEnded = true; // stop reconnect loop before closing
+      sessionEnded = true; // prevent close event from triggering reconnect
       ws.close();
       ws = null;
-      sessionEnded = false; // allow a fresh connectAndJoin from the name screen
+      // sessionEnded stays true until connectAndJoin resets it on next submit
       showNameScreen('That name is already taken. Choose another.');
       break;
 
