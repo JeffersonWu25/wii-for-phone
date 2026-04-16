@@ -107,6 +107,13 @@ wss.on('connection', (ws, req) => {
       if (!session) return;
 
       if (msg.type === 'join') {
+        const nameTaken = session.players.some(
+          (p) => p.name === msg.name && p.id !== playerId
+        );
+        if (nameTaken) {
+          send(ws, { type: 'name_taken' });
+          return;
+        }
         player.name = msg.name;
         send(ws, { type: 'joined', playerId });
         send(session.hostWs, { type: 'player_joined', playerId, name: msg.name });
