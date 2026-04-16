@@ -95,6 +95,12 @@ button:active {
   min-height: 1.2em;
 }
 
+.input-error {
+  color: #e63946;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
 /* ── Mode tabs ───────────────────────────────────────────────────────────────── */
 
 .mode-tabs {

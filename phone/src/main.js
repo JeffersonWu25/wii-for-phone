@@ -43,12 +43,13 @@ function showPermissionScreen() {
   document.getElementById('btn-permission').addEventListener('click', requestPermission);
 }
 
-function showNameScreen() {
+function showNameScreen(error = null) {
   app.innerHTML = `
     <div class="screen" id="screen-name">
       <h1>WildHacks Arcade</h1>
       <p>Enter your name to join</p>
       <input id="input-name" type="text" maxlength="16" placeholder="Your name" autocomplete="off" />
+      ${error ? `<p class="input-error">${error}</p>` : ''}
       <button id="btn-join">Join Game</button>
     </div>
   `;
@@ -151,6 +152,12 @@ function handleMessage(msg) {
     case 'joined':
       myPlayerId = msg.playerId;
       showWaitingScreen('Waiting for host to select a game...');
+      break;
+
+    case 'name_taken':
+      ws.close();
+      ws = null;
+      showNameScreen('That name is already taken. Choose another.');
       break;
 
     case 'game_selected':
