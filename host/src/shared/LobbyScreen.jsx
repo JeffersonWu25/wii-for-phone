@@ -15,10 +15,14 @@ export default function LobbyScreen({ sessionId, players, onStart }) {
     QRCode.toCanvas(canvasRef.current, url, { width: 260, margin: 2 });
   }, [sessionId]);
 
+  const phoneUrl = sessionId
+    ? `${PHONE_BASE?.startsWith('http') ? PHONE_BASE : `https://${PHONE_BASE}`}?session=${sessionId}`
+    : null;
+
   return (
     <div className="lobby">
       <div className="lobby-left">
-        <h1>WildHacks Arcade</h1>
+        <h1>Wii Playground</h1>
         <p className="lobby-sub">Scan to join on your phone</p>
         <div className="qr-wrap">
           {sessionId ? (
@@ -29,6 +33,9 @@ export default function LobbyScreen({ sessionId, players, onStart }) {
         </div>
         {sessionId && (
           <p className="session-id">Session: <strong>{sessionId}</strong></p>
+        )}
+        {phoneUrl && (
+          <p className="session-id">{phoneUrl}</p>
         )}
       </div>
 
