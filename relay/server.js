@@ -146,7 +146,7 @@ wss.on('connection', (ws, req) => {
         }
         console.log(`[relay] Player joined: ${msg.name} (${playerId})`);
       } else if (msg.type === 'pos' || msg.type === 'throw' || msg.type === 'aim') {
-        send(session.hostWs, { ...msg, playerId });
+        send(session.hostWs, { ...msg, playerId: player.id });
       }
     });
 
