@@ -7,12 +7,18 @@ const SESSION_ID = new URLSearchParams(window.location.search).get('session');
 let ws = null;
 let myPlayerId = null;
 let currentGame = null; // { onMessage, onMotion } returned by game module mount()
+let gameLoading = false; // true while the dynamic import is in flight
+let pendingMessages = []; // messages received while gameLoading — replayed on mount
 
 const app = document.getElementById('app');
 
 // ── Game loader ───────────────────────────────────────────────────────────────
 // Static switch avoids dynamic import string analysis issues with Vite.
 async function loadAndMountGame(gameId) {
+  // Idempotent: if the same game is already mounted, skip re-mount.
+  if (currentGame && currentGame._gameId === gameId) return;
+
+  gameLoading = true;
   let mountFn;
   switch (gameId) {
     case 'bowling': {
@@ -22,12 +28,25 @@ async function loadAndMountGame(gameId) {
     }
     default:
       console.warn(`[phone] Unknown game: ${gameId}`);
+      gameLoading = false;
       return;
   }
-  // Idempotent: if the same game is already mounted, skip re-mount.
-  if (currentGame && currentGame._gameId === gameId) return;
+
+  // Re-check after await in case game_selected fired twice during loading.
+  if (currentGame && currentGame._gameId === gameId) {
+    gameLoading = false;
+    return;
+  }
+
   currentGame = mountFn(app, sendMsg, myPlayerId);
   currentGame._gameId = gameId;
+  gameLoading = false;
+
+  // Replay any messages that arrived while the module was loading.
+  const queued = pendingMessages.splice(0);
+  for (const msg of queued) {
+    currentGame.onMessage?.(msg);
+  }
 }
 
 // ── Screens ───────────────────────────────────────────────────────────────────
@@ -43,12 +62,13 @@ function showPermissionScreen() {
   document.getElementById('btn-permission').addEventListener('click', requestPermission);
 }
 
-function showNameScreen() {
+function showNameScreen(error = null) {
   app.innerHTML = `
     <div class="screen" id="screen-name">
       <h1>WildHacks Arcade</h1>
       <p>Enter your name to join</p>
       <input id="input-name" type="text" maxlength="16" placeholder="Your name" autocomplete="off" />
+      ${error ? `<p class="input-error">${error}</p>` : ''}
       <button id="btn-join">Join Game</button>
     </div>
   `;
@@ -153,6 +173,17 @@ function handleMessage(msg) {
       showWaitingScreen('Waiting for host to select a game...');
       break;
 
+    case 'rejoined':
+      myPlayerId = msg.playerId;
+      showWaitingScreen('Reconnecting...');
+      break;
+
+    case 'name_taken':
+      ws.close();
+      ws = null;
+      showNameScreen('That name is already taken. Choose another.');
+      break;
+
     case 'game_selected':
       // Load and mount the game UI. Idempotent if same game is already loaded.
       loadAndMountGame(msg.game);
@@ -164,8 +195,12 @@ function handleMessage(msg) {
 
     default:
       // Delegate all other messages (your_turn, throw_result, game_started…)
-      // to the active game module.
-      currentGame?.onMessage?.(msg);
+      // to the active game module. Queue if the module is still loading.
+      if (gameLoading) {
+        pendingMessages.push(msg);
+      } else {
+        currentGame?.onMessage?.(msg);
+      }
       break;
   }
 }
