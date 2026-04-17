@@ -135,6 +135,10 @@ function startMotionListener() {
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
+function onUnexpectedClose() {
+  showSessionEndedScreen();
+}
+
 function connectAndJoin(name) {
   if (!SESSION_ID) {
     alert('No session ID in URL. Scan the QR code again.');
@@ -150,7 +154,7 @@ function connectAndJoin(name) {
     handleMessage(JSON.parse(e.data));
   });
 
-  ws.addEventListener('close', showSessionEndedScreen);
+  ws.addEventListener('close', onUnexpectedClose);
   ws.addEventListener('error', () => {
     alert('Could not connect to relay. Make sure you are on the same network.');
   });
@@ -179,6 +183,7 @@ function handleMessage(msg) {
       break;
 
     case 'name_taken':
+      ws.removeEventListener('close', onUnexpectedClose);
       ws.close();
       ws = null;
       showNameScreen('That name is already taken. Choose another.');
