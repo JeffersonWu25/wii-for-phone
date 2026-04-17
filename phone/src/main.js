@@ -54,7 +54,7 @@ async function loadAndMountGame(gameId) {
 function showPermissionScreen() {
   app.innerHTML = `
     <div class="screen" id="screen-permission">
-      <h1>WildHacks Arcade</h1>
+      <h1>Wii Playground</h1>
       <p>Tap below to enable motion sensors</p>
       <button id="btn-permission">Enable Motion Sensors</button>
     </div>
@@ -65,7 +65,7 @@ function showPermissionScreen() {
 function showNameScreen(error = null) {
   app.innerHTML = `
     <div class="screen" id="screen-name">
-      <h1>WildHacks Arcade</h1>
+      <h1>Wii Playground</h1>
       <p>Enter your name to join</p>
       <input id="input-name" type="text" maxlength="16" placeholder="Your name" autocomplete="off" />
       ${error ? `<p class="input-error">${error}</p>` : ''}
@@ -86,7 +86,7 @@ function showNameScreen(error = null) {
 function showWaitingScreen(label = 'Waiting for host to start...') {
   app.innerHTML = `
     <div class="screen" id="screen-waiting">
-      <h1>WildHacks Arcade</h1>
+      <h1>Wii Playground</h1>
       <p id="waiting-label">${label}</p>
     </div>
   `;
