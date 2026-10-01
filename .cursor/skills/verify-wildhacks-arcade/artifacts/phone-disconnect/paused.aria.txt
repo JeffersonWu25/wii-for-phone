@@ -1,0 +1,4 @@
+# phone-disconnect pause
+- role: button
+  name: Skip Turn
+- name: Waiting for Verify Player to reconnect…

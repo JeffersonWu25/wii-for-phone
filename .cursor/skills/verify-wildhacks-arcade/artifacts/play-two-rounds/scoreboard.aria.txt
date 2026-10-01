@@ -1,0 +1,4 @@
+# play-two-rounds host after both players finished two frames
+# scoreboard rolls are not in the accessibility tree; see scoreboard.json
+- role: button
+  name: ← Games

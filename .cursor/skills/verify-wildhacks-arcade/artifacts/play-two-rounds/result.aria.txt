@@ -1,0 +1,6 @@
+# play-two-rounds final phone result, Second Player completing frame 2
+- role: heading
+  name: 0 pins knocked down
+  level: 1
+- name: "Score: 12"
+- name: Waiting for your next turn...

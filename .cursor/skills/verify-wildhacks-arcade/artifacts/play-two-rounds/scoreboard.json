@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Verify Player",
+    "frames": [["9", "0"], ["6", "0"]],
+    "totals": ["9", "15"]
+  },
+  {
+    "name": "Second Player",
+    "frames": [["6", "0"], ["6", "0"]],
+    "totals": ["6", "12"]
+  }
+]

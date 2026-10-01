@@ -1,0 +1,26 @@
+# join-lobby / host after Verify Player joined
+# entry: phone Join Game
+- role: document
+  name: Wii Bowling — Host
+  ref: root
+  children:
+    - role: button
+      name: Select Game
+      ref: e0
+    - role: heading
+      name: Wii Playground
+      ref: e1
+      level: 1
+      name: Scan to join on your phone
+      ref: e2
+      name: "Session: e13e22"
+      ref: e3
+      name: "http://127.0.0.1:15174?session=e13e22"
+      ref: e4
+    - role: heading
+      name: Players ( 1 )
+      ref: e5
+      level: 2
+    - role: listitem
+      name: Verify Player
+      ref: e6

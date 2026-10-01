@@ -1,0 +1,12 @@
+# bowling-turn short hold on Verify Player
+# dot-move style.left was 59% after one right nudge (center is 50%)
+# 40ms touchstart/touchend returned hint "Hold longer and swing!"
+# scoreboard did not gain a roll from that hold
+- role: button
+  name: MOVE
+- role: button
+  name: AIM
+- role: button
+  name: BOWL
+- name: Hold and swing to bowl!
+- name: Hold longer and swing!

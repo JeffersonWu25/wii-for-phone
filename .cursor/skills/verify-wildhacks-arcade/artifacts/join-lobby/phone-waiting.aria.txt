@@ -1,0 +1,12 @@
+# join-lobby / phone waiting after Join Game
+# entry: name screen, button Join Game
+- role: document
+  name: Wii Bowling — Controller
+  ref: root
+  children:
+    - role: heading
+      name: Wii Playground
+      ref: e0
+      level: 1
+      name: Waiting for host to select a game...
+      ref: e1

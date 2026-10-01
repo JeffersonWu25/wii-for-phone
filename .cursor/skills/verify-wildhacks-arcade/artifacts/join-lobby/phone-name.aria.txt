@@ -1,0 +1,21 @@
+# join-lobby / phone name filled, before Join Game
+# entry: name screen (desktop, no motion-permission gate)
+- role: document
+  name: Wii Bowling — Controller
+  ref: root
+  children:
+    - role: textbox
+      name: Your name
+      ref: e0
+      value: Verify Player
+      placeholder: Your name
+      states: [active, focused]
+    - role: button
+      name: Join Game
+      ref: e1
+    - role: heading
+      name: Wii Playground
+      ref: e2
+      level: 1
+      name: Enter your name to join
+      ref: e3

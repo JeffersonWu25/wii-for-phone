@@ -1,0 +1,14 @@
+# join-lobby host after both players, session 5bb31f
+- role: button
+  name: Select Game
+- role: heading
+  name: Wii Playground
+  level: 1
+- name: "Session: 5bb31f"
+- role: heading
+  name: Players ( 2 )
+  level: 2
+- role: listitem
+  name: Verify Player
+- role: listitem
+  name: Second Player

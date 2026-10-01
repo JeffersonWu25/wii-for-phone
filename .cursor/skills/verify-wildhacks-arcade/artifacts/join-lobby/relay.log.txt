@@ -1,0 +1,5 @@
+[relay] Session created: acbda4
+[relay] Session ended: acbda4
+[relay] Session created: e13e22
+[relay] Phone connected to session e13e22, playerId: f56e723f
+[relay] Player joined: Verify Player (f56e723f)

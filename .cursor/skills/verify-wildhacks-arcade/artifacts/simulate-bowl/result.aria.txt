@@ -1,0 +1,6 @@
+# simulate-bowl result, Verify Player second roll of frame 1
+- role: heading
+  name: 0 pins knocked down
+  level: 1
+- name: "Score: 9"
+- name: Waiting for your next turn...

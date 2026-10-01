@@ -1,0 +1,3 @@
+[relay] Session created: 5bb31f
+[relay] Player joined: Verify Player (4cf80bd7)
+[relay] Player joined: Second Player (c969c253)

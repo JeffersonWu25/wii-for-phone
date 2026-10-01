@@ -1,0 +1,13 @@
+# host-leaves after Reconnect, new session
+- role: button
+  name: Select Game
+  states: [disabled]
+- role: heading
+  name: Wii Playground
+  level: 1
+- name: "Session: 359098"
+- role: heading
+  name: Players ( 0 )
+  level: 2
+- role: listitem
+  name: Waiting for players...
