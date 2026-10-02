@@ -7,7 +7,7 @@ const RELAY_URL = import.meta.env.VITE_RELAY_URL;
 // Returns a stable `send` function (memoized) safe to pass as props.
 export function useRelay(onMessage) {
   const [sessionId, setSessionId] = useState(null);
-  const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState('connecting');
   const wsRef = useRef(null);
 
   // Keep the callback current every render so callers can pass a fresh closure
@@ -27,13 +27,21 @@ export function useRelay(onMessage) {
 
   const reconnect = useCallback(() => {
     setSessionId(null);
-    setConnected(false);
+    setStatus('connecting');
 
     const ws = new WebSocket(`${RELAY_URL}?role=host`);
     wsRef.current = ws;
 
-    ws.addEventListener('open', () => setConnected(true));
+    // StrictMode closes the first socket immediately. Its error and close
+    // events must not mark the replacement socket as lost.
+    const isCurrent = () => wsRef.current === ws;
+
+    ws.addEventListener('open', () => {
+      if (!isCurrent()) return;
+      setStatus('open');
+    });
     ws.addEventListener('message', (e) => {
+      if (!isCurrent()) return;
       const msg = JSON.parse(e.data);
       // session_created is consumed here — sets sessionId, not forwarded.
       if (msg.type === 'session_created') {
@@ -42,8 +50,14 @@ export function useRelay(onMessage) {
       }
       onMessageRef.current?.(msg);
     });
-    ws.addEventListener('close', () => setConnected(false));
-    ws.addEventListener('error', () => setConnected(false));
+    ws.addEventListener('close', () => {
+      if (!isCurrent()) return;
+      setStatus('lost');
+    });
+    ws.addEventListener('error', () => {
+      if (!isCurrent()) return;
+      setStatus('lost');
+    });
   }, []);
 
   useEffect(() => {
@@ -51,5 +65,5 @@ export function useRelay(onMessage) {
     return () => wsRef.current?.close();
   }, [reconnect]);
 
-  return { sessionId, connected, send, reconnect, wsRef };
+  return { sessionId, status, send, reconnect, wsRef };
 }
