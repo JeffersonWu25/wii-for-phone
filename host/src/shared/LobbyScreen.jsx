@@ -28,7 +28,10 @@ export default function LobbyScreen({ sessionId, players, onStart }) {
           {sessionId ? (
             <canvas ref={canvasRef} />
           ) : (
-            <div className="qr-placeholder">Connecting...</div>
+            <div className="qr-placeholder" role="status">
+              <div className="qr-spinner" aria-hidden="true" />
+              <span>Connecting</span>
+            </div>
           )}
         </div>
         {sessionId && (

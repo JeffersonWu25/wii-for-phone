@@ -34,7 +34,7 @@ export default function App() {
     }
   }, []);
 
-  const { sessionId, connected, send, reconnect, wsRef } = useRelay(onMessage);
+  const { sessionId, status, send, reconnect, wsRef } = useRelay(onMessage);
 
   function handleGameSelect(gameId) {
     setScreen(gameId);
@@ -56,7 +56,7 @@ export default function App() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  if (!connected) {
+  if (status === 'lost') {
     return <LostConnectionScreen onReconnect={handleReconnect} />;
   }
 
