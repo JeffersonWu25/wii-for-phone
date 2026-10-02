@@ -475,9 +475,12 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       };
     });
 
-    // Render loop
+    let lastFrame = performance.now();
     function animate() {
       animFrameId = requestAnimationFrame(animate);
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lastFrame) / 1000);
+      lastFrame = now;
 
       // In preview mode, snap the physics ball body to the target X immediately.
       // This makes D-pad adjustments feel instant on the TV.
@@ -486,7 +489,7 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
         physics.ballBody.setTranslation({ x: targetBallXRef.current, y: pos.y, z: pos.z }, true);
       }
 
-      physicsRef.current?.step(); // syncs meshes from physics bodies
+      physicsRef.current?.step(dt);
 
       // Update dashed aim line to track ball position and current aim angle
       if (aimArrowRef.current) {

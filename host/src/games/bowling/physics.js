@@ -9,16 +9,22 @@ const PIN_RADIUS = 0.06;
 const LANE_HALF_WIDTH = 0.525;
 const LANE_HALF_LENGTH = 9.15;
 
-// Normalize throw values to physics units
-const MIN_SPEED = 6;    // raised from 3 — prevents slow lateral drift into gutter
-const MAX_SPEED = 14;
-const MAX_ANGLE_DEG = 3; // reduced from 15 — throw is fine-tune only, not primary aim
-const MAX_SPIN = 10; // rad/s
-const MAX_START_X = 0.45; // clamp on combined aimOffset starting position
+const MIN_RELEASE_MPS = 4;
+const MAX_RELEASE_MPS = 9;
+const MAX_ANGLE_DEG = 3;
+const MAX_START_X = 0.45;
+const HOOK_ACCEL_MPS2 = 0.13;
+const WALL_SETTLE_MS = 5000;
+const SIM_SETTLE_S = 8;
+const BALL_MASS_KG = 5.575;
 
-// Magnus effect coefficient — spin curves the ball during roll.
-// Too high = violent hook; too low = invisible. Start at 0.005 and tune.
-const MAGNUS_COEFFICIENT = 0.005;
+const PIN_MASS = 1.53;
+const PIN_VOLUME = Math.PI * PIN_RADIUS * PIN_RADIUS * (PIN_HALF_HEIGHT * 2);
+const PIN_DENSITY = PIN_MASS / PIN_VOLUME;
+
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(max, val));
+}
 
 export class PhysicsWorld {
   constructor() {
@@ -29,6 +35,9 @@ export class PhysicsWorld {
     this.settleCounter = 0;
     this.thrown = false;
     this.settled = false;
+    this.releaseSpin = 0;
+    this.simTime = 0;
+    this._accumulator = 0;
     this.onSettle = null;  // callback(standingCount)
   }
 
@@ -93,13 +102,14 @@ export class PhysicsWorld {
   _createBall() {
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(BALL_START.x, BALL_START.y, BALL_START.z)
-      .setLinearDamping(0.3)
-      .setAngularDamping(0.5);
+      .setLinearDamping(0.02)
+      .setAngularDamping(0.2);
     this.ballBody = this.world.createRigidBody(bodyDesc);
+    const ballVolume = (4 / 3) * Math.PI * BALL_RADIUS ** 3;
     const colliderDesc = RAPIER.ColliderDesc.ball(BALL_RADIUS)
-      .setDensity(1000)  // ~5.6 kg — realistic bowling ball; default 1.0 kg/m³ gives 5g (ping-pong ball)
-      .setRestitution(0.3)
-      .setFriction(0.8);
+      .setDensity(BALL_MASS_KG / ballVolume)
+      .setRestitution(0.12)
+      .setFriction(0.08);
     this.world.createCollider(colliderDesc, this.ballBody);
   }
 
@@ -109,12 +119,13 @@ export class PhysicsWorld {
     positions.forEach((pos) => {
       const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
         .setTranslation(pos.x, PIN_HALF_HEIGHT, pos.z)
-        .setLinearDamping(0.3)
-        .setAngularDamping(0.5);
+        .setLinearDamping(0.2)
+        .setAngularDamping(0.45);
       const body = this.world.createRigidBody(bodyDesc);
       const colliderDesc = RAPIER.ColliderDesc.cylinder(PIN_HALF_HEIGHT, PIN_RADIUS)
-        .setRestitution(0.4)
-        .setFriction(0.6);
+        .setDensity(PIN_DENSITY)
+        .setRestitution(0.2)
+        .setFriction(0.35);
       this.world.createCollider(colliderDesc, body);
       this.pinBodies.push(body);
     });
@@ -132,44 +143,45 @@ export class PhysicsWorld {
     this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
-    const speed = MIN_SPEED + power * (MAX_SPEED - MIN_SPEED);
-    const angleRad = angle * (MAX_ANGLE_DEG * Math.PI / 180);
+    const scaledPower = clamp(power, 0, 1);
+    this.releaseSpin = clamp(spin, -1, 1);
+    this.simTime = 0;
 
-    // Ball travels in -Z direction (toward pins), X component from angle
+    const speed = MIN_RELEASE_MPS + scaledPower * (MAX_RELEASE_MPS - MIN_RELEASE_MPS);
+    const angleRad = clamp(angle, -1, 1) * (MAX_ANGLE_DEG * Math.PI / 180);
+
     const vx = Math.sin(angleRad) * speed;
     const vz = -Math.cos(angleRad) * speed;
 
     this.ballBody.setLinvel({ x: vx, y: 0, z: vz }, true);
-    this.ballBody.setAngvel({ x: 0, y: spin * MAX_SPIN, z: 0 }, true);
+    this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
-    // Hard deadline: settle after 5 seconds regardless of physics state
-    this._forceSettleTimer = setTimeout(() => {
-      if (this.settled) return;
-      this.settled = true;
-      this.onSettle?.(this.getStandingPinCount());
-    }, 5000);
+    this._forceSettleTimer = setTimeout(() => this._finishSettle(), WALL_SETTLE_MS);
   }
 
-  step() {
+  step(dt = 1 / 60) {
     if (!this.world) return;
-    this.world.step();
-    this._syncMeshes();
-
-    if (this.thrown && !this.settled) {
-      this._applyMagnusForce();
-      this._checkSettle();
+    const frame = Number.isFinite(dt) && dt > 0 ? Math.min(dt, 0.05) : 1 / 60;
+    this._accumulator += frame;
+    const h = this.world.timestep;
+    let guard = 0;
+    while (this._accumulator >= h - 1e-8 && guard < 4) {
+      if (this.thrown && !this.settled) this._applyHook(h);
+      this.world.step();
+      this.simTime += h;
+      this._accumulator -= h;
+      guard++;
+      if (this.thrown && !this.settled) {
+        if (this.simTime > SIM_SETTLE_S) this._finishSettle();
+        else this._checkSettle();
+      }
     }
+    this._syncMeshes();
   }
 
-  // Simulate a hook/curve by applying a lateral impulse proportional to
-  // spin (angvel.y) and current forward speed. MAGNUS_COEFFICIENT controls
-  // how aggressively the ball curves — tune this constant as needed.
-  _applyMagnusForce() {
-    if (!this.ballBody) return;
-    const vel = this.ballBody.linvel();
-    const angvel = this.ballBody.angvel();
-    const lateralForce = angvel.y * Math.abs(vel.z) * MAGNUS_COEFFICIENT;
-    this.ballBody.applyImpulse({ x: lateralForce, y: 0, z: 0 }, true);
+  _applyHook(dt) {
+    const impulse = this.releaseSpin * HOOK_ACCEL_MPS2 * this.ballBody.mass() * dt;
+    this.ballBody.applyImpulse({ x: impulse, y: 0, z: 0 }, true);
   }
 
   _syncMeshes() {
@@ -203,15 +215,17 @@ export class PhysicsWorld {
 
     if (allStill) {
       this.settleCounter++;
-      if (this.settleCounter >= SETTLE_FRAMES) {
-        this.settled = true;
-        clearTimeout(this._forceSettleTimer);
-        const standing = this.getStandingPinCount();
-        this.onSettle?.(standing);
-      }
+      if (this.settleCounter >= SETTLE_FRAMES) this._finishSettle();
     } else {
       this.settleCounter = 0;
     }
+  }
+
+  _finishSettle() {
+    if (this.settled) return;
+    this.settled = true;
+    clearTimeout(this._forceSettleTimer);
+    this.onSettle?.(this.getStandingPinCount());
   }
 
   getStandingPinCount() {
@@ -237,6 +251,8 @@ export class PhysicsWorld {
     this.thrown = false;
     this.settled = false;
     this.settleCounter = 0;
+    this.releaseSpin = 0;
+    this.simTime = 0;
   }
 
   resetPins() {
@@ -254,6 +270,8 @@ export class PhysicsWorld {
     this.thrown = false;
     this.settled = false;
     this.settleCounter = 0;
+    this.releaseSpin = 0;
+    this.simTime = 0;
 
     // Recreate pins at starting positions
     this._createPins();

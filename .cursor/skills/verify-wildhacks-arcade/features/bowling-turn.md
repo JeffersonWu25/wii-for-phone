@@ -34,6 +34,6 @@ Preconditions:
 
 - `BOWL` ignores mouse clicks. A screenshot of the button after a click is not a throw and is not a short-hold.
 - A hold of 150ms or longer sends `throw` and the host physics takes the turn. Do not use a long hold while proving the short-hold hint.
-- Desktop browsers in this harness do not emit a real swing. A completed throw from this browser sends a default power when the motion buffer is empty. Do not treat that throw as proof of motion capture.
+- A completed throw with an empty motion buffer sends power `0.5` and spin `0`. That is not a swing. `simulate-bowl` dispatches accelerometer and gyroscope events during the hold. Do not treat a bare hold as proof of motion capture.
 - The second player's phone shows `Waiting for your turn...` (heading `Bowling`) until the host advances the turn. Do not look for `BOWL` on that phone during player one's turn.
 - D-pad buttons disable while a hold is in progress. If they stay disabled, the matching `touchend` never fired.
