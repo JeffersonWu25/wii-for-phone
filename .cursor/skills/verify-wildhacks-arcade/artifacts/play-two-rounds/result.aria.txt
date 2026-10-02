@@ -1,4 +1,4 @@
-# play-two-rounds final phone result, Second Player completing frame 2
+# play-two-rounds session 7bcb97, Second Player completing frame 2
 - role: heading
   name: 0 pins knocked down
   level: 1

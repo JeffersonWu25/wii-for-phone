@@ -1,4 +1,4 @@
-# Join the lobby
+gi# Join the lobby
 
 Join the lobby lets a player open the phone URL from the host, enter a name, and show up in the host player list so the host can select a game.
 

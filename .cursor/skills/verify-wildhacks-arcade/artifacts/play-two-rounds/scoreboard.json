@@ -1,8 +1,8 @@
 [
   {
     "name": "Verify Player",
-    "frames": [["9", "0"], ["6", "0"]],
-    "totals": ["9", "15"]
+    "frames": [["6", "0"], ["0", "6"]],
+    "totals": ["6", "12"]
   },
   {
     "name": "Second Player",
