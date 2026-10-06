@@ -250,5 +250,11 @@ export function mount(app, sendMsg, myPlayerId) {
         motionBuffer.push({ ax, ay, az, alpha, beta, gamma, t: Date.now() });
       }
     },
+    unmount() {
+      if (streamInterval) clearInterval(streamInterval);
+      streamInterval = null;
+      holdStart = null;
+      releaseWakeLock();
+    },
   };
 }

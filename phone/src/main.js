@@ -14,7 +14,19 @@ const app = document.getElementById('app');
 
 // ── Game loader ───────────────────────────────────────────────────────────────
 // Static switch avoids dynamic import string analysis issues with Vite.
+function unmountCurrentGame() {
+  currentGame?.unmount?.();
+  currentGame = null;
+}
+
 async function loadAndMountGame(gameId) {
+  if (!gameId) {
+    unmountCurrentGame();
+    gameLoading = false;
+    showWaitingScreen('Waiting for host to select a game...');
+    return;
+  }
+
   // Idempotent: if the same game is already mounted, skip re-mount.
   if (currentGame && currentGame._gameId === gameId) return;
 
@@ -23,6 +35,11 @@ async function loadAndMountGame(gameId) {
   switch (gameId) {
     case 'bowling': {
       const mod = await import('./games/bowling/index.js');
+      mountFn = mod.mount;
+      break;
+    }
+    case 'kart': {
+      const mod = await import('./games/kart/index.js');
       mountFn = mod.mount;
       break;
     }
@@ -38,6 +55,7 @@ async function loadAndMountGame(gameId) {
     return;
   }
 
+  unmountCurrentGame();
   currentGame = mountFn(app, sendMsg, myPlayerId);
   currentGame._gameId = gameId;
   gameLoading = false;

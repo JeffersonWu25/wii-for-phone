@@ -3,6 +3,7 @@
 
 const GAMES = [
   { id: 'bowling',      label: 'Bowling',      emoji: '🎳', built: true  },
+  { id: 'kart',         label: 'Mario Kart',   emoji: '🏎️', built: true  },
   { id: 'wizard-duel',  label: 'Wizard Duel',  emoji: '🧙', built: false },
   { id: '3pt-contest',  label: '3PT Contest',  emoji: '🏀', built: false },
   { id: 'tennis',       label: 'Tennis',       emoji: '🎾', built: false },
@@ -12,6 +13,7 @@ const GAMES = [
 
 export default function GameSelectScreen({ send, onSelect }) {
   function handleSelect(game) {
+    if (!game.built) return;
     send({ type: 'game_selected', game: game.id });
     onSelect(game.id);
   }
@@ -24,6 +26,7 @@ export default function GameSelectScreen({ send, onSelect }) {
           <button
             key={game.id}
             className={`game-card${game.built ? '' : ' coming-soon'}`}
+            disabled={!game.built}
             onClick={() => handleSelect(game)}
           >
             <span className="game-card-emoji">{game.emoji}</span>

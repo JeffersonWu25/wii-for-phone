@@ -3,6 +3,7 @@ import { useRelay } from './shared/useRelay.js';
 import LobbyScreen from './shared/LobbyScreen.jsx';
 import GameSelectScreen from './shared/GameSelectScreen.jsx';
 import BowlingApp from './games/bowling/BowlingApp.jsx';
+import KartApp from './games/kart/KartApp.jsx';
 
 // ── App — thin 3-screen router ────────────────────────────────────────────────
 // Screens: 'lobby' → 'game-select' → [game]
@@ -40,11 +41,8 @@ export default function App() {
     setScreen(gameId);
   }
 
-  function handleGameOver() {
-    setScreen('game-select');
-  }
-
-  function handleAbandon() {
+  function leaveToSelect() {
+    send({ type: 'game_selected', game: null });
     setScreen('game-select');
   }
 
@@ -86,8 +84,19 @@ export default function App() {
         send={send}
         players={players}
         disconnectedPlayerIds={disconnectedPlayerIds}
-        onGameOver={handleGameOver}
-        onAbandon={handleAbandon}
+        onGameOver={leaveToSelect}
+        onAbandon={leaveToSelect}
+      />
+    );
+  }
+
+  if (screen === 'kart') {
+    return (
+      <KartApp
+        wsRef={wsRef}
+        send={send}
+        players={players}
+        onAbandon={leaveToSelect}
       />
     );
   }

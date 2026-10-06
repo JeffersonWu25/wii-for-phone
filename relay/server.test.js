@@ -230,3 +230,19 @@ test('Part 4 — game_selected is sent to reconnecting player if game is active'
   await nextMsg(host); // player_reconnected
   await Promise.all([closeAndWait(host), closeAndWait(phone2)]);
 });
+
+test('drive packets are forwarded to the host with the player id', async () => {
+  const { host, sessionId } = await createSession();
+  const { phone, msg } = await joinPhone(sessionId, 'Mario');
+  assert.equal(msg.type, 'joined');
+  await nextMsg(host);
+
+  phone.send(JSON.stringify({ type: 'drive', steer: -0.4, gas: true, drift: false, seq: 3 }));
+  const fwd = await nextMsg(host);
+  assert.equal(fwd.type, 'drive');
+  assert.equal(fwd.steer, -0.4);
+  assert.equal(fwd.gas, true);
+  assert.equal(fwd.playerId, msg.playerId);
+
+  await Promise.all([closeAndWait(host), closeAndWait(phone)]);
+});

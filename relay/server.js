@@ -63,7 +63,7 @@ wss.on('connection', (ws, req) => {
 
       // Store selected game so late-joining / reconnecting phones get it immediately.
       if (msg.type === 'game_selected') {
-        session.currentGame = msg.game;
+        session.currentGame = msg.game || null;
       }
 
       // Forward all host messages to connected phones only.
@@ -145,7 +145,7 @@ wss.on('connection', (ws, req) => {
           send(ws, { type: 'game_selected', game: session.currentGame });
         }
         console.log(`[relay] Player joined: ${msg.name} (${playerId})`);
-      } else if (msg.type === 'pos' || msg.type === 'throw' || msg.type === 'aim') {
+      } else if (msg.type === 'pos' || msg.type === 'throw' || msg.type === 'aim' || msg.type === 'drive') {
         send(session.hostWs, { ...msg, playerId: player.id });
       }
     });

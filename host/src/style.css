@@ -432,9 +432,13 @@ html, body, #root {
   border-color: #2a2a45;
 }
 
-.game-card.coming-soon:hover {
-  border-color: #5555aa;
-  box-shadow: 0 8px 24px rgba(80, 80, 160, 0.15);
+.game-card.coming-soon:hover,
+.game-card:disabled:hover {
+  transform: none;
+  background: #14142a;
+  border-color: #2a2a45;
+  box-shadow: none;
+  cursor: default;
 }
 
 .game-card-emoji {
@@ -595,4 +599,126 @@ html, body, #root {
 .coming-soon-screen button:hover {
   background: #28284a;
   color: #fff;
+}
+
+.kart-layout {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #87d4ff;
+  overflow: hidden;
+}
+
+.kart-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.kart-canvas canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.kart-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.kart-pane {
+  position: absolute;
+  box-sizing: border-box;
+  border: 4px solid #fff;
+}
+
+.kart-pane-tag {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: #1a1206;
+  font-weight: 800;
+  width: fit-content;
+}
+
+.kart-pane-lap {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  color: #fff;
+  font-weight: 800;
+  text-shadow: 0 2px 0 #14305a;
+}
+
+.kart-countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 6px 0 #14305a;
+}
+
+.kart-results {
+  pointer-events: auto;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff8e8;
+  color: #1a1206;
+  border-radius: 20px;
+  padding: 28px 32px;
+  min-width: 320px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.kart-results h2 {
+  margin: 0 0 12px;
+  font-size: 2rem;
+}
+
+.kart-results ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kart-results li {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid #ead9a8;
+  font-weight: 700;
+}
+
+.kart-results button,
+.kart-back {
+  pointer-events: auto;
+  border: none;
+  border-radius: 999px;
+  background: #e52521;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.kart-results button {
+  margin-top: 16px;
+  padding: 12px 18px;
+}
+
+.kart-back {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 4;
+  padding: 10px 16px;
 }

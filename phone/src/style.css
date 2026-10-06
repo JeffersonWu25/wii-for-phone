@@ -202,3 +202,142 @@ button:active {
 /* Position dot = blue, Aim dot = yellow (matches TV arrow colour) */
 #dot-move { background: #7c7cff; }
 #dot-aim  { background: #ffee00; }
+
+.kart-screen {
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 18px 16px 22px;
+  background: linear-gradient(180deg, #1d5fe0 0%, #12368f 70%, #0b1d55 100%);
+}
+
+.kart-screen button {
+  max-width: none;
+}
+
+.kart-stick-wrap[hidden],
+.kart-tilt-hint[hidden],
+.kart-banner[hidden] {
+  display: none;
+}
+
+.kart-top,
+.kart-actions,
+.kart-modes {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kart-you {
+  font-size: 1.8rem;
+  font-weight: 900;
+  opacity: 1;
+}
+
+.kart-sub,
+.kart-lap {
+  opacity: 0.85;
+}
+
+.kart-place {
+  font-size: 2rem;
+  font-weight: 900;
+  opacity: 1;
+}
+
+.kart-modes {
+  justify-content: center;
+}
+
+.kart-mode {
+  width: auto;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.kart-mode.is-on {
+  background: #f5d90a;
+  color: #1a1206;
+}
+
+.kart-stick-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kart-stick-base {
+  width: min(64vw, 240px);
+  height: min(64vw, 240px);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  border: 4px solid rgba(255, 255, 255, 0.55);
+  position: relative;
+  touch-action: none;
+}
+
+.kart-stick-knob {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #f7f7f7;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin-left: -42px;
+  margin-top: -42px;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.2);
+}
+
+.kart-tilt-hint {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  opacity: 1;
+}
+
+.kart-actions {
+  align-items: stretch;
+}
+
+.kart-drift,
+.kart-gas {
+  height: 92px;
+  font-size: 1.4rem;
+  font-weight: 900;
+  touch-action: none;
+}
+
+.kart-drift {
+  background: #f5d90a;
+  color: #1a1206;
+  flex: 0.7;
+}
+
+.kart-gas {
+  background: #e52521;
+  flex: 1.3;
+}
+
+.kart-drift.is-held,
+.kart-gas.is-held {
+  transform: translateY(3px);
+}
+
+.kart-banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7rem;
+  font-weight: 900;
+  pointer-events: none;
+  text-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
+}
