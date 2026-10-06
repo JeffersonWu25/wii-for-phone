@@ -23,24 +23,55 @@ Preconditions:
 - Bowling has started. The phone whose turn it is shows `Hold and swing to bowl!` and `#btn-bowl`. The host shows `Scores` and that player's name.
 - Do this on the first roll of a frame so the scoreboard cell for that roll starts empty.
 
-- **Release a throw.** On the phone tab that shows `BOWL`, call `browser_cdp` method `Runtime.evaluate` with `viewId` set to that tab. Params include `awaitPromise` true and `returnByValue` true. Expression:
+- **Release a throw.** On the phone tab that shows `BOWL`, call `browser_cdp` method `Runtime.evaluate` with `viewId` set to that tab. Params include `awaitPromise` true and `returnByValue` true. Expression below. It holds `BOWL` and, while the hold is open, dispatches `DeviceMotionEvent`s. Each event carries `accelerationIncludingGravity` in m/s² and `rotationRate` in deg/s, the same fields the phone listener reads. The swing is a firm straight shot: gravity on Y, a forward pulse on Z, wrist roll rate staying at 0. `motion` in the result is the accel and gyro from the first event. `motion: null` means the browser dropped the sensor payload and the throw used an empty buffer.
 
 ```javascript
 new Promise((resolve) => {
   const el = document.querySelector('#btn-bowl');
   if (!el) { resolve({ error: 'no-bowl' }); return; }
+  const frames = 24;
+  const samples = [];
+  for (let i = 0; i < frames; i++) {
+    const t = i / (frames - 1);
+    samples.push({
+      ax: 0,
+      ay: -9.81,
+      az: 25 * Math.sin(t * Math.PI),
+      gamma: 0,
+    });
+  }
+  const motion = { peakAz: 0, peakGamma: 0 };
+  const mark = (e) => {
+    const acc = e.accelerationIncludingGravity;
+    const rot = e.rotationRate;
+    if (!acc || !rot) return;
+    motion.peakAz = Math.max(motion.peakAz, Math.abs(acc.z || 0));
+    motion.peakGamma = Math.max(motion.peakGamma, Math.abs(rot.gamma || 0));
+  };
+  window.addEventListener('devicemotion', mark);
   el.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+  samples.forEach((sample, i) => {
+    setTimeout(() => {
+      const event = new DeviceMotionEvent('devicemotion', {
+        accelerationIncludingGravity: { x: sample.ax, y: sample.ay, z: sample.az },
+        rotationRate: { alpha: 0, beta: 0, gamma: sample.gamma },
+        interval: 16,
+      });
+      window.dispatchEvent(event);
+    }, 12 * i);
+  });
   setTimeout(() => {
+    window.removeEventListener('devicemotion', mark);
     el.dispatchEvent(new Event('touchend', { bubbles: true, cancelable: true }));
     const start = Date.now();
     const timer = setInterval(() => {
       const heading = document.querySelector('h1')?.textContent ?? '';
-      if (/knocked down|STRIKE!|SPARE!/.test(heading) || Date.now() - start > 8000) {
+      if (/knocked down|STRIKE!|SPARE!/.test(heading) || Date.now() - start > 12000) {
         clearInterval(timer);
-        resolve({ heading, ms: Date.now() - start });
+        resolve({ heading, ms: Date.now() - start, motion });
       }
     }, 250);
-  }, 200);
+  }, 12 * frames + 40);
 })
 ```
 
@@ -64,7 +95,7 @@ The player who threw has a new mark in the current frame: a digit, `X`, or `/`. 
 
 - A mouse click on `BOWL`, including `browser_click` with `holdDurationMs`, does not send a throw. The button only listens for `touchstart` and `touchend`.
 - A gap under 150ms sets `#bowl-hint` to `Hold longer and swing!` and leaves the scoreboard unchanged. That is the short-hold path, not this one. The hint text stays on the bowl screen until a result replaces it, so a later real throw can still show that old hint.
-- This browser does not produce a swing. An empty motion buffer sends power `0.5` and spin `0`, plus whatever aim the d-pad last set. Do not require a specific pin count.
+- The release expression above is the swing. It must report `motion.peakAz` near 25 and `motion.peakGamma` of 0. The first sample of that swing has `az` 0, so a reading of the first event is not the pulse. A hold with no events still sends power `0.5` and spin `0`. Do not use that hold as proof of a bowl. Do not require a specific pin count beyond a result heading.
 - The bowl screen has no heading. A still-visible `BOWL` button during the first few seconds means the ball has not settled yet. The result heading is the signal.
 - After the result, the same player gets `BOWL` again about 1500ms later when the frame needs another roll. Capture the result heading from the evaluate return as soon as it appears. A later snapshot can show `BOWL` again and the result heading will be gone.
 - A frame-ending roll leaves the result screen up. The other phone gets `BOWL` about 1500ms later.
