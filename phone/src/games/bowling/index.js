@@ -2,10 +2,10 @@
 // Exported mount(app, sendMsg, myPlayerId) bootstraps the bowling controller
 // and returns an onMessage(msg) handler for the thin main.js to call.
 
+import { throwFromMotion } from './throw.js';
+
 const STREAM_HZ = 20;
 const MIN_HOLD_MS = 150;
-const MAX_ROLL = 360;  // deg/s — clamp for spin normalisation
-const MAX_ACCEL = 30;  // m/s² — clamp for power normalisation
 const D_STEP = 0.2;    // each D-pad tap moves aim or position by this much
 
 export function mount(app, sendMsg, myPlayerId) {
@@ -167,7 +167,7 @@ export function mount(app, sendMsg, myPlayerId) {
       return;
     }
 
-    const throwData = extractThrow(motionBuffer);
+    const throwData = throwFromMotion(motionBuffer);
     motionBuffer = [];
     holdStart = null;
 
@@ -180,27 +180,6 @@ export function mount(app, sendMsg, myPlayerId) {
       const el = document.getElementById(id);
       if (el) el.disabled = !enabled;
     });
-  }
-
-  // ── Motion extraction ───────────────────────────────────────────────────────
-
-  function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
-
-  function extractThrow(buffer) {
-    if (buffer.length === 0) return { power: 0.5, spin: 0 };
-
-    let peakMag = 0;
-    for (const { ax, ay, az } of buffer) {
-      const mag = Math.sqrt(ax * ax + ay * ay + az * az);
-      if (mag > peakMag) peakMag = mag;
-    }
-
-    const power = clamp(peakMag / MAX_ACCEL, 0, 1);
-    const rollStart = buffer[0].gamma;
-    const rollEnd   = buffer[buffer.length - 1].gamma;
-    const spin = clamp((rollEnd - rollStart) / MAX_ROLL, -1, 1);
-
-    return { power, spin };
   }
 
   // ── Wake lock ───────────────────────────────────────────────────────────────
