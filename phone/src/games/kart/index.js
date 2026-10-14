@@ -30,17 +30,25 @@ export function mount(app, sendMsg, myPlayerId) {
         <button type="button" id="mode-stick" class="kart-mode is-on">Joystick</button>
         <button type="button" id="mode-tilt" class="kart-mode">Tilt</button>
       </div>
-      <div class="kart-stick-wrap" id="stick-wrap">
-        <div class="kart-stick-base" id="stick-base">
-          <div class="kart-stick-knob" id="stick-knob"></div>
+      <div class="kart-play">
+        <div class="kart-steer">
+          <div class="kart-stick-wrap" id="stick-wrap">
+            <div class="kart-stick-base" id="stick-base">
+              <div class="kart-stick-knob" id="stick-knob"></div>
+            </div>
+          </div>
+          <p class="kart-tilt-hint" id="tilt-hint" hidden>Tilt the phone like a wheel. The angle you tap is straight ahead.</p>
+        </div>
+        <div class="kart-actions">
+          <button type="button" id="btn-drift" class="kart-drift">Drift</button>
+          <button type="button" id="btn-gas" class="kart-gas">Gas</button>
         </div>
       </div>
-      <p class="kart-tilt-hint" id="tilt-hint" hidden>Hold the phone like a wheel. The angle you tap is straight ahead.</p>
-      <div class="kart-actions">
-        <button type="button" id="btn-drift" class="kart-drift">Drift</button>
-        <button type="button" id="btn-gas" class="kart-gas">Gas</button>
-      </div>
       <div class="kart-banner" id="kart-banner" hidden></div>
+      <div class="kart-rotate" id="kart-rotate" hidden>
+        <p>Turn your phone sideways</p>
+        <button type="button" id="kart-landscape">Hold sideways</button>
+      </div>
     </div>
   `;
 
@@ -53,6 +61,23 @@ export function mount(app, sendMsg, myPlayerId) {
   const knob = document.getElementById('stick-knob');
   const tiltHint = document.getElementById('tilt-hint');
   const banner = document.getElementById('kart-banner');
+  const rotateEl = document.getElementById('kart-rotate');
+  const portraitQuery = window.matchMedia('(orientation: portrait)');
+
+  function lockLandscape() {
+    const lock = screen.orientation?.lock?.bind(screen.orientation);
+    if (!lock) return;
+    lock('landscape').catch(() => {});
+  }
+
+  function syncOrientation() {
+    rotateEl.hidden = !portraitQuery.matches;
+  }
+
+  syncOrientation();
+  portraitQuery.addEventListener('change', syncOrientation);
+  document.getElementById('kart-landscape').addEventListener('click', lockLandscape);
+  app.addEventListener('pointerdown', lockLandscape);
   const stickBtn = document.getElementById('mode-stick');
   const tiltBtn = document.getElementById('mode-tilt');
 
@@ -121,7 +146,7 @@ export function mount(app, sendMsg, myPlayerId) {
     const radius = rect.width / 2;
     const dx = event.clientX - (rect.left + radius);
     const dy = event.clientY - (rect.top + radius);
-    stick = stickSteer(dx, radius);
+    stick = stickSteer(-dx, radius);
     const travel = Math.max(-radius + 18, Math.min(radius - 18, dx));
     const travelY = Math.max(-radius + 18, Math.min(radius - 18, dy));
     knob.style.transform = `translate(${travel}px, ${travelY}px)`;
@@ -187,6 +212,8 @@ export function mount(app, sendMsg, myPlayerId) {
       drift = false;
       if (wakeLock) wakeLock.release().catch(() => {});
       wakeLock = null;
+      portraitQuery.removeEventListener('change', syncOrientation);
+      screen.orientation?.unlock?.();
     },
   };
 }

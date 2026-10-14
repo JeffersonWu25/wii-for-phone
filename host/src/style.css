@@ -722,3 +722,36 @@ html, body, #root {
   z-index: 4;
   padding: 10px 16px;
 }
+
+.kart-settings {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(20, 28, 48, 0.82);
+  color: #fff;
+}
+
+.kart-settings p {
+  margin: 0;
+  font-weight: 800;
+}
+
+.kart-settings label {
+  display: grid;
+  grid-template-columns: 72px 1fr 42px;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.kart-settings input[type="range"] {
+  width: 100%;
+}

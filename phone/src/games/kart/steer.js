@@ -17,5 +17,10 @@ export function steerFromTilt(angle, neutral) {
 
 export function stickSteer(dx, radius) {
   if (!radius) return 0;
-  return clamp(dx / radius, -1, 1);
+  const raw = clamp(dx / radius, -1, 1);
+  const dead = 0.12;
+  const mag = Math.abs(raw);
+  if (mag <= dead) return 0;
+  const t = (mag - dead) / (1 - dead);
+  return Math.sign(raw) * t ** 1.35;
 }

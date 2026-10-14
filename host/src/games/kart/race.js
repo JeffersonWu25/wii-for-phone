@@ -11,11 +11,13 @@ const ACCEL = 22;
 const COAST = 14;
 const MAX_SPEED = 32;
 const BOOST_SPEED = 42;
-const TURN = 2.4;
-const DRIFT_TURN = 3.3;
+const HOLD_RADIUS = 14;
+const LOW_SPEED_TURN = 1.7;
 const DRIFT_CHARGE_RATE = 0.85;
 const BOOST_TIME = 0.75;
 const KART_RADIUS = 1.15;
+
+export const DEFAULT_TUNING = { speed: 1, turn: 1 };
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -55,6 +57,7 @@ export function createRace(players, now) {
       heading: pose.heading,
       speed: 0,
       steer: 0,
+      appliedSteer: 0,
       gas: false,
       drift: false,
       lastInputAt: 0,
@@ -83,7 +86,16 @@ export function createRace(players, now) {
     _goSent: false,
     _sentFinish: false,
     _createdAt: now,
+    tuning: { ...DEFAULT_TUNING },
   };
+}
+
+export function setTuning(race, partial) {
+  if (!race.tuning) race.tuning = { ...DEFAULT_TUNING };
+  const speed = Number(partial.speed);
+  const turn = Number(partial.turn);
+  if (Number.isFinite(speed)) race.tuning.speed = clamp(speed, 0.5, 1.8);
+  if (Number.isFinite(turn)) race.tuning.turn = clamp(turn, 0.4, 2.2);
 }
 
 export function applyDrive(race, msg, now) {
@@ -172,16 +184,22 @@ function separate(karts) {
   }
 }
 
-function stepKart(kart, input, dt) {
+function stepKart(kart, input, dt, tuning) {
+  const speedScale = tuning?.speed ?? 1;
+  const turnScale = tuning?.turn ?? 1;
   const drifting = input.drift && kart.speed > 5 && Math.abs(input.steer) > 0.15;
-  const max = kart.boostT > 0 ? BOOST_SPEED : MAX_SPEED;
+  const max = (kart.boostT > 0 ? BOOST_SPEED : MAX_SPEED) * speedScale;
   const target = input.gas ? max : 0;
-  if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * dt);
+  if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * speedScale * dt);
   else kart.speed = Math.max(target, kart.speed - COAST * dt);
 
-  const pace = clamp(kart.speed / MAX_SPEED, 0, 1);
-  const turn = drifting ? DRIFT_TURN : TURN * (1 - pace * 0.45);
-  kart.heading += input.steer * turn * dt;
+  const pace = clamp(kart.speed / max, 0, 1);
+  const cornerTurn = (kart.speed / HOLD_RADIUS) * turnScale;
+  const low = LOW_SPEED_TURN * turnScale * (1 - pace * 0.25);
+  const turn = (drifting ? 1.35 : 1) * Math.max(low, cornerTurn);
+  const follow = 1 - Math.exp(-10 * dt);
+  kart.appliedSteer += (input.steer - kart.appliedSteer) * follow;
+  kart.heading += kart.appliedSteer * turn * dt;
 
   if (drifting) kart.driftCharge = Math.min(1, kart.driftCharge + DRIFT_CHARGE_RATE * dt);
   if (!input.drift && kart.driftCharge >= 0.55) {
@@ -259,7 +277,7 @@ export function stepRace(race, dt, now) {
   race.timeMs = now - race.startedAt;
   for (const kart of race.karts) {
     if (kart.finished) continue;
-    stepKart(kart, liveInput(kart, now), step);
+    stepKart(kart, liveInput(kart, now), step, race.tuning);
     let sample = sampleTrack(kart.x, kart.z);
     sample = contain(kart, sample);
     const onTrack = sample.lateral > -HALF - 0.8 && sample.lateral < HALF + 1.6;

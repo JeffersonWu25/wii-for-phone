@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import KartScene from './KartScene.jsx';
-import { LAPS, createRace, applyDrive, snapshot, stepRace, takeBroadcast } from './race.js';
+import { LAPS, createRace, applyDrive, setTuning, snapshot, stepRace, takeBroadcast } from './race.js';
 import { viewports } from './layout.js';
 
 export default function KartApp({ wsRef, send, players, onAbandon }) {
@@ -8,6 +8,8 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
   const sendRef = useRef(send);
   sendRef.current = send;
   const [view, setView] = useState(null);
+  const [speed, setSpeed] = useState(1);
+  const [turn, setTurn] = useState(1);
 
   const rosterRef = useRef(players);
 
@@ -83,6 +85,43 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
       {view?.phase !== 'finished' && (
         <button type="button" className="kart-back" onClick={onAbandon}>Back</button>
       )}
+      <form className="kart-settings" onSubmit={(event) => event.preventDefault()}>
+        <p>Settings</p>
+        <label>
+          Speed
+          <input
+            type="range"
+            min="0.5"
+            max="1.8"
+            step="0.05"
+            value={speed}
+            aria-valuetext={`${Math.round(speed * 32)} meters per second`}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setSpeed(next);
+              if (raceRef.current) setTuning(raceRef.current, { speed: next, turn });
+            }}
+          />
+          <span>{Math.round(speed * 32)}</span>
+        </label>
+        <label>
+          Turning
+          <input
+            type="range"
+            min="0.4"
+            max="2.2"
+            step="0.05"
+            value={turn}
+            aria-valuetext={`${Math.round(turn * 100)} percent`}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setTurn(next);
+              if (raceRef.current) setTuning(raceRef.current, { speed, turn: next });
+            }}
+          />
+          <span>{Math.round(turn * 100)}%</span>
+        </label>
+      </form>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HALF, PERIM, poseAt, sampleTrack } from './track.js';
+import { stickSteer } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
   CHECKPOINTS,
@@ -9,6 +10,7 @@ import {
   createRace,
   noteProgress,
   rankKarts,
+  setTuning,
   stepRace,
 } from './race.js';
 
@@ -169,4 +171,54 @@ function freshKart() {
 
 test('perimeter is a closed loop longer than the straights', () => {
   assert.ok(PERIM > 150);
+});
+
+test('a late driver holding the gas finishes a lap inside the walls', () => {
+  const race = createRace([{ playerId: 'p1', name: 'Ada' }], 0);
+  const kart = race.karts[0];
+  race.phase = 'racing';
+  const hist = [];
+  let off = 0;
+  let steps = 0;
+  const dt = 1 / 60;
+  for (let t = 0; t < 20; t += dt) {
+    const sample = sampleTrack(kart.x, kart.z);
+    const aim = poseAt(sample.progress + 0.045);
+    const desired = Math.atan2(aim.x - kart.x, aim.z - kart.z);
+    let err = desired - kart.heading;
+    while (err > Math.PI) err -= Math.PI * 2;
+    while (err < -Math.PI) err += Math.PI * 2;
+    const intent = Math.max(-1, Math.min(1, err / 0.4));
+    hist.push(stickSteer(intent * 120, 120));
+    const delayed = hist[Math.max(0, hist.length - 10)];
+    applyDrive(race, { playerId: 'p1', steer: delayed, gas: true, drift: false, seq: steps + 1 }, t * 1000);
+    stepRace(race, dt, t * 1000);
+    if (Math.abs(sampleTrack(kart.x, kart.z).lateral) > HALF * 0.98) off += 1;
+    steps += 1;
+    if (kart.completedLaps >= 1) break;
+  }
+  assert.equal(kart.completedLaps >= 1, true);
+  assert.ok(off / steps < 0.08, `off track ${(off / steps).toFixed(3)}`);
+});
+
+test('speed tuning lowers the top speed a gas-holding kart reaches', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  setTuning(race, { speed: 0.5, turn: 9 });
+  assert.equal(race.tuning.speed, 0.5);
+  assert.equal(race.tuning.turn, 2.2);
+  for (let i = 0; i < 80; i++) {
+    applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: i + 1 }, i * 50);
+    stepRace(race, 0.05, i * 50);
+  }
+  assert.ok(race.karts[0].speed < 20, `speed ${race.karts[0].speed}`);
+  assert.ok(race.karts[0].speed > 12, `speed ${race.karts[0].speed}`);
+});
+
+test('stick right is positive and a small nudge is ignored', () => {
+  assert.equal(stickSteer(8, 100), 0);
+  assert.ok(stickSteer(100, 100) > 0.99);
+  assert.ok(stickSteer(-100, 100) < -0.99);
+  const half = stickSteer(50, 100);
+  assert.ok(half > 0.15 && half < 0.45, `half ${half}`);
 });
