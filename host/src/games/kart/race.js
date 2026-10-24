@@ -70,6 +70,7 @@ export function createRace(players, now) {
       progress: sample.progress,
       driftCharge: 0,
       boostT: 0,
+      itemPresses: 0,
       coins: 0,
       itemPrimary: null,
       itemSecondary: null,
@@ -99,6 +100,13 @@ export function setTuning(race, partial) {
   const turn = Number(partial.turn);
   if (Number.isFinite(speed)) race.tuning.speed = clamp(speed, 0.5, 1.8);
   if (Number.isFinite(turn)) race.tuning.turn = clamp(turn, 0.4, 2.2);
+}
+
+export function applyUseItem(race, msg) {
+  if (race.phase !== 'racing') return;
+  const kart = race.karts.find((k) => k.playerId === msg.playerId);
+  if (!kart || kart.finished) return;
+  kart.itemPresses += 1;
 }
 
 export function applyDrive(race, msg, now) {
