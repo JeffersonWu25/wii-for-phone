@@ -33,6 +33,6 @@ export function composeThrow({ samples, aim, tilt, tuning }) {
     power: powerFromSwing(samples),
     aim: { offset: aim.offset, angle: aim.angle },
     tilt: { angle: tilt.angle, spin: tilt.spin },
-    tuning: { speed: tuning.speed, curve: tuning.curve },
+    tuning: { speed: tuning.speed, curve: 1 },
   };
 }

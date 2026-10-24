@@ -41,20 +41,15 @@ test('positive spin hooks right, negative spin hooks left', () => {
   assert.ok(launchFromMessage(throwMsg({ spin: -1 })).hookAccel < 0);
 });
 
-test('full spin at curve 1 breaks 0.45 m at the pins', () => {
+test('full spin breaks 0.45 m at the pins', () => {
   assert.ok(Math.abs(breakAtPins(launchFromMessage(throwMsg({ spin: 1 }))) - 0.45) < 1e-12);
 });
 
-test('curve 0 throws straight even with a full twist', () => {
-  assert.equal(launchFromMessage(throwMsg({ spin: 1, curve: 0 })).hookAccel, 0);
+test('the curve field does not scale the hook again', () => {
+  const once = launchFromMessage(throwMsg({ spin: 0.6, curve: 1 })).hookAccel;
+  const twice = launchFromMessage(throwMsg({ spin: 0.6, curve: 2 })).hookAccel;
+  assert.equal(once, twice);
 });
-
-test('doubling curve doubles hook', () => {
-  const one = launchFromMessage(throwMsg({ spin: 0.6, curve: 1 })).hookAccel;
-  const two = launchFromMessage(throwMsg({ spin: 0.6, curve: 2 })).hookAccel;
-  assert.ok(Math.abs(two - 2 * one) < 1e-12);
-});
-
 test('speed tuning does not change break at the pins', () => {
   const slow = breakAtPins(launchFromMessage(throwMsg({ spin: 0.6, speed: 0.6 })));
   const fast = breakAtPins(launchFromMessage(throwMsg({ spin: 0.6, speed: 1.5 })));
@@ -85,15 +80,14 @@ test('a lean-only tilt is rejected', () => {
 test('non-finite fields are rejected', () => {
   assert.equal(parseThrow(throwMsg({ spin: NaN })), null);
   assert.equal(parseThrow(throwMsg({ speed: Infinity })), null);
-  assert.equal(parseThrow(throwMsg({ curve: '1' })), null);
 });
 
 test('out-of-range fields clamp', () => {
-  assert.deepEqual(parseThrow(throwMsg({ power: 2, offset: -3, angle: 3, tiltAngle: 4, spin: -4, speed: 10, curve: -1 })), {
+  assert.deepEqual(parseThrow(throwMsg({ power: 2, offset: -3, angle: 3, tiltAngle: 4, spin: -4, speed: 10 })), {
     power: 1,
     aim: { offset: -1, angle: 1 },
     tilt: { angle: 1, spin: -1 },
-    tuning: { speed: 3, curve: 0 },
+    tuning: { speed: 3, curve: 1 },
   });
 });
 

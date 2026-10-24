@@ -32,7 +32,7 @@ export function parseThrow(msg) {
 export function launchFromThrow({ power, aim, tilt, tuning }) {
   const speed = Math.min(MAX_SPEED, (BASE_SPEED + power * POWER_SPEED) * tuning.speed);
   const heading = clamp(aim.angle + tilt.angle, -1, 1) * MAX_ANGLE_DEG * Math.PI / 180;
-  const breakM = tilt.spin * tuning.curve * FULL_BREAK_M;
+  const breakM = tilt.spin * FULL_BREAK_M;
   return {
     startX: clamp(aim.offset * AIM_MAX_X, -MAX_START_X, MAX_START_X),
     velocity: { x: Math.sin(heading) * speed, z: -Math.cos(heading) * speed },
