@@ -245,7 +245,6 @@ export function placeLabel(place) {
 }
 
 export function snapshot(race) {
-  // Keep players in join/grid order so HUD panes line up with scissor cameras.
   const ranked = rankKarts(race.karts);
   const placeOf = new Map(ranked.map((kart, index) => [kart.playerId, index + 1]));
   return {

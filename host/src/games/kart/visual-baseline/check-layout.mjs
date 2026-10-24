@@ -1,8 +1,3 @@
-// Layout check against visual-baseline/SPEC.md.
-// Requires playwright-core (e.g. NODE_PATH=/path/to/node_modules).
-// Usage: node check-layout.mjs [hostUrl]
-// Exit 0 when all contracts pass.
-
 import { createRequire } from 'module';
 import { writeFileSync } from 'fs';
 
