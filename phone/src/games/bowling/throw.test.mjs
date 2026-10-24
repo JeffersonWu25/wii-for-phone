@@ -18,7 +18,7 @@ test('composeThrow builds the wire message', () => {
       tilt: { angle: -0.4, spin: 0.5 },
       tuning: { speed: 1.2, curveDeg: 20 },
     }),
-    { type: 'throw', power: 0.5, aim: { offset: 0.2, angle: -0.4 }, tilt: { angle: -0.4, spin: 0.5 }, tuning: { speed: 1.2 } },
+    { type: 'throw', power: 0.5, aim: { offset: 0.2, angle: -0.4 }, tilt: { angle: -0.4, spin: 0.5 }, tuning: { speed: 1.2, curve: 1 } },
   );
 });
 

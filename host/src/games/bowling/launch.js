@@ -19,13 +19,13 @@ function isNumber(value) {
 }
 
 export function parseThrow(msg) {
-  const fields = [msg?.power, msg?.aim?.offset, msg?.aim?.angle, msg?.tilt?.angle, msg?.tilt?.spin, msg?.tuning?.speed];
+  const fields = [msg?.power, msg?.aim?.offset, msg?.aim?.angle, msg?.tilt?.angle, msg?.tilt?.spin, msg?.tuning?.speed, msg?.tuning?.curve];
   if (!fields.every(isNumber)) return null;
   return {
     power: clamp(msg.power, 0, 1),
     aim: { offset: clamp(msg.aim.offset, -1, 1), angle: clamp(msg.aim.angle, -1, 1) },
     tilt: { angle: clamp(msg.tilt.angle, -1, 1), spin: clamp(msg.tilt.spin, -1, 1) },
-    tuning: { speed: clamp(msg.tuning.speed, 0.25, 3) },
+    tuning: { speed: clamp(msg.tuning.speed, 0.25, 3), curve: clamp(msg.tuning.curve, 0, 4) },
   };
 }
 

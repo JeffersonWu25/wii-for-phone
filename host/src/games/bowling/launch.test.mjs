@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { LANE_DISTANCE, launchFromMessage, launchFromThrow, parseThrow } from './launch.js';
 import { TUNING_CONTROLS } from '../../../../phone/src/games/bowling/tuning.js';
 
-function throwMsg({ power = 0.5, offset = 0, angle = 0, tiltAngle = 0, spin = 0, speed = 1 } = {}) {
-  return { type: 'throw', power, aim: { offset, angle }, tilt: { angle: tiltAngle, spin }, tuning: { speed } };
+function throwMsg({ power = 0.5, offset = 0, angle = 0, tiltAngle = 0, spin = 0, speed = 1, curve = 1 } = {}) {
+  return { type: 'throw', power, aim: { offset, angle }, tilt: { angle: tiltAngle, spin }, tuning: { speed, curve } };
 }
 
 function breakAtPins(launch) {
@@ -45,6 +45,11 @@ test('full spin breaks 0.45 m at the pins', () => {
   assert.ok(Math.abs(breakAtPins(launchFromMessage(throwMsg({ spin: 1 }))) - 0.45) < 1e-12);
 });
 
+test('the curve field does not scale the hook again', () => {
+  const once = launchFromMessage(throwMsg({ spin: 0.6, curve: 1 })).hookAccel;
+  const twice = launchFromMessage(throwMsg({ spin: 0.6, curve: 2 })).hookAccel;
+  assert.equal(once, twice);
+});
 test('speed tuning does not change break at the pins', () => {
   const slow = breakAtPins(launchFromMessage(throwMsg({ spin: 0.6, speed: 0.6 })));
   const fast = breakAtPins(launchFromMessage(throwMsg({ spin: 0.6, speed: 1.5 })));
@@ -82,7 +87,7 @@ test('out-of-range fields clamp', () => {
     power: 1,
     aim: { offset: -1, angle: 1 },
     tilt: { angle: 1, spin: -1 },
-    tuning: { speed: 3 },
+    tuning: { speed: 3, curve: 1 },
   });
 });
 
