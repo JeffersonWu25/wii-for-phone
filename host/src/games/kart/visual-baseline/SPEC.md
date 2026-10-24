@@ -48,3 +48,12 @@ Race snapshot must expose enough for the overlay without inventing place from DO
 - Kart world `x`/`z`/`progress` (or equivalent) for the shared minimap.
 
 Empty item slots still render the yellow rings. Coins may start at `0` until pickup logic exists.
+
+## Verification
+
+Pixel-zero match to the Royal Raceway reference is out of scope (oval track). Parity is the layout and camera contracts above.
+
+1. Keep `mk8-reference-splitscreen.png` and this SPEC frozen. Do not edit them to make a check pass.
+2. Drive a 2-player race and screenshot into `current/race-2p-after.png`.
+3. Run `check-layout.mjs` against the live host (needs `playwright-core`). Exit 0 means item slots, place, coins/laps, and the shared minimap sit inside the SPEC regions.
+4. Unit tests in `race.test.mjs` cover `placeLabel` and snapshot HUD fields.
