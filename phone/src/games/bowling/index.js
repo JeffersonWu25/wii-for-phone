@@ -3,7 +3,7 @@
 // and returns an onMessage(msg) handler for the thin main.js to call.
 
 import { composeThrow } from './throw.js';
-import { createTiltSensor, leanFromDegrees, rollDegrees, strongestTwist } from './tilt.js';
+import { createTiltSensor, hookFromTwist, rollDegrees, strongestTwist } from './tilt.js';
 import { FEEL_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
 
 const STREAM_HZ = 20;
@@ -22,6 +22,7 @@ export function mount(app, sendMsg, myPlayerId) {
   let aimMode = 'move';
   let tuning = loadTuning();
   let startTilt = null;
+  let startRoll = null;
   let twistReadings = [];
   const tilt = createTiltSensor();
 
@@ -164,7 +165,7 @@ export function mount(app, sendMsg, myPlayerId) {
     if (!label) return;
     const leaning = holdStart === null
       ? tilt.read(tuning.tilt).lean
-      : leanFromDegrees(strongestTwist(startTilt?.degrees, twistReadings), tuning.curveDeg);
+      : hookFromTwist(strongestTwist(startRoll, twistReadings), tuning.curve);
     setDot('dot-tilt', leaning);
     label.textContent = leaning === 0
       ? 'LEVEL'
@@ -204,7 +205,8 @@ export function mount(app, sendMsg, myPlayerId) {
     if (streamInterval) clearInterval(streamInterval);
     holdStart = Date.now();
     startTilt = tilt.read(tuning.tilt);
-    twistReadings = [startTilt.degrees];
+    startRoll = null;
+    twistReadings = [];
     const leanAtPress = startTilt.lean;
     motionBuffer = [];
     setDpadEnabled(false);
@@ -226,8 +228,9 @@ export function mount(app, sendMsg, myPlayerId) {
     setDpadEnabled(true);
 
     const pressedTilt = startTilt;
-    const twist = strongestTwist(pressedTilt?.degrees, twistReadings);
+    const twist = strongestTwist(startRoll, twistReadings);
     startTilt = null;
+    startRoll = null;
     twistReadings = [];
 
     if (holdDuration < MIN_HOLD_MS) {
@@ -243,7 +246,7 @@ export function mount(app, sendMsg, myPlayerId) {
       aim: { offset: aimOffset, angle: aimAngle },
       tilt: {
         angle: pressedTilt.lean,
-        spin: leanFromDegrees(twist, tuning.curveDeg),
+        spin: hookFromTwist(twist, tuning.curve),
       },
       tuning,
     });
@@ -307,7 +310,9 @@ export function mount(app, sendMsg, myPlayerId) {
       lastRotation = { alpha, beta, gamma };
       tilt.update({ ax, ay, az });
       if (holdStart !== null && startTilt) {
-        twistReadings.push(rollDegrees({ ax, ay, az }));
+        const roll = rollDegrees({ ax, ay, az });
+        if (startRoll === null) startRoll = roll;
+        twistReadings.push(roll);
       }
       refreshTiltGauge();
       if (motionBuffer !== null && holdStart !== null) {
@@ -319,6 +324,7 @@ export function mount(app, sendMsg, myPlayerId) {
       streamInterval = null;
       holdStart = null;
       startTilt = null;
+      startRoll = null;
       twistReadings = [];
       releaseWakeLock();
     },

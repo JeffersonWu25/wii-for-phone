@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTiltSensor, downFromSample, leanFromDegrees, leanFromGravity, rollDegrees, strongestTwist } from './tilt.js';
+import { createTiltSensor, downFromSample, hookFromTwist, leanFromGravity, rollDegrees, strongestTwist } from './tilt.js';
 
 const G = 9.81;
 
@@ -38,21 +38,22 @@ test('a roll during a hard swing keeps its degrees', () => {
   }
   const twist = strongestTwist(0, readings);
   assert.ok(twist < -20, `twist ${twist} was shrunk by the swing`);
-  const wide = Math.abs(leanFromDegrees(twist, 70));
-  const tight = Math.abs(leanFromDegrees(twist, 35));
-  assert.ok(tight > wide && wide > 0, `35° ${tight}, 70° ${wide}`);
+  const light = Math.abs(hookFromTwist(twist, 0.5));
+  const heavy = Math.abs(hookFromTwist(twist, 1.5));
+  assert.ok(heavy > light && light > 0 && light < 0.5, `0.5× ${light}, 1.5× ${heavy}`);
 });
 test('a twist that returns to the start is still the curve', () => {
   assert.equal(strongestTwist(0, [0, -22, -4, 0]), -22);
   assert.equal(strongestTwist(10, [10, 12, -8]), -18);
 });
-test('curve degrees scale the twist and ignore the starting slant', () => {
-  const twist = 20;
-  const wide = Math.abs(leanFromDegrees(twist, 70));
-  const tight = Math.abs(leanFromDegrees(twist, 35));
-  assert.ok(wide < tight && wide > 0, `70° window ${wide}, 35° window ${tight}`);
-  assert.equal(leanFromDegrees(0, 15), 0);
-  assert.equal(leanFromDegrees(4, 35), 0);
+test('curve sensitivity scales the twist without turning a small roll into a full hook', () => {
+  const straight = Math.abs(hookFromTwist(12, 1));
+  const twisted = Math.abs(hookFromTwist(45, 1));
+  assert.ok(straight < 0.15, `straight ${straight}`);
+  assert.ok(twisted > straight * 2 && twisted < 1, `twist ${twisted}`);
+  assert.ok(Math.abs(hookFromTwist(45, 0.5)) < twisted);
+  assert.ok(Math.abs(hookFromTwist(12, 2)) < Math.abs(hookFromTwist(45, 2)));
+  assert.equal(hookFromTwist(4, 2), 0);
 });
 test('higher tilt sensitivity reaches full lean sooner and shrinks the level window', () => {
   const mild = Math.abs(leanFromGravity(downFromSample(bankedSample(12))).lean);

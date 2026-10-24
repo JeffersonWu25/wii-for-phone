@@ -2,17 +2,15 @@ const STORAGE_KEY = 'bowling.tuning';
 
 const percent = (value) => `${Math.round(value * 100)}%`;
 const multiplier = (value) => `${value.toFixed(2)}×`;
-const degrees = (value) => `${Math.round(value)}°`;
-
 export const TUNING_CONTROLS = [
   { key: 'speed', label: 'Speed', min: 0.6, max: 1.5, step: 0.05, fallback: 1, format: percent },
 ];
 
 // Phone-only. Both are applied before the throw is sent.
-// tilt is how sensitive the starting slant is. curveDeg is the twist, in degrees, that counts as a full hook.
+// tilt scales the starting slant. curve scales how much a twist becomes hook.
 export const TILT_CONTROLS = [
   { key: 'tilt', label: 'Tilt', min: 0.5, max: 2.5, step: 0.05, fallback: 1, format: multiplier },
-  { key: 'curveDeg', label: 'Curve', min: 15, max: 70, step: 1, fallback: 35, format: degrees },
+  { key: 'curve', label: 'Curve', min: 0.25, max: 2.5, step: 0.05, fallback: 1, format: multiplier },
 ];
 
 export const FEEL_CONTROLS = [...TUNING_CONTROLS, ...TILT_CONTROLS];

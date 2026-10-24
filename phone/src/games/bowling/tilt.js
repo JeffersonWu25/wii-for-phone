@@ -26,6 +26,18 @@ export function leanFromDegrees(degrees, fullDeg = FULL_LEAN_DEG, deadzone = DEA
   return Math.sign(degrees) * Math.min(1, (Math.abs(degrees) - deadzone) / (fullDeg - deadzone));
 }
 
+// A large deliberate roll is a full hook at sensitivity 1. The slider scales that
+// slope, so a small roll stays a small hook until sensitivity is turned up.
+const FULL_TWIST_DEG = 90;
+
+export function hookFromTwist(degrees, sensitivity = 1) {
+  if (!Number.isFinite(degrees) || !Number.isFinite(sensitivity)) return 0;
+  if (Math.abs(degrees) <= DEADZONE_DEG) return 0;
+  const past = Math.sign(degrees) * (Math.abs(degrees) - DEADZONE_DEG);
+  const gain = Math.max(0, sensitivity);
+  return Math.sign(past) * Math.min(1, (Math.abs(past) * gain) / (FULL_TWIST_DEG - DEADZONE_DEG));
+}
+
 export function strongestTwist(startDegrees, readings) {
   let best = 0;
   const origin = Number.isFinite(startDegrees) ? startDegrees : 0;
