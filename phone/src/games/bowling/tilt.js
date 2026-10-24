@@ -12,11 +12,16 @@ export function downFromSample({ ax, ay, az }) {
   return { x: -ax, y: -ay, z: -az };
 }
 
-export function leanFromGravity(down) {
+export function leanFromGravity(down, sensitivity = 1) {
   const mag = Math.hypot(down.x, down.y, down.z);
   if (mag < 1) return LEVEL;
-  const degrees = Math.asin(clamp(down.x / mag, -1, 1)) * 180 / Math.PI;
-  const lean = Math.sign(degrees) * Math.min(1, Math.max(0, Math.abs(degrees) - DEADZONE_DEG) / (FULL_LEAN_DEG - DEADZONE_DEG));
+  const scale = sensitivity > 0 ? sensitivity : 1;
+  const deadzone = DEADZONE_DEG / scale;
+  const full = FULL_LEAN_DEG / scale;
+  // Negate so the player's left is negative. The raw axis had that backwards.
+  const degrees = -Math.asin(clamp(down.x / mag, -1, 1)) * 180 / Math.PI;
+  if (Math.abs(degrees) <= deadzone) return LEVEL;
+  const lean = Math.sign(degrees) * Math.min(1, (Math.abs(degrees) - deadzone) / (full - deadzone));
   return { lean, degrees };
 }
 
@@ -35,8 +40,8 @@ export function createTiltSensor() {
         z: gravity.z + (down.z - gravity.z) * SMOOTHING,
       };
     },
-    read() {
-      return gravity ? leanFromGravity(gravity) : LEVEL;
+    read(sensitivity = 1) {
+      return gravity ? leanFromGravity(gravity, sensitivity) : LEVEL;
     },
   };
 }

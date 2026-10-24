@@ -44,11 +44,11 @@ const SHOTS = {
   rest: shot({ extraPeak: 0 }),
   firmStraight: shot({ extraPeak: 25 }),
   hardStraight: shot({ extraPeak: 40 }),
-  gentleBank: shot({ extraPeak: 25, spinDeg: 9 }),
-  firmHook: shot({ extraPeak: 25, spinDeg: 23 }),
-  fullBank: shot({ extraPeak: 50, spinDeg: 40 }),
-  flatCurve: shot({ extraPeak: 25, spinDeg: 40, tuning: { speed: 1, curve: 0 } }),
-  heldLeft: shot({ extraPeak: 25, angleDeg: -23 }),
+  gentleBank: shot({ extraPeak: 25, spinDeg: -9 }),
+  firmHook: shot({ extraPeak: 25, spinDeg: -23 }),
+  fullBank: shot({ extraPeak: 50, spinDeg: -40 }),
+  flatCurve: shot({ extraPeak: 25, spinDeg: -40, tuning: { speed: 1, curve: 0 } }),
+  heldLeft: shot({ extraPeak: 25, angleDeg: 23 }),
 };
 
 async function roll(physics, msg) {

@@ -4,7 +4,7 @@
 
 import { composeThrow, twistFromLeans } from './throw.js';
 import { createTiltSensor } from './tilt.js';
-import { TUNING_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
+import { FEEL_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
 
 const STREAM_HZ = 20;
 const MIN_HOLD_MS = 150;
@@ -161,7 +161,7 @@ export function mount(app, sendMsg, myPlayerId) {
   function refreshTiltGauge() {
     const label = document.getElementById('tilt-label');
     if (!label) return;
-    const { lean } = tilt.read();
+    const { lean } = tilt.read(tuning.tilt);
     setDot('dot-tilt', lean);
     label.textContent = lean === 0
       ? 'LEVEL'
@@ -171,7 +171,7 @@ export function mount(app, sendMsg, myPlayerId) {
   // ── Tuning sliders ──────────────────────────────────────────────────────────
 
   function tuningMarkup() {
-    const rows = TUNING_CONTROLS.map(({ key, label, min, max, step, format }) => `
+    const rows = FEEL_CONTROLS.map(({ key, label, min, max, step, format }) => `
       <label class="tuning-row">
         <span class="tuning-label">${label}</span>
         <input type="range" class="tuning-input" data-key="${key}"
@@ -188,8 +188,9 @@ export function mount(app, sendMsg, myPlayerId) {
         const { key } = input.dataset;
         tuning = clampTuning({ ...tuning, [key]: Number(input.value) });
         saveTuning(tuning);
-        const control = TUNING_CONTROLS.find((c) => c.key === key);
+        const control = FEEL_CONTROLS.find((c) => c.key === key);
         document.getElementById(`tuning-value-${key}`).textContent = control.format(tuning[key]);
+        refreshTiltGauge();
       });
     });
   }
@@ -199,7 +200,7 @@ export function mount(app, sendMsg, myPlayerId) {
   function onHoldStart() {
     if (streamInterval) clearInterval(streamInterval);
     holdStart = Date.now();
-    startTilt = tilt.read();
+    startTilt = tilt.read(tuning.tilt);
     const leanAtPress = startTilt.lean;
     motionBuffer = [];
     setDpadEnabled(false);
@@ -220,7 +221,7 @@ export function mount(app, sendMsg, myPlayerId) {
     releaseWakeLock();
     setDpadEnabled(true);
 
-    const releasedTilt = tilt.read();
+    const releasedTilt = tilt.read(tuning.tilt);
     const pressedTilt = startTilt;
     startTilt = null;
 

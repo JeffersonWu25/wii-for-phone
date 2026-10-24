@@ -8,9 +8,16 @@ export const TUNING_CONTROLS = [
   { key: 'curve', label: 'Curve', min: 0, max: 2, step: 0.05, fallback: 1, format: multiplier },
 ];
 
+// Phone-only. Lean is already scaled before it is sent, so the host never sees this.
+export const TILT_CONTROLS = [
+  { key: 'tilt', label: 'Tilt', min: 0.5, max: 2.5, step: 0.05, fallback: 1, format: multiplier },
+];
+
+export const FEEL_CONTROLS = [...TUNING_CONTROLS, ...TILT_CONTROLS];
+
 export function clampTuning(raw) {
   const tuning = {};
-  for (const { key, min, max, fallback } of TUNING_CONTROLS) {
+  for (const { key, min, max, fallback } of FEEL_CONTROLS) {
     const value = Number(raw?.[key]);
     tuning[key] = Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
   }
