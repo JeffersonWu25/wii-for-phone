@@ -3,7 +3,7 @@
 // and returns an onMessage(msg) handler for the thin main.js to call.
 
 import { composeThrow } from './throw.js';
-import { createTiltSensor, leanFromDegrees, strongestTwist } from './tilt.js';
+import { createTiltSensor, leanFromDegrees, rollDegrees, strongestTwist } from './tilt.js';
 import { FEEL_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
 
 const STREAM_HZ = 20;
@@ -307,7 +307,7 @@ export function mount(app, sendMsg, myPlayerId) {
       lastRotation = { alpha, beta, gamma };
       tilt.update({ ax, ay, az });
       if (holdStart !== null && startTilt) {
-        twistReadings.push(tilt.read().degrees);
+        twistReadings.push(rollDegrees({ ax, ay, az }));
       }
       refreshTiltGauge();
       if (motionBuffer !== null && holdStart !== null) {

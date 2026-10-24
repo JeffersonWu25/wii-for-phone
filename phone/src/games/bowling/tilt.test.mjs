@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTiltSensor, downFromSample, leanFromDegrees, leanFromGravity, strongestTwist } from './tilt.js';
+import { createTiltSensor, downFromSample, leanFromDegrees, leanFromGravity, rollDegrees, strongestTwist } from './tilt.js';
 
 const G = 9.81;
 
@@ -24,6 +24,24 @@ test('player left is negative lean, player right is positive', () => {
   assert.equal(leanFromGravity(downFromSample(bankedSample(50))).lean, -1);
 });
 
+test('a roll during a hard swing keeps its degrees', () => {
+  const readings = [];
+  for (let i = 0; i < 24; i++) {
+    const t = i / 23;
+    const roll = 25 * Math.sin(t * Math.PI) * Math.PI / 180;
+    const down = { x: 9.81 * Math.sin(roll), y: 9.81 * Math.cos(roll), z: 0 };
+    readings.push(rollDegrees({
+      ax: -down.x,
+      ay: -down.y,
+      az: 30 * Math.sin(t * Math.PI),
+    }));
+  }
+  const twist = strongestTwist(0, readings);
+  assert.ok(twist < -20, `twist ${twist} was shrunk by the swing`);
+  const wide = Math.abs(leanFromDegrees(twist, 70));
+  const tight = Math.abs(leanFromDegrees(twist, 35));
+  assert.ok(tight > wide && wide > 0, `35° ${tight}, 70° ${wide}`);
+});
 test('a twist that returns to the start is still the curve', () => {
   assert.equal(strongestTwist(0, [0, -22, -4, 0]), -22);
   assert.equal(strongestTwist(10, [10, 12, -8]), -18);
