@@ -202,6 +202,110 @@ button:active {
 /* Position dot = blue, Aim dot = yellow (matches TV arrow colour) */
 #dot-move { background: #7c7cff; }
 #dot-aim  { background: #ffee00; }
+#dot-tilt { background: #ffb703; }
+
+/* ── Tilt gauge + tuning sliders ─────────────────────────────────────────────── */
+
+#screen-bowl {
+  gap: 16px;
+}
+
+.tilt-gauge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 300px;
+}
+
+#tilt-label {
+  min-width: 88px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: right;
+  opacity: 0.8;
+}
+
+.tuning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.tuning-row {
+  display: grid;
+  grid-template-columns: 56px 1fr 52px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.tuning-label {
+  text-align: left;
+  opacity: 0.8;
+}
+
+.tuning-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tuning-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  max-width: unset;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  touch-action: none;
+}
+
+.tuning-input::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 5px;
+  background: #2a2a4e;
+}
+
+.tuning-input::-moz-range-track {
+  height: 10px;
+  border-radius: 5px;
+  background: #2a2a4e;
+}
+
+.tuning-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #7c7cff;
+}
+
+.tuning-input::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: #7c7cff;
+}
+
+.tuning-input:disabled {
+  opacity: 0.3;
+}
+
+@media (max-height: 700px) {
+  #btn-bowl {
+    width: 170px;
+    height: 170px;
+  }
+}
 
 .kart-screen {
   justify-content: flex-start;

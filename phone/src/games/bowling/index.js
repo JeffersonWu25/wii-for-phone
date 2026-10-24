@@ -2,7 +2,9 @@
 // Exported mount(app, sendMsg, myPlayerId) bootstraps the bowling controller
 // and returns an onMessage(msg) handler for the thin main.js to call.
 
-import { throwFromMotion } from './throw.js';
+import { composeThrow, twistFromLeans } from './throw.js';
+import { createTiltSensor } from './tilt.js';
+import { TUNING_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
 
 const STREAM_HZ = 20;
 const MIN_HOLD_MS = 150;
@@ -18,6 +20,9 @@ export function mount(app, sendMsg, myPlayerId) {
   let aimOffset = 0;
   let aimAngle = 0;
   let aimMode = 'move';
+  let tuning = loadTuning();
+  let startTilt = null;
+  const tilt = createTiltSensor();
 
   // ── Screens ─────────────────────────────────────────────────────────────────
 
@@ -26,8 +31,10 @@ export function mount(app, sendMsg, myPlayerId) {
       <div class="screen" id="screen-waiting">
         <h1>Bowling</h1>
         <p id="waiting-label">${label}</p>
+        ${tuningMarkup()}
       </div>
     `;
+    bindTuning();
   }
 
   function updateWaitingLabel(label) {
@@ -66,6 +73,15 @@ export function mount(app, sendMsg, myPlayerId) {
           </div>
         </div>
 
+        <div class="tilt-gauge">
+          <div class="dpad-track">
+            <div class="dpad-dot" id="dot-tilt"></div>
+          </div>
+          <span id="tilt-label">LEVEL</span>
+        </div>
+
+        ${tuningMarkup()}
+
         <p id="bowl-prompt">Hold and swing to bowl!</p>
         <button id="btn-bowl">BOWL</button>
         <p id="bowl-hint"></p>
@@ -73,6 +89,8 @@ export function mount(app, sendMsg, myPlayerId) {
     `;
 
     refreshDots();
+    refreshTiltGauge();
+    bindTuning();
 
     document.getElementById('tab-move').addEventListener('click', () => setMode('move'));
     document.getElementById('tab-aim').addEventListener('click',  () => setMode('aim'));
@@ -138,26 +156,71 @@ export function mount(app, sendMsg, myPlayerId) {
     dot.style.left = `${((value + 1) / 2) * 90 + 5}%`;
   }
 
+  // ── Tilt gauge ──────────────────────────────────────────────────────────────
+
+  function refreshTiltGauge() {
+    const label = document.getElementById('tilt-label');
+    if (!label) return;
+    const { lean } = tilt.read();
+    setDot('dot-tilt', lean);
+    label.textContent = lean === 0
+      ? 'LEVEL'
+      : `${lean > 0 ? 'RIGHT' : 'LEFT'} ${Math.round(Math.abs(lean) * 100)}%`;
+  }
+
+  // ── Tuning sliders ──────────────────────────────────────────────────────────
+
+  function tuningMarkup() {
+    const rows = TUNING_CONTROLS.map(({ key, label, min, max, step, format }) => `
+      <label class="tuning-row">
+        <span class="tuning-label">${label}</span>
+        <input type="range" class="tuning-input" data-key="${key}"
+          min="${min}" max="${max}" step="${step}" value="${tuning[key]}">
+        <span class="tuning-value" id="tuning-value-${key}">${format(tuning[key])}</span>
+      </label>
+    `).join('');
+    return `<div class="tuning">${rows}</div>`;
+  }
+
+  function bindTuning() {
+    app.querySelectorAll('.tuning-input').forEach((input) => {
+      input.addEventListener('input', () => {
+        const { key } = input.dataset;
+        tuning = clampTuning({ ...tuning, [key]: Number(input.value) });
+        saveTuning(tuning);
+        const control = TUNING_CONTROLS.find((c) => c.key === key);
+        document.getElementById(`tuning-value-${key}`).textContent = control.format(tuning[key]);
+      });
+    });
+  }
+
   // ── Bowl button ─────────────────────────────────────────────────────────────
 
   function onHoldStart() {
     holdStart = Date.now();
+    startTilt = tilt.read();
     motionBuffer = [];
     setDpadEnabled(false);
     acquireWakeLock();
 
     streamInterval = setInterval(() => {
-      sendMsg({ type: 'pos', yaw: lastRotation.alpha, aimOffset, aimAngle });
+      const angle = Math.max(-1, Math.min(1, aimAngle + startTilt.lean));
+      sendMsg({ type: 'pos', yaw: lastRotation.alpha, aimOffset, aimAngle: angle });
     }, 1000 / STREAM_HZ);
   }
 
   function onHoldEnd() {
+    if (holdStart === null) return;
     const holdDuration = Date.now() - holdStart;
 
     clearInterval(streamInterval);
     streamInterval = null;
     releaseWakeLock();
     setDpadEnabled(true);
+
+    const releasedTilt = tilt.read();
+    const pressedTilt = startTilt;
+    startTilt = null;
 
     if (holdDuration < MIN_HOLD_MS) {
       const hint = document.getElementById('bowl-hint');
@@ -167,11 +230,16 @@ export function mount(app, sendMsg, myPlayerId) {
       return;
     }
 
-    const throwData = throwFromMotion(motionBuffer);
+    const throwMsg = composeThrow({
+      samples: motionBuffer,
+      aim: { offset: aimOffset, angle: aimAngle },
+      tilt: { angle: pressedTilt.lean, spin: twistFromLeans(pressedTilt.lean, releasedTilt.lean) },
+      tuning,
+    });
     motionBuffer = [];
     holdStart = null;
 
-    sendMsg({ type: 'throw', ...throwData, aimOffset, aimAngle });
+    sendMsg(throwMsg);
     if (navigator.vibrate) navigator.vibrate(100);
   }
 
@@ -180,6 +248,7 @@ export function mount(app, sendMsg, myPlayerId) {
       const el = document.getElementById(id);
       if (el) el.disabled = !enabled;
     });
+    app.querySelectorAll('.tuning-input').forEach((el) => { el.disabled = !enabled; });
   }
 
   // ── Wake lock ───────────────────────────────────────────────────────────────
@@ -225,6 +294,8 @@ export function mount(app, sendMsg, myPlayerId) {
     // and to push samples into motionBuffer while a swing is in progress.
     onMotion({ ax, ay, az, alpha, beta, gamma }) {
       lastRotation = { alpha, beta, gamma };
+      tilt.update({ ax, ay, az });
+      refreshTiltGauge();
       if (motionBuffer !== null && holdStart !== null) {
         motionBuffer.push({ ax, ay, az, alpha, beta, gamma, t: Date.now() });
       }
@@ -233,6 +304,7 @@ export function mount(app, sendMsg, myPlayerId) {
       if (streamInterval) clearInterval(streamInterval);
       streamInterval = null;
       holdStart = null;
+      startTilt = null;
       releaseWakeLock();
     },
   };

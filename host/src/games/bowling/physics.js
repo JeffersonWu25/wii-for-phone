@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { getPinPositions, BALL_START, BALL_RADIUS, GUTTER_RADIUS, AIM_MAX_X } from './Scene.jsx';
+import { getPinPositions, BALL_START, BALL_RADIUS, GUTTER_RADIUS } from './Scene.jsx';
 
 const SETTLE_FRAMES = 20;
 const SETTLE_LIN_THRESHOLD = 0.1;  // m/s
@@ -9,11 +9,6 @@ const PIN_RADIUS = 0.06;
 const LANE_HALF_WIDTH = 0.525;
 const LANE_HALF_LENGTH = 9.15;
 
-const MIN_RELEASE_MPS = 4;
-const MAX_RELEASE_MPS = 9;
-const MAX_ANGLE_DEG = 3;
-const MAX_START_X = 0.45;
-const HOOK_ACCEL_MPS2 = 0.13;
 const WALL_SETTLE_MS = 5000;
 const SIM_SETTLE_S = 8;
 const BALL_MASS_KG = 5.575;
@@ -21,10 +16,6 @@ const BALL_MASS_KG = 5.575;
 const PIN_MASS = 1.53;
 const PIN_VOLUME = Math.PI * PIN_RADIUS * PIN_RADIUS * (PIN_HALF_HEIGHT * 2);
 const PIN_DENSITY = PIN_MASS / PIN_VOLUME;
-
-function clamp(val, min, max) {
-  return Math.max(min, Math.min(max, val));
-}
 
 export class PhysicsWorld {
   constructor() {
@@ -35,7 +26,7 @@ export class PhysicsWorld {
     this.settleCounter = 0;
     this.thrown = false;
     this.settled = false;
-    this.releaseSpin = 0;
+    this.hookAccel = 0;
     this.simTime = 0;
     this._accumulator = 0;
     this.onSettle = null;  // callback(standingCount)
@@ -131,30 +122,23 @@ export class PhysicsWorld {
     });
   }
 
-  applyThrow(power, angle, spin, aimOffset = 0) {
+  launch({ startX, velocity, hookAccel }) {
     if (this.thrown) return;
     this.thrown = true;
     this.settled = false;
     this.settleCounter = 0;
-
-    // Set starting X from aimOffset, clamped to stay within lane
-    const startX = Math.max(-MAX_START_X, Math.min(MAX_START_X, aimOffset * AIM_MAX_X));
-    this.ballBody.setTranslation({ x: startX, y: BALL_START.y, z: BALL_START.z }, true);
-    this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-
-    const scaledPower = clamp(power, 0, 1);
-    this.releaseSpin = clamp(spin, -1, 1);
+    this.hookAccel = hookAccel;
     this.simTime = 0;
 
-    const speed = MIN_RELEASE_MPS + scaledPower * (MAX_RELEASE_MPS - MIN_RELEASE_MPS);
-    const angleRad = clamp(angle, -1, 1) * (MAX_ANGLE_DEG * Math.PI / 180);
-
-    const vx = Math.sin(angleRad) * speed;
-    const vz = -Math.cos(angleRad) * speed;
-
-    this.ballBody.setLinvel({ x: vx, y: 0, z: vz }, true);
-    this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.ballBody.setTranslation({ x: startX, y: BALL_START.y, z: BALL_START.z }, true);
+    this.ballBody.setLinvel({ x: velocity.x, y: 0, z: velocity.z }, true);
+    // Already rolling, so lane friction does not spend the first part of the shot turning slide into roll.
+    // Contact point velocity is zero when omega = v / R with this sign.
+    this.ballBody.setAngvel({
+      x: velocity.z / BALL_RADIUS,
+      y: 0,
+      z: -velocity.x / BALL_RADIUS,
+    }, true);
 
     this._forceSettleTimer = setTimeout(() => this._finishSettle(), WALL_SETTLE_MS);
   }
@@ -180,7 +164,7 @@ export class PhysicsWorld {
   }
 
   _applyHook(dt) {
-    const impulse = this.releaseSpin * HOOK_ACCEL_MPS2 * this.ballBody.mass() * dt;
+    const impulse = this.hookAccel * this.ballBody.mass() * dt;
     this.ballBody.applyImpulse({ x: impulse, y: 0, z: 0 }, true);
   }
 
@@ -251,7 +235,7 @@ export class PhysicsWorld {
     this.thrown = false;
     this.settled = false;
     this.settleCounter = 0;
-    this.releaseSpin = 0;
+    this.hookAccel = 0;
     this.simTime = 0;
   }
 
@@ -270,7 +254,7 @@ export class PhysicsWorld {
     this.thrown = false;
     this.settled = false;
     this.settleCounter = 0;
-    this.releaseSpin = 0;
+    this.hookAccel = 0;
     this.simTime = 0;
 
     // Recreate pins at starting positions

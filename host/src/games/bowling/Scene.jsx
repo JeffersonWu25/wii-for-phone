@@ -14,10 +14,10 @@ const BALL_START = new THREE.Vector3(0, BALL_RADIUS, 0);
 
 const LANE_SPACING = 1.8;  // center-to-center distance between adjacent lanes
 
-const AIM_MAX_X = 0.4;      // ±0.4m lateral range from pre-aim offset
-const PREVIEW_CLAMP = 0.45; // max |startX| — must match physics MAX_START_X
+const AIM_MAX_X = 0.4;      // ±0.4m lateral range from pre-aim offset; launch.js copies it
+const PREVIEW_CLAMP = 0.45; // max |startX| — must match launch.js MAX_START_X
 
-// Must match MAX_ANGLE_DEG in physics.js
+// Must match MAX_ANGLE_DEG in launch.js
 const AIM_ANGLE_DEG = 3;
 
 function getPinPositions() {
@@ -358,10 +358,10 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       targetBallXRef.current = targetX;
       targetAimAngleRef.current = aimAngle;
     },
-    throwBall(power, aimAngle, spin, aimOffset = 0) {
+    throwBall(launch) {
       previewActiveRef.current = false;
       cameraFollowRef.current = true;
-      physicsRef.current?.applyThrow(power, aimAngle, spin, aimOffset);
+      physicsRef.current?.launch(launch);
     },
     resetBall() {
       physicsRef.current?.resetBall();

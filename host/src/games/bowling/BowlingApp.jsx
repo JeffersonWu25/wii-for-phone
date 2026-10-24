@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Scene from './Scene.jsx';
 import { BowlingGame } from './BowlingGame.js';
+import { launchFromMessage } from './launch.js';
 
 const RESET_DELAY_MS = 1500;
 
@@ -75,12 +76,15 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
           if (throwInFlight.current) return;
           sceneRef.current?.previewBall(msg.aimOffset ?? 0, msg.aimAngle ?? 0);
           break;
-        case 'throw':
+        case 'throw': {
           if (msg.playerId !== currentPlayerIdRef.current) return;
           if (throwInFlight.current) return;
+          const launch = launchFromMessage(msg);
+          if (!launch) return;
           throwInFlight.current = true;
-          sceneRef.current?.throwBall(msg.power, msg.aimAngle ?? 0, msg.spin, msg.aimOffset ?? 0);
+          sceneRef.current?.throwBall(launch);
           break;
+        }
         case 'player_disconnected':
           // If the current player disconnects before throwing, pause immediately.
           if (msg.playerId === currentPlayerIdRef.current && !throwInFlight.current) {
