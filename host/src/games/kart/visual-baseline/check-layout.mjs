@@ -1,13 +1,5 @@
-import { createRequire } from 'module';
 import { writeFileSync } from 'fs';
-
-const require = createRequire(import.meta.url);
-let chromium;
-try {
-  chromium = require('playwright-core').chromium;
-} catch {
-  chromium = (await import('playwright-core')).chromium;
-}
+import { chromium } from 'playwright-core';
 
 const HOST = process.argv[2] || 'http://127.0.0.1:15173';
 const PHONE = process.env.PHONE_URL || 'http://127.0.0.1:15174';
