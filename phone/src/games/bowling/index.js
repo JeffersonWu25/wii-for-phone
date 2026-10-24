@@ -197,14 +197,16 @@ export function mount(app, sendMsg, myPlayerId) {
   // ── Bowl button ─────────────────────────────────────────────────────────────
 
   function onHoldStart() {
+    if (streamInterval) clearInterval(streamInterval);
     holdStart = Date.now();
     startTilt = tilt.read();
+    const leanAtPress = startTilt.lean;
     motionBuffer = [];
     setDpadEnabled(false);
     acquireWakeLock();
 
     streamInterval = setInterval(() => {
-      const angle = Math.max(-1, Math.min(1, aimAngle + startTilt.lean));
+      const angle = Math.max(-1, Math.min(1, aimAngle + leanAtPress));
       sendMsg({ type: 'pos', yaw: lastRotation.alpha, aimOffset, aimAngle: angle });
     }, 1000 / STREAM_HZ);
   }
