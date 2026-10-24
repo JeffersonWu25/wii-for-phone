@@ -1,12 +1,12 @@
-import { composeThrow, twistFromLeans } from '../../phone/src/games/bowling/throw.js';
-import { downFromSample, leanFromGravity } from '../../phone/src/games/bowling/tilt.js';
+import { composeThrow } from '../../phone/src/games/bowling/throw.js';
+import { downFromSample, leanFromDegrees, leanFromGravity } from '../../phone/src/games/bowling/tilt.js';
 import { launchFromMessage } from '../src/games/bowling/launch.js';
 import { PhysicsWorld } from '../src/games/bowling/physics.js';
 
 const PIN_Z = -14.5;
 const LANE_EDGE = 0.52;
 const DT = 1 / 60;
-const STRAIGHT_TUNING = { speed: 1, curve: 1 };
+const STRAIGHT_TUNING = { speed: 1, tilt: 1, curveDeg: 35 };
 
 function swing({ extraPeak, frames = 24 }) {
   const samples = [];
@@ -30,12 +30,15 @@ function bank(degrees) {
 }
 
 function shot({ extraPeak, angleDeg = 0, spinDeg = 0, offset = 0, tuning = STRAIGHT_TUNING }) {
-  const angle = bank(angleDeg).lean;
-  const release = bank(angleDeg + spinDeg).lean;
+  const pressed = bank(angleDeg);
+  const released = bank(angleDeg + spinDeg);
   return composeThrow({
     samples: swing({ extraPeak }),
     aim: { offset, angle: 0 },
-    tilt: { angle, spin: twistFromLeans(angle, release) },
+    tilt: {
+      angle: leanFromDegrees(pressed.degrees, 35 / tuning.tilt),
+      spin: leanFromDegrees(released.degrees - pressed.degrees, tuning.curveDeg),
+    },
     tuning,
   });
 }
@@ -47,7 +50,7 @@ const SHOTS = {
   gentleBank: shot({ extraPeak: 25, spinDeg: -9 }),
   firmHook: shot({ extraPeak: 25, spinDeg: -23 }),
   fullBank: shot({ extraPeak: 50, spinDeg: -40 }),
-  flatCurve: shot({ extraPeak: 25, spinDeg: -40, tuning: { speed: 1, curve: 0 } }),
+  flatCurve: shot({ extraPeak: 25, spinDeg: -4, tuning: { speed: 1, tilt: 1, curveDeg: 35 } }),
   heldLeft: shot({ extraPeak: 25, angleDeg: 23 }),
 };
 
@@ -115,8 +118,8 @@ const edgeMsg = { ...SHOTS.fullBank, power: 1, aim: { offset: 1, angle: 0 } };
 const edgeRoll = await roll(physics, edgeMsg);
 describe('edgeHook', edgeMsg, edgeRoll);
 
-const slowHookMsg = { ...SHOTS.firmHook, tuning: { speed: 0.6, curve: 1 } };
-const fastHookMsg = { ...SHOTS.firmHook, tuning: { speed: 1.5, curve: 1 } };
+const slowHookMsg = { ...SHOTS.firmHook, tuning: { speed: 0.6 } };
+const fastHookMsg = { ...SHOTS.firmHook, tuning: { speed: 1.5 } };
 const slowHook = await roll(physics, slowHookMsg);
 const fastHook = await roll(physics, fastHookMsg);
 describe('slowHook', slowHookMsg, slowHook);
@@ -149,7 +152,7 @@ check(failures, firm.atPins && Math.abs(firm.atPins.x) < 0.08, `straight entry x
 check(failures, firm.atPins && firm.atPins.t > 2.4 && firm.atPins.t < 3.6, `firm transit ${firm.atPins?.t} s should be a medium shot, not a rocket`);
 check(failures, hard.atPins && hard.atPins.t < firm.atPins.t, `hard transit ${hard.atPins?.t} s should be brisker than firm ${firm.atPins?.t}`);
 check(failures, !firm.leftLane, 'firm straight should stay on the lane');
-check(failures, flat.atPins && Math.abs(flat.atPins.x) < 0.08, `curve 0 entry x=${flat.atPins?.x} should stay straight through a full twist`);
+check(failures, flat.atPins && Math.abs(flat.atPins.x) < 0.08, `a twist inside the curve window should stay straight, x=${flat.atPins?.x}`);
 check(failures, played.heldLeft.atPins && played.heldLeft.atPins.x < -0.15 && !played.heldLeft.leftLane, `held left entry x=${played.heldLeft.atPins?.x} should slant left and stay on the lane`);
 
 check(failures, gentle.atPins && !gentle.leftLane && gentle.atPins.x > 0.02 && gentle.atPins.x < 0.14, `gentle hook x=${gentle.atPins?.x} should be a small visible move`);

@@ -2,8 +2,8 @@
 // Exported mount(app, sendMsg, myPlayerId) bootstraps the bowling controller
 // and returns an onMessage(msg) handler for the thin main.js to call.
 
-import { composeThrow, twistFromLeans } from './throw.js';
-import { createTiltSensor } from './tilt.js';
+import { composeThrow } from './throw.js';
+import { createTiltSensor, leanFromDegrees } from './tilt.js';
 import { FEEL_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
 
 const STREAM_HZ = 20;
@@ -221,7 +221,7 @@ export function mount(app, sendMsg, myPlayerId) {
     releaseWakeLock();
     setDpadEnabled(true);
 
-    const releasedTilt = tilt.read(tuning.tilt);
+    const releasedTilt = tilt.read();
     const pressedTilt = startTilt;
     startTilt = null;
 
@@ -236,7 +236,10 @@ export function mount(app, sendMsg, myPlayerId) {
     const throwMsg = composeThrow({
       samples: motionBuffer,
       aim: { offset: aimOffset, angle: aimAngle },
-      tilt: { angle: pressedTilt.lean, spin: twistFromLeans(pressedTilt.lean, releasedTilt.lean) },
+      tilt: {
+        angle: pressedTilt.lean,
+        spin: leanFromDegrees(releasedTilt.degrees - pressedTilt.degrees, tuning.curveDeg),
+      },
       tuning,
     });
     motionBuffer = [];

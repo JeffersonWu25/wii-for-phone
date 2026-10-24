@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTiltSensor, downFromSample, leanFromGravity } from './tilt.js';
+import { createTiltSensor, downFromSample, leanFromDegrees, leanFromGravity } from './tilt.js';
 
 const G = 9.81;
 
@@ -24,6 +24,14 @@ test('player left is negative lean, player right is positive', () => {
   assert.equal(leanFromGravity(downFromSample(bankedSample(50))).lean, -1);
 });
 
+test('curve degrees scale the twist and ignore the starting slant', () => {
+  const twist = 20;
+  const wide = Math.abs(leanFromDegrees(twist, 70));
+  const tight = Math.abs(leanFromDegrees(twist, 35));
+  assert.ok(wide < tight && wide > 0, `70° window ${wide}, 35° window ${tight}`);
+  assert.equal(leanFromDegrees(0, 15), 0);
+  assert.equal(leanFromDegrees(4, 35), 0);
+});
 test('higher tilt sensitivity reaches full lean sooner and shrinks the level window', () => {
   const mild = Math.abs(leanFromGravity(downFromSample(bankedSample(12))).lean);
   const sensitive = Math.abs(leanFromGravity(downFromSample(bankedSample(20)), 2).lean);
