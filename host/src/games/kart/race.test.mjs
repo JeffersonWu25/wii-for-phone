@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HALF, PERIM, poseAt, sampleTrack } from './track.js';
-import { stickSteer } from '../../../../phone/src/games/kart/steer.js';
+import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
   CHECKPOINTS,
   LAPS,
   applyDrive,
+  applyUseItem,
   createRace,
   noteProgress,
   rankKarts,
@@ -189,7 +190,7 @@ test('a late driver holding the gas finishes a lap inside the walls', () => {
     while (err > Math.PI) err -= Math.PI * 2;
     while (err < -Math.PI) err += Math.PI * 2;
     const intent = Math.max(-1, Math.min(1, err / 0.4));
-    hist.push(stickSteer(intent * 120, 120));
+    hist.push(stickInput(-intent * 120, 0, 120).steer);
     const delayed = hist[Math.max(0, hist.length - 10)];
     applyDrive(race, { playerId: 'p1', steer: delayed, gas: true, drift: false, seq: steps + 1 }, t * 1000);
     stepRace(race, dt, t * 1000);
@@ -215,10 +216,70 @@ test('speed tuning lowers the top speed a gas-holding kart reaches', () => {
   assert.ok(race.karts[0].speed > 12, `speed ${race.karts[0].speed}`);
 });
 
-test('stick right is positive and a small nudge is ignored', () => {
-  assert.equal(stickSteer(8, 100), 0);
-  assert.ok(stickSteer(100, 100) > 0.99);
-  assert.ok(stickSteer(-100, 100) < -0.99);
-  const half = stickSteer(50, 100);
-  assert.ok(half > 0.15 && half < 0.45, `half ${half}`);
+test('the stick on the rim drifts the kart and releasing it boosts', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  race.startedAt = 0;
+  const kart = race.karts[0];
+  kart.x = 16;
+  kart.z = -18;
+  kart.heading = 0;
+  kart.speed = 20;
+  const rim = stickInput(-120, 0, 120);
+  let now = 0;
+  for (let i = 0; i < 40; i++) {
+    now += 50;
+    applyDrive(race, {
+      playerId: 'p1',
+      steer: rim.steer,
+      gas: true,
+      drift: rim.drift,
+      seq: i,
+    }, now);
+    stepRace(race, 0.05, now);
+  }
+  assert.ok(kart.driftCharge > 0.55, `charge ${kart.driftCharge}`);
+  const release = stickInput(0, 0, 120);
+  now += 50;
+  applyDrive(race, {
+    playerId: 'p1',
+    steer: release.steer,
+    gas: true,
+    drift: release.drift,
+    seq: 100,
+  }, now);
+  stepRace(race, 0.05, now);
+  assert.ok(kart.boostT > 0);
+});
+
+test('each use_item while racing adds exactly one to itemPresses', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  assert.equal(race.karts[0].itemPresses, 0);
+  applyUseItem(race, { playerId: 'p1' });
+  applyUseItem(race, { playerId: 'p1' });
+  applyUseItem(race, { playerId: 'p1' });
+  assert.equal(race.karts[0].itemPresses, 3);
+});
+
+test('use_item is ignored in countdown, for a finished kart, and for an unknown player', () => {
+  const race = createRace([
+    { playerId: 'p1', name: 'A' },
+    { playerId: 'p2', name: 'B' },
+  ], 0);
+  applyUseItem(race, { playerId: 'p1' });
+  assert.equal(race.karts[0].itemPresses, 0);
+
+  race.phase = 'racing';
+  race.karts[0].finished = true;
+  applyUseItem(race, { playerId: 'p1' });
+  assert.equal(race.karts[0].itemPresses, 0);
+
+  applyUseItem(race, { playerId: 'nobody' });
+  assert.equal(race.karts[0].itemPresses, 0);
+  assert.equal(race.karts[1].itemPresses, 0);
+
+  applyUseItem(race, { playerId: 'p2' });
+  assert.equal(race.karts[1].itemPresses, 1);
+  assert.equal(race.karts[0].itemPresses, 0);
 });

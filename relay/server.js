@@ -5,6 +5,7 @@ import crypto from 'crypto';
 const PORT = process.env.PORT || 8080;
 const RATE_LIMIT_WINDOW_MS = 1000;
 const RATE_LIMIT_MAX_MSGS = 60; // max messages per second per connection
+const PHONE_TO_HOST = new Set(['pos', 'throw', 'aim', 'drive', 'use_item']);
 
 const server = http.createServer((_req, res) => {
   res.writeHead(200);
@@ -145,7 +146,7 @@ wss.on('connection', (ws, req) => {
           send(ws, { type: 'game_selected', game: session.currentGame });
         }
         console.log(`[relay] Player joined: ${msg.name} (${playerId})`);
-      } else if (msg.type === 'pos' || msg.type === 'throw' || msg.type === 'aim' || msg.type === 'drive') {
+      } else if (PHONE_TO_HOST.has(msg.type)) {
         send(session.hostWs, { ...msg, playerId: player.id });
       }
     });

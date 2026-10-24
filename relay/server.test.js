@@ -29,21 +29,43 @@ after(() => relayProc?.kill());
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const pending = new WeakMap();
+
 function connect(role, sessionId) {
   return new Promise((resolve, reject) => {
     const url = `${RELAY_URL}?role=${role}${sessionId ? `&session=${sessionId}` : ''}`;
     const ws = new WebSocket(url);
+    // Frames can land before the test reaches nextMsg. A one-shot listener
+    // drops those frames and the assertion waits forever.
+    const box = { queue: [], waiters: [] };
+    pending.set(ws, box);
+    ws.on('message', (data) => {
+      let msg;
+      try {
+        msg = JSON.parse(data);
+      } catch (err) {
+        const waiter = box.waiters.shift();
+        if (waiter) waiter.reject(err);
+        return;
+      }
+      const waiter = box.waiters.shift();
+      if (waiter) waiter.resolve(msg);
+      else box.queue.push(msg);
+    });
+    ws.on('error', (err) => {
+      reject(err);
+      for (const waiter of box.waiters.splice(0)) waiter.reject(err);
+    });
     ws.on('open', () => resolve(ws));
-    ws.on('error', reject);
   });
 }
 
 function nextMsg(ws) {
+  const box = pending.get(ws);
+  const queued = box.queue.shift();
+  if (queued) return Promise.resolve(queued);
   return new Promise((resolve, reject) => {
-    ws.once('message', (data) => {
-      try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
-    });
-    ws.once('error', reject);
+    box.waiters.push({ resolve, reject });
   });
 }
 
@@ -242,6 +264,37 @@ test('drive packets are forwarded to the host with the player id', async () => {
   assert.equal(fwd.type, 'drive');
   assert.equal(fwd.steer, -0.4);
   assert.equal(fwd.gas, true);
+  assert.equal(fwd.playerId, msg.playerId);
+
+  await Promise.all([closeAndWait(host), closeAndWait(phone)]);
+});
+
+test('each use_item is forwarded once with the player id', async () => {
+  const { host, sessionId } = await createSession();
+  const { phone, msg } = await joinPhone(sessionId, 'Toad');
+  assert.equal(msg.type, 'joined');
+  await nextMsg(host);
+
+  for (let i = 0; i < 3; i++) phone.send(JSON.stringify({ type: 'use_item' }));
+  for (let i = 0; i < 3; i++) {
+    const fwd = await nextMsg(host);
+    assert.equal(fwd.type, 'use_item');
+    assert.equal(fwd.playerId, msg.playerId);
+  }
+
+  await Promise.all([closeAndWait(host), closeAndWait(phone)]);
+});
+
+test('an unlisted phone message type is not forwarded', async () => {
+  const { host, sessionId } = await createSession();
+  const { phone, msg } = await joinPhone(sessionId, 'Peach');
+  assert.equal(msg.type, 'joined');
+  await nextMsg(host);
+
+  phone.send(JSON.stringify({ type: 'bogus' }));
+  phone.send(JSON.stringify({ type: 'use_item' }));
+  const fwd = await nextMsg(host);
+  assert.equal(fwd.type, 'use_item');
   assert.equal(fwd.playerId, msg.playerId);
 
   await Promise.all([closeAndWait(host), closeAndWait(phone)]);

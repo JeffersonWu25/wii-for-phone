@@ -70,6 +70,7 @@ export function createRace(players, now) {
       progress: sample.progress,
       driftCharge: 0,
       boostT: 0,
+      itemPresses: 0,
     };
   });
   return {
@@ -96,6 +97,24 @@ export function setTuning(race, partial) {
   const turn = Number(partial.turn);
   if (Number.isFinite(speed)) race.tuning.speed = clamp(speed, 0.5, 1.8);
   if (Number.isFinite(turn)) race.tuning.turn = clamp(turn, 0.4, 2.2);
+}
+
+/**
+ * Record one Use item press for msg.playerId. One message is one press. The phone
+ * sends on pointerdown only and the relay forwards once over an ordered socket.
+ * Nothing retries, so there is deliberately no dedupe here.
+ * Counts only while race.phase === 'racing' and the kart has not finished. Other
+ * presses are rejected so they cannot bank up for the start.
+ * Sole writer of kart.itemPresses, which only ever increases. A future item system
+ * keeps its own cursor and never writes itemPresses.
+ * @param {Race} race
+ * @param {{ playerId: string }} msg
+ */
+export function applyUseItem(race, msg) {
+  if (race.phase !== 'racing') return;
+  const kart = race.karts.find((k) => k.playerId === msg.playerId);
+  if (!kart || kart.finished) return;
+  kart.itemPresses += 1;
 }
 
 export function applyDrive(race, msg, now) {

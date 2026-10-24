@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import KartScene from './KartScene.jsx';
-import { LAPS, createRace, applyDrive, setTuning, snapshot, stepRace, takeBroadcast } from './race.js';
+import { LAPS, createRace, applyDrive, applyUseItem, setTuning, snapshot, stepRace, takeBroadcast } from './race.js';
 import { viewports } from './layout.js';
 
 export default function KartApp({ wsRef, send, players, onAbandon }) {
@@ -22,8 +22,8 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
     function onMessage(event) {
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
-      if (msg.type !== 'drive') return;
-      applyDrive(raceRef.current, msg, performance.now());
+      if (msg.type === 'drive') applyDrive(raceRef.current, msg, performance.now());
+      else if (msg.type === 'use_item') applyUseItem(raceRef.current, msg);
     }
     ws?.addEventListener('message', onMessage);
     let last = performance.now();

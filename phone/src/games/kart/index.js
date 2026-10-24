@@ -1,18 +1,16 @@
-import { steerFromTilt, stickSteer, tiltAngle } from './steer.js';
+import { STICK, stickInput } from './steer.js';
 
 const STREAM_HZ = 20;
+const CENTER = stickInput(0, 0, 1);
 
 export function mount(app, sendMsg, myPlayerId) {
-  let mode = 'stick';
-  let gas = false;
-  let drift = false;
-  let stick = 0;
+  let input = CENTER;
+  let stickPointer = null;
+  // Measured at pointerdown. A drag must not follow a layout change mid-gesture.
+  let stickRect = null;
+  let itemPointer = null;
   let seq = 0;
-  let stream = null;
   let wakeLock = null;
-  let gravity = { ax: 0, ay: 0, az: 9.8 };
-  let neutral = 0;
-  let pointerId = null;
 
   app.innerHTML = `
     <div class="screen kart-screen">
@@ -26,29 +24,13 @@ export function mount(app, sendMsg, myPlayerId) {
           <p class="kart-lap" id="kart-lap">Lap 1</p>
         </div>
       </div>
-      <div class="kart-modes">
-        <button type="button" id="mode-stick" class="kart-mode is-on">Joystick</button>
-        <button type="button" id="mode-tilt" class="kart-mode">Tilt</button>
-      </div>
-      <div class="kart-play">
-        <div class="kart-steer">
-          <div class="kart-stick-wrap" id="stick-wrap">
-            <div class="kart-stick-base" id="stick-base">
-              <div class="kart-stick-knob" id="stick-knob"></div>
-            </div>
-          </div>
-          <p class="kart-tilt-hint" id="tilt-hint" hidden>Tilt the phone like a wheel. The angle you tap is straight ahead.</p>
-        </div>
-        <div class="kart-actions">
-          <button type="button" id="btn-drift" class="kart-drift">Drift</button>
-          <button type="button" id="btn-gas" class="kart-gas">Gas</button>
+      <div class="kart-pad">
+        <button type="button" id="kart-item" class="kart-item">Use item</button>
+        <div class="kart-stick" id="kart-stick" style="--drift-at:${STICK.driftAt}">
+          <div class="kart-stick-knob" id="kart-knob"></div>
         </div>
       </div>
       <div class="kart-banner" id="kart-banner" hidden></div>
-      <div class="kart-rotate" id="kart-rotate" hidden>
-        <p>Turn your phone sideways</p>
-        <button type="button" id="kart-landscape">Hold sideways</button>
-      </div>
     </div>
   `;
 
@@ -56,101 +38,81 @@ export function mount(app, sendMsg, myPlayerId) {
   const subEl = document.getElementById('kart-sub');
   const placeEl = document.getElementById('kart-place');
   const lapEl = document.getElementById('kart-lap');
-  const stickWrap = document.getElementById('stick-wrap');
-  const stickBase = document.getElementById('stick-base');
-  const knob = document.getElementById('stick-knob');
-  const tiltHint = document.getElementById('tilt-hint');
+  const stickEl = document.getElementById('kart-stick');
+  const knobEl = document.getElementById('kart-knob');
+  const itemEl = document.getElementById('kart-item');
   const banner = document.getElementById('kart-banner');
-  const rotateEl = document.getElementById('kart-rotate');
-  const portraitQuery = window.matchMedia('(orientation: portrait)');
 
-  function lockLandscape() {
-    const lock = screen.orientation?.lock?.bind(screen.orientation);
-    if (!lock) return;
-    lock('landscape').catch(() => {});
-  }
+  bindStick();
+  bindItem();
 
-  function syncOrientation() {
-    rotateEl.hidden = !portraitQuery.matches;
-  }
-
-  syncOrientation();
-  portraitQuery.addEventListener('change', syncOrientation);
-  document.getElementById('kart-landscape').addEventListener('click', lockLandscape);
-  app.addEventListener('pointerdown', lockLandscape);
-  const stickBtn = document.getElementById('mode-stick');
-  const tiltBtn = document.getElementById('mode-tilt');
-
-  function setMode(next) {
-    mode = next;
-    stickBtn.classList.toggle('is-on', next === 'stick');
-    tiltBtn.classList.toggle('is-on', next === 'tilt');
-    stickWrap.hidden = next !== 'stick';
-    tiltHint.hidden = next !== 'tilt';
-    if (next === 'tilt') {
-      const angle = screen.orientation?.angle ?? window.orientation ?? 0;
-      neutral = tiltAngle(gravity.ax, gravity.ay, gravity.az, angle);
-    }
-  }
-
-  stickBtn.addEventListener('click', () => setMode('stick'));
-  tiltBtn.addEventListener('click', () => setMode('tilt'));
-
-  function currentSteer() {
-    if (mode === 'tilt') {
-      const angle = screen.orientation?.angle ?? window.orientation ?? 0;
-      return steerFromTilt(tiltAngle(gravity.ax, gravity.ay, gravity.az, angle), neutral);
-    }
-    return stick;
-  }
-
-  function holdButton(el, set) {
-    function down(event) {
+  function bindStick() {
+    stickEl.addEventListener('pointerdown', (event) => {
+      if (stickPointer !== null) return;
       event.preventDefault();
-      el.setPointerCapture(event.pointerId);
-      set(true);
-      el.classList.add('is-held');
+      stickPointer = event.pointerId;
+      stickEl.setPointerCapture(stickPointer);
+      stickRect = stickEl.getBoundingClientRect();
+      follow(event);
+    });
+    stickEl.addEventListener('pointermove', (event) => {
+      if (event.pointerId === stickPointer) follow(event);
+    });
+    // lostpointercapture also fires after pointerup. The owner check makes release idempotent.
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      stickEl.addEventListener(type, (event) => {
+        if (event.pointerId !== stickPointer) return;
+        stickPointer = null;
+        show(CENTER, 0);
+      });
     }
-    function up() {
-      set(false);
-      el.classList.remove('is-held');
+  }
+
+  function follow(event) {
+    const radius = stickRect.width / 2;
+    const dx = event.clientX - stickRect.left - radius;
+    const dy = event.clientY - stickRect.top - radius;
+    show(stickInput(dx, dy, radius), radius);
+  }
+
+  function show(next, radius) {
+    if (next.drift && !input.drift) buzz(12);
+    input = next;
+    stickEl.classList.toggle('is-drifting', next.drift);
+    knobEl.style.transform = `translate(${next.knobX * radius}px, ${next.knobY * radius}px)`;
+  }
+
+  function bindItem() {
+    itemEl.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      if (itemPointer !== null) return;
+      itemPointer = event.pointerId;
+      itemEl.setPointerCapture(itemPointer);
+      itemEl.classList.add('is-held');
+      sendMsg({ type: 'use_item' });
+      buzz(20);
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      itemEl.addEventListener(type, (event) => {
+        if (event.pointerId !== itemPointer) return;
+        itemPointer = null;
+        itemEl.classList.remove('is-held');
+      });
     }
-    el.addEventListener('pointerdown', down);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
   }
 
-  holdButton(document.getElementById('btn-gas'), (v) => { gas = v; });
-  holdButton(document.getElementById('btn-drift'), (v) => { drift = v; });
-
-  stickBase.addEventListener('pointerdown', (event) => {
-    pointerId = event.pointerId;
-    stickBase.setPointerCapture(pointerId);
-    moveStick(event);
-  });
-  stickBase.addEventListener('pointermove', (event) => {
-    if (event.pointerId !== pointerId) return;
-    moveStick(event);
-  });
-  function releaseStick(event) {
-    if (event.pointerId !== pointerId) return;
-    pointerId = null;
-    stick = 0;
-    knob.style.transform = 'translate(0px, 0px)';
+  function buzz(ms) {
+    try { navigator.vibrate?.(ms); } catch { /* iOS has no vibrate */ }
   }
-  stickBase.addEventListener('pointerup', releaseStick);
-  stickBase.addEventListener('pointercancel', releaseStick);
 
-  function moveStick(event) {
-    const rect = stickBase.getBoundingClientRect();
-    const radius = rect.width / 2;
-    const dx = event.clientX - (rect.left + radius);
-    const dy = event.clientY - (rect.top + radius);
-    stick = stickSteer(-dx, radius);
-    const travel = Math.max(-radius + 18, Math.min(radius - 18, dx));
-    const travelY = Math.max(-radius + 18, Math.min(radius - 18, dy));
-    knob.style.transform = `translate(${travel}px, ${travelY}px)`;
-  }
+  const stream = setInterval(() => {
+    seq += 1;
+    sendMsg({ type: 'drive', steer: input.steer, gas: true, drift: input.drift, seq });
+  }, 1000 / STREAM_HZ);
+
+  try {
+    navigator.wakeLock?.request('screen').then((lock) => { wakeLock = lock; }).catch(() => {});
+  } catch { /* wake lock is optional */ }
 
   function showBanner(text) {
     banner.hidden = false;
@@ -164,21 +126,6 @@ export function mount(app, sendMsg, myPlayerId) {
   function mine(msg) {
     return msg.players?.find((player) => player.playerId === myPlayerId) || null;
   }
-
-  stream = setInterval(() => {
-    seq += 1;
-    sendMsg({
-      type: 'drive',
-      steer: currentSteer(),
-      gas,
-      drift,
-      seq,
-    });
-  }, 1000 / STREAM_HZ);
-
-  try {
-    navigator.wakeLock?.request('screen').then((lock) => { wakeLock = lock; }).catch(() => {});
-  } catch { /* wake lock is optional */ }
 
   return {
     onMessage(msg) {
@@ -202,18 +149,10 @@ export function mount(app, sendMsg, myPlayerId) {
         subEl.textContent = 'Race over';
       }
     },
-    onMotion({ ax, ay, az }) {
-      gravity = { ax, ay, az };
-    },
     unmount() {
       clearInterval(stream);
-      stream = null;
-      gas = false;
-      drift = false;
       if (wakeLock) wakeLock.release().catch(() => {});
       wakeLock = null;
-      portraitQuery.removeEventListener('change', syncOrientation);
-      screen.orientation?.unlock?.();
     },
   };
 }
