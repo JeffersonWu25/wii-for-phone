@@ -1,7 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import KartScene from './KartScene.jsx';
+import Minimap from './Minimap.jsx';
 import { LAPS, createRace, applyDrive, applyUseItem, setTuning, snapshot, stepRace, takeBroadcast } from './race.js';
 import { viewports } from './layout.js';
+
+function ItemSlots({ primary, secondary }) {
+  return (
+    <div className="kart-items">
+      <div className={`kart-item kart-item-secondary${secondary ? ' is-filled' : ''}`}>
+        {secondary ? <span className={`kart-item-icon item-${secondary}`} /> : null}
+      </div>
+      <div className={`kart-item kart-item-primary${primary ? ' is-filled' : ''}`}>
+        {primary ? <span className={`kart-item-icon item-${primary}`} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function PlaceBadge({ place, placeText }) {
+  const tone = place === 1 ? 'first' : place <= 3 ? 'podium' : 'field';
+  return <div className={`kart-place kart-place-${tone}`}>{placeText}</div>;
+}
+
+function CoinLap({ coins, lap, lapsTotal }) {
+  const coinText = String(Math.max(0, Math.min(10, coins | 0))).padStart(2, '0');
+  return (
+    <div className="kart-coinlap">
+      <span className="kart-coin">
+        <span className="kart-coin-glyph" aria-hidden="true" />
+        <span className="kart-coin-count">{coinText}</span>
+      </span>
+      <span className="kart-lap">
+        <span className="kart-lap-flag" aria-hidden="true" />
+        <span className="kart-lap-count">{lap} / {lapsTotal}</span>
+      </span>
+    </div>
+  );
+}
 
 export default function KartApp({ wsRef, send, players, onAbandon }) {
   const raceRef = useRef(null);
@@ -10,6 +45,7 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
   const [view, setView] = useState(null);
   const [speed, setSpeed] = useState(1);
   const [turn, setTurn] = useState(1);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const rosterRef = useRef(players);
 
@@ -35,7 +71,7 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
       last = now;
       stepRace(race, dt, now);
       for (const msg of takeBroadcast(race, now)) sendRef.current(msg);
-      if (now - (race._hudAt || 0) > 200) {
+      if (now - (race._hudAt || 0) > 100) {
         race._hudAt = now;
         setView(snapshot(race));
       }
@@ -48,21 +84,20 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
 
   const count = view?.players.length || players.length || 1;
   const panes = viewports(count, 100, 100);
+  const lapsTotal = view?.lapsTotal || LAPS;
 
   return (
     <div className="kart-layout">
       <KartScene raceRef={raceRef} />
       <div className="kart-hud">
         {view?.players.map((player, i) => (
-          <div key={player.playerId} className="kart-pane" style={{ ...panes[i].css, borderColor: player.color }}>
-            <div className="kart-pane-tag" style={{ background: player.color }}>
-              <span>P{player.place}</span>
-              <strong>{player.characterName}</strong>
-              <span>{player.name}</span>
-            </div>
-            <div className="kart-pane-lap">Lap {player.lap} / {LAPS}</div>
+          <div key={player.playerId} className="kart-pane" style={panes[i].css}>
+            <ItemSlots primary={player.itemPrimary} secondary={player.itemSecondary} />
+            <CoinLap coins={player.coins} lap={player.lap} lapsTotal={lapsTotal} />
+            <PlaceBadge place={player.place} placeText={player.placeText} />
           </div>
         ))}
+        {view?.players?.length ? <Minimap players={view.players} /> : null}
         {view?.phase === 'countdown' && view.countdown > 0 && (
           <div className="kart-countdown">{view.countdown}</div>
         )}
@@ -83,45 +118,56 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
         )}
       </div>
       {view?.phase !== 'finished' && (
-        <button type="button" className="kart-back" onClick={onAbandon}>Back</button>
+        <div className="kart-chrome">
+          <button type="button" className="kart-back" onClick={onAbandon}>Back</button>
+          <button
+            type="button"
+            className="kart-settings-toggle"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((open) => !open)}
+          >
+            Tuning
+          </button>
+          {settingsOpen && (
+            <form className="kart-settings" onSubmit={(event) => event.preventDefault()}>
+              <label>
+                Speed
+                <input
+                  type="range"
+                  min="0.5"
+                  max="1.8"
+                  step="0.05"
+                  value={speed}
+                  aria-valuetext={`${Math.round(speed * 32)} meters per second`}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    setSpeed(next);
+                    if (raceRef.current) setTuning(raceRef.current, { speed: next, turn });
+                  }}
+                />
+                <span>{Math.round(speed * 32)}</span>
+              </label>
+              <label>
+                Turning
+                <input
+                  type="range"
+                  min="0.4"
+                  max="2.2"
+                  step="0.05"
+                  value={turn}
+                  aria-valuetext={`${Math.round(turn * 100)} percent`}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    setTurn(next);
+                    if (raceRef.current) setTuning(raceRef.current, { speed, turn: next });
+                  }}
+                />
+                <span>{Math.round(turn * 100)}%</span>
+              </label>
+            </form>
+          )}
+        </div>
       )}
-      <form className="kart-settings" onSubmit={(event) => event.preventDefault()}>
-        <p>Settings</p>
-        <label>
-          Speed
-          <input
-            type="range"
-            min="0.5"
-            max="1.8"
-            step="0.05"
-            value={speed}
-            aria-valuetext={`${Math.round(speed * 32)} meters per second`}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setSpeed(next);
-              if (raceRef.current) setTuning(raceRef.current, { speed: next, turn });
-            }}
-          />
-          <span>{Math.round(speed * 32)}</span>
-        </label>
-        <label>
-          Turning
-          <input
-            type="range"
-            min="0.4"
-            max="2.2"
-            step="0.05"
-            value={turn}
-            aria-valuetext={`${Math.round(turn * 100)} percent`}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setTurn(next);
-              if (raceRef.current) setTuning(raceRef.current, { speed, turn: next });
-            }}
-          />
-          <span>{Math.round(turn * 100)}%</span>
-        </label>
-      </form>
     </div>
   );
 }

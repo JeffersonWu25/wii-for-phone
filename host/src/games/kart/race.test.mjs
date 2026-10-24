@@ -10,8 +10,10 @@ import {
   applyUseItem,
   createRace,
   noteProgress,
+  placeLabel,
   rankKarts,
   setTuning,
+  snapshot,
   stepRace,
 } from './race.js';
 
@@ -282,4 +284,33 @@ test('use_item is ignored in countdown, for a finished kart, and for an unknown 
   applyUseItem(race, { playerId: 'p2' });
   assert.equal(race.karts[1].itemPresses, 1);
   assert.equal(race.karts[0].itemPresses, 0);
+});
+
+test('place labels use ordinal suffixes', () => {
+  assert.equal(placeLabel(1), '1st');
+  assert.equal(placeLabel(2), '2nd');
+  assert.equal(placeLabel(3), '3rd');
+  assert.equal(placeLabel(4), '4th');
+  assert.equal(placeLabel(11), '11th');
+  assert.equal(placeLabel(12), '12th');
+  assert.equal(placeLabel(21), '21st');
+});
+
+test('snapshot exposes MK8 HUD fields and world poses', () => {
+  const race = createRace([
+    { playerId: 'a', name: 'A' },
+    { playerId: 'b', name: 'B' },
+  ], 0);
+  const shot = snapshot(race);
+  assert.equal(shot.lapsTotal, LAPS);
+  assert.equal(shot.players.length, 2);
+  for (const player of shot.players) {
+    assert.equal(typeof player.placeText, 'string');
+    assert.equal(player.coins, 0);
+    assert.equal(player.itemPrimary, null);
+    assert.equal(player.itemSecondary, null);
+    assert.equal(typeof player.x, 'number');
+    assert.equal(typeof player.z, 'number');
+    assert.equal(typeof player.progress, 'number');
+  }
 });
