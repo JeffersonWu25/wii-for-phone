@@ -244,34 +244,38 @@ export function placeLabel(place) {
   }
 }
 
-export function snapshot(race) {
+function viewportOrderedPlayers(race) {
   const ranked = rankKarts(race.karts);
   const placeOf = new Map(ranked.map((kart, index) => [kart.playerId, index + 1]));
+  return race.karts.map((kart) => {
+    const place = placeOf.get(kart.playerId) || 1;
+    return {
+      playerId: kart.playerId,
+      name: kart.name,
+      place,
+      placeText: placeLabel(place),
+      lap: lapNumber(kart),
+      coins: clamp(kart.coins | 0, 0, 10),
+      itemPrimary: kart.itemPrimary ?? null,
+      itemSecondary: kart.itemSecondary ?? null,
+      x: kart.x,
+      z: kart.z,
+      progress: kart.progress,
+      characterId: kart.character.id,
+      characterName: kart.character.name,
+      color: kart.character.css,
+      finished: kart.finished,
+    };
+  });
+}
+
+export function snapshot(race) {
   return {
     phase: race.phase,
     countdown: Math.max(0, Math.ceil(race.countdown)),
     results: race.results,
     lapsTotal: LAPS,
-    players: race.karts.map((kart) => {
-      const place = placeOf.get(kart.playerId) || 1;
-      return {
-        playerId: kart.playerId,
-        name: kart.name,
-        place,
-        placeText: placeLabel(place),
-        lap: lapNumber(kart),
-        coins: clamp(kart.coins | 0, 0, 10),
-        itemPrimary: kart.itemPrimary ?? null,
-        itemSecondary: kart.itemSecondary ?? null,
-        x: kart.x,
-        z: kart.z,
-        progress: kart.progress,
-        characterId: kart.character.id,
-        characterName: kart.character.name,
-        color: kart.character.css,
-        finished: kart.finished,
-      };
-    }),
+    players: viewportOrderedPlayers(race),
   };
 }
 
