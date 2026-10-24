@@ -1,0 +1,50 @@
+# Mario Kart 8 Deluxe race HUD baseline
+
+Source of truth for visual parity. Do not edit the reference screenshot to make diffs pass.
+
+## Reference artifact
+
+- `mk8-reference-splitscreen.png` — two-player vertical split, Royal Raceway (Mario Kart 8 Deluxe).
+- Wiki confirmation (Mario Kart Racing Wiki): in local split-screen with the map on, there is one shared transparent white map in the center of the screen, not one map per player.
+
+## Layout contract (per player pane)
+
+Percentages are of that player's viewport, not the full TV.
+
+| Element | Placement | Look |
+|---|---|---|
+| Primary item slot | Top-left | Large circle, thick yellow rim |
+| Secondary item slot | Overlaps primary at ~10 o'clock, smaller | Empty or held item |
+| Place rank | Bottom-right | Huge outlined ordinal (`1st`, `12th`), place-tinted |
+| Coins | Bottom-left | Gold coin glyph + two-digit count (`00`–`10`) |
+| Laps | Bottom-left, right of coins | Checkered flag + `current / total` |
+| Shared minimap | Center of full screen (not per pane) | Semi-transparent white track outline; character dots; human dots larger with color rings |
+
+No colored name-pill strip across the top of each pane. Pane borders are thin/dark or absent, not thick colored frames.
+
+## Camera contract (chase cam)
+
+- Third-person, behind and slightly above the kart.
+- Kart sits in the lower-center ~20% of its pane.
+- Look-at is ahead of the kart along the heading, not only at the body center.
+- FOV mid-50s; distance close enough that track edges and nearby scenery read clearly.
+- Soft camera bank on steer is optional polish; keep framing stable first.
+
+## World / track contract (this project)
+
+Keep the existing oval loop geometry. Match MK8 *feel*, not Royal Raceway geometry.
+
+- Road: light sandy/tan asphalt (not dark gray).
+- Soft white/light curb outside the driveable ribbon.
+- Bright green infield/outfield grass; saturated sunny sky.
+- Soft directional sun shadows when practical.
+- Kart: low body, visible wheels, seated driver with hat/skin colors from the roster. No floating name billboard over the kart during race.
+
+## HUD data
+
+Race snapshot must expose enough for the overlay without inventing place from DOM order alone:
+
+- `place`, `lap`, `coins` (0–10), `itemPrimary`, `itemSecondary` (nullable ids for empty slots).
+- Kart world `x`/`z`/`progress` (or equivalent) for the shared minimap.
+
+Empty item slots still render the yellow rings. Coins may start at `0` until pickup logic exists.
