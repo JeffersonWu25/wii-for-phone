@@ -6,7 +6,6 @@ const CENTER = stickInput(0, 0, 1);
 export function mount(app, sendMsg, myPlayerId) {
   let input = CENTER;
   let stickPointer = null;
-  // Measured at pointerdown. A drag must not follow a layout change mid-gesture.
   let stickRect = null;
   let itemPointer = null;
   let seq = 0;
@@ -102,7 +101,7 @@ export function mount(app, sendMsg, myPlayerId) {
   }
 
   function buzz(ms) {
-    try { navigator.vibrate?.(ms); } catch { /* iOS has no vibrate */ }
+    navigator.vibrate?.(ms);
   }
 
   const stream = setInterval(() => {
@@ -110,9 +109,7 @@ export function mount(app, sendMsg, myPlayerId) {
     sendMsg({ type: 'drive', steer: input.steer, gas: true, drift: input.drift, seq });
   }, 1000 / STREAM_HZ);
 
-  try {
-    navigator.wakeLock?.request('screen').then((lock) => { wakeLock = lock; }).catch(() => {});
-  } catch { /* wake lock is optional */ }
+  navigator.wakeLock?.request('screen').then((lock) => { wakeLock = lock; }).catch(() => {});
 
   function showBanner(text) {
     banner.hidden = false;

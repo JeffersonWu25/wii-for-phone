@@ -52,8 +52,6 @@ export function stickInput(dx, dy, radius) {
   const drift = m >= STICK.driftAt;
   const ramp = clamp((Math.abs(x) - STICK.deadZone) / (STICK.driftAt - STICK.deadZone), 0, 1);
   const mag = ramp ** STICK.curve;
-  // +0 in the dead zone. assert.equal uses Object.is, so -0 would fail.
-  // Stick right becomes negative steer here and nowhere else.
   const steer = mag === 0 ? 0 : (x < 0 ? mag : -mag);
   return { steer, drift, knobX: x, knobY: y };
 }
