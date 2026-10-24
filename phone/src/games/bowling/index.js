@@ -3,7 +3,7 @@
 // and returns an onMessage(msg) handler for the thin main.js to call.
 
 import { composeThrow } from './throw.js';
-import { createTiltSensor, leanFromDegrees } from './tilt.js';
+import { createTiltSensor, leanFromDegrees, strongestTwist } from './tilt.js';
 import { FEEL_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
 
 const STREAM_HZ = 20;
@@ -22,6 +22,7 @@ export function mount(app, sendMsg, myPlayerId) {
   let aimMode = 'move';
   let tuning = loadTuning();
   let startTilt = null;
+  let twistReadings = [];
   const tilt = createTiltSensor();
 
   // ── Screens ─────────────────────────────────────────────────────────────────
@@ -161,11 +162,13 @@ export function mount(app, sendMsg, myPlayerId) {
   function refreshTiltGauge() {
     const label = document.getElementById('tilt-label');
     if (!label) return;
-    const { lean } = tilt.read(tuning.tilt);
-    setDot('dot-tilt', lean);
-    label.textContent = lean === 0
+    const leaning = holdStart === null
+      ? tilt.read(tuning.tilt).lean
+      : leanFromDegrees(strongestTwist(startTilt?.degrees, twistReadings), tuning.curveDeg);
+    setDot('dot-tilt', leaning);
+    label.textContent = leaning === 0
       ? 'LEVEL'
-      : `${lean > 0 ? 'RIGHT' : 'LEFT'} ${Math.round(Math.abs(lean) * 100)}%`;
+      : `${leaning > 0 ? 'RIGHT' : 'LEFT'} ${Math.round(Math.abs(leaning) * 100)}%`;
   }
 
   // ── Tuning sliders ──────────────────────────────────────────────────────────
@@ -201,6 +204,7 @@ export function mount(app, sendMsg, myPlayerId) {
     if (streamInterval) clearInterval(streamInterval);
     holdStart = Date.now();
     startTilt = tilt.read(tuning.tilt);
+    twistReadings = [startTilt.degrees];
     const leanAtPress = startTilt.lean;
     motionBuffer = [];
     setDpadEnabled(false);
@@ -221,9 +225,10 @@ export function mount(app, sendMsg, myPlayerId) {
     releaseWakeLock();
     setDpadEnabled(true);
 
-    const releasedTilt = tilt.read();
     const pressedTilt = startTilt;
+    const twist = strongestTwist(pressedTilt?.degrees, twistReadings);
     startTilt = null;
+    twistReadings = [];
 
     if (holdDuration < MIN_HOLD_MS) {
       const hint = document.getElementById('bowl-hint');
@@ -238,7 +243,7 @@ export function mount(app, sendMsg, myPlayerId) {
       aim: { offset: aimOffset, angle: aimAngle },
       tilt: {
         angle: pressedTilt.lean,
-        spin: leanFromDegrees(releasedTilt.degrees - pressedTilt.degrees, tuning.curveDeg),
+        spin: leanFromDegrees(twist, tuning.curveDeg),
       },
       tuning,
     });
@@ -301,6 +306,9 @@ export function mount(app, sendMsg, myPlayerId) {
     onMotion({ ax, ay, az, alpha, beta, gamma }) {
       lastRotation = { alpha, beta, gamma };
       tilt.update({ ax, ay, az });
+      if (holdStart !== null && startTilt) {
+        twistReadings.push(tilt.read().degrees);
+      }
       refreshTiltGauge();
       if (motionBuffer !== null && holdStart !== null) {
         motionBuffer.push({ ax, ay, az, alpha, beta, gamma, t: Date.now() });
@@ -311,6 +319,7 @@ export function mount(app, sendMsg, myPlayerId) {
       streamInterval = null;
       holdStart = null;
       startTilt = null;
+      twistReadings = [];
       releaseWakeLock();
     },
   };

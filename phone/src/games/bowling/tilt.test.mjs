@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTiltSensor, downFromSample, leanFromDegrees, leanFromGravity } from './tilt.js';
+import { createTiltSensor, downFromSample, leanFromDegrees, leanFromGravity, strongestTwist } from './tilt.js';
 
 const G = 9.81;
 
@@ -24,6 +24,10 @@ test('player left is negative lean, player right is positive', () => {
   assert.equal(leanFromGravity(downFromSample(bankedSample(50))).lean, -1);
 });
 
+test('a twist that returns to the start is still the curve', () => {
+  assert.equal(strongestTwist(0, [0, -22, -4, 0]), -22);
+  assert.equal(strongestTwist(10, [10, 12, -8]), -18);
+});
 test('curve degrees scale the twist and ignore the starting slant', () => {
   const twist = 20;
   const wide = Math.abs(leanFromDegrees(twist, 70));

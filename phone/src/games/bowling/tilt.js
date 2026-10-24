@@ -12,12 +12,21 @@ export function downFromSample({ ax, ay, az }) {
   return { x: -ax, y: -ay, z: -az };
 }
 
-export function leanFromDegrees(degrees, fullDeg = FULL_LEAN_DEG) {
-  if (!Number.isFinite(degrees) || !(fullDeg > 0)) return 0;
-  const deadzone = DEADZONE_DEG * (fullDeg / FULL_LEAN_DEG);
+export function leanFromDegrees(degrees, fullDeg = FULL_LEAN_DEG, deadzone = DEADZONE_DEG) {
+  if (!Number.isFinite(degrees) || !(fullDeg > deadzone)) return 0;
   if (Math.abs(degrees) <= deadzone) return 0;
-  const span = fullDeg - deadzone;
-  return Math.sign(degrees) * Math.min(1, (Math.abs(degrees) - deadzone) / span);
+  return Math.sign(degrees) * Math.min(1, (Math.abs(degrees) - deadzone) / (fullDeg - deadzone));
+}
+
+export function strongestTwist(startDegrees, readings) {
+  let best = 0;
+  const origin = Number.isFinite(startDegrees) ? startDegrees : 0;
+  for (const degrees of readings) {
+    if (!Number.isFinite(degrees)) continue;
+    const delta = degrees - origin;
+    if (Math.abs(delta) > Math.abs(best)) best = delta;
+  }
+  return best;
 }
 
 export function leanFromGravity(down, sensitivity = 1) {
@@ -27,7 +36,9 @@ export function leanFromGravity(down, sensitivity = 1) {
   // Negate so the player's left is negative. The raw axis had that backwards.
   const signed = -Math.asin(clamp(down.x / mag, -1, 1)) * 180 / Math.PI;
   const degrees = signed || 0;
-  return { lean: leanFromDegrees(degrees, FULL_LEAN_DEG / scale), degrees };
+  const full = FULL_LEAN_DEG / scale;
+  const deadzone = DEADZONE_DEG / scale;
+  return { lean: leanFromDegrees(degrees, full, deadzone), degrees };
 }
 
 export function createTiltSensor() {
