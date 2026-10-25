@@ -1,8 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
 import KartScene from './KartScene.jsx';
 import Minimap from './Minimap.jsx';
-import { LAPS, createRace, applyDrive, applyUseItem, setTuning, snapshot, stepRace, takeBroadcast } from './race.js';
+import {
+  DEFAULT_TUNING,
+  LAPS,
+  TUNING_LIMITS,
+  createRace,
+  applyDrive,
+  applyUseItem,
+  setTuning,
+  snapshot,
+  stepRace,
+  takeBroadcast,
+} from './race.js';
 import { viewports } from './layout.js';
+
+const KNOB_COPY = {
+  speed: {
+    label: 'Speed',
+    title: 'Unboosted top speed',
+    text: (v) => String(Math.round(v * 32)),
+    aria: (v) => `${Math.round(v * 32)} meters per second`,
+  },
+  turn: {
+    label: 'Turning',
+    title: 'Steering rate',
+    text: (v) => `${Math.round(v * 100)}%`,
+    aria: (v) => `${Math.round(v * 100)} percent`,
+  },
+  drift: {
+    label: 'Drift',
+    title: 'How much the kart slips and leans in a drift',
+    text: (v) => `${Math.round(v * 100)}%`,
+    aria: (v) => `${Math.round(v * 100)} percent drift`,
+  },
+  boost: {
+    label: 'Boost',
+    title: 'Mini-turbo kick and how long the higher speed holds',
+    text: (v) => `${Math.round(v * 100)}%`,
+    aria: (v) => `${Math.round(v * 100)} percent boost`,
+  },
+};
 
 function ItemSlots({ primary, secondary }) {
   return (
@@ -43,8 +81,7 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
   const sendRef = useRef(send);
   sendRef.current = send;
   const [view, setView] = useState(null);
-  const [speed, setSpeed] = useState(1);
-  const [turn, setTurn] = useState(1);
+  const [knobs, setKnobs] = useState({ ...DEFAULT_TUNING });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const rosterRef = useRef(players);
@@ -81,6 +118,12 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
       ws?.removeEventListener('message', onMessage);
     };
   }, [wsRef]);
+
+  function slide(key, raw) {
+    const value = Number(raw);
+    setKnobs((prev) => ({ ...prev, [key]: value }));
+    if (raceRef.current) setTuning(raceRef.current, { [key]: value });
+  }
 
   const count = view?.players.length || players.length || 1;
   const panes = viewports(count, 100, 100);
@@ -130,40 +173,26 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
           </button>
           {settingsOpen && (
             <form className="kart-settings" onSubmit={(event) => event.preventDefault()}>
-              <label>
-                Speed
-                <input
-                  type="range"
-                  min="0.5"
-                  max="1.8"
-                  step="0.05"
-                  value={speed}
-                  aria-valuetext={`${Math.round(speed * 32)} meters per second`}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    setSpeed(next);
-                    if (raceRef.current) setTuning(raceRef.current, { speed: next, turn });
-                  }}
-                />
-                <span>{Math.round(speed * 32)}</span>
-              </label>
-              <label>
-                Turning
-                <input
-                  type="range"
-                  min="0.4"
-                  max="2.2"
-                  step="0.05"
-                  value={turn}
-                  aria-valuetext={`${Math.round(turn * 100)} percent`}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    setTurn(next);
-                    if (raceRef.current) setTuning(raceRef.current, { speed, turn: next });
-                  }}
-                />
-                <span>{Math.round(turn * 100)}%</span>
-              </label>
+              {Object.keys(TUNING_LIMITS).map((key) => {
+                const copy = KNOB_COPY[key];
+                if (!copy) throw new Error(`missing tuning label for ${key}`);
+                const limit = TUNING_LIMITS[key];
+                return (
+                  <label key={key} title={copy.title}>
+                    {copy.label}
+                    <input
+                      type="range"
+                      min={limit.min}
+                      max={limit.max}
+                      step={limit.step}
+                      value={knobs[key]}
+                      aria-valuetext={copy.aria(knobs[key])}
+                      onChange={(event) => slide(key, event.target.value)}
+                    />
+                    <span>{copy.text(knobs[key])}</span>
+                  </label>
+                );
+              })}
             </form>
           )}
         </div>
