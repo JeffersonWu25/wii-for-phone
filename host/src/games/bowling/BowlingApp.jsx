@@ -194,9 +194,8 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
       setTimeout(() => setFrameResultLabel(null), RESET_DELAY_MS);
     }
 
-    // Next player, or a cleared rack that still needs another ball (10th strike/spare): full re-rack.
-    // Otherwise sweep fallen pins and leave the standing ones for the second bowl.
-    if (advancedPlayer || standingCount === 0) {
+    const needsFreshRack = advancedPlayer || standingCount === 0;
+    if (needsFreshRack) {
       setTimeout(() => {
         sceneRef.current?.resetPins();
         pinsStandingBeforeRoll.current = 10;

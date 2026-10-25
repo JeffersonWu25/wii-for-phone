@@ -16,6 +16,8 @@ const BALL_MASS_KG = 5.575;
 const PIN_MASS = 1.53;
 const PIN_VOLUME = Math.PI * PIN_RADIUS * PIN_RADIUS * (PIN_HALF_HEIGHT * 2);
 const PIN_DENSITY = PIN_MASS / PIN_VOLUME;
+const PIN_MIN_CENTER_Y = 0.15;
+const PIN_MAX_TILT_COS = Math.SQRT1_2;
 
 export class PhysicsWorld {
   constructor() {
@@ -215,13 +217,14 @@ export class PhysicsWorld {
     this.onSettle?.(this.getStandingPinCount());
   }
 
-  // Local +Y mapped to world; upright if world Y component stays above cos(45deg).
+  _pinWorldUpY(rotation) {
+    return 1 - 2 * (rotation.x * rotation.x + rotation.z * rotation.z);
+  }
+
   _isPinStanding(body) {
     const t = body.translation();
-    if (t.y < 0.15) return false;
-    const r = body.rotation();
-    const upY = 1 - 2 * (r.x * r.x + r.z * r.z);
-    return upY > 0.707;
+    if (t.y < PIN_MIN_CENTER_Y) return false;
+    return this._pinWorldUpY(body.rotation()) > PIN_MAX_TILT_COS;
   }
 
   getStandingPinCount() {
@@ -239,8 +242,6 @@ export class PhysicsWorld {
     this.simTime = 0;
   }
 
-  // Keep standing pins; remove fallen rigid bodies and hide their meshes.
-  // Slot indices stay aligned with pinMeshes so a later resetPins can restore all 10.
   clearFallenPins() {
     clearTimeout(this._forceSettleTimer);
     this.pinBodies.forEach((body, i) => {
