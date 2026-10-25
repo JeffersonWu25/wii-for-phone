@@ -169,7 +169,6 @@ export class PhysicsWorld {
   }
 
   _syncMeshes() {
-    // Sync ball
     if (this.ballBody && this.ballMesh) {
       const t = this.ballBody.translation();
       const r = this.ballBody.rotation();
@@ -177,10 +176,10 @@ export class PhysicsWorld {
       this.ballMesh.quaternion.set(r.x, r.y, r.z, r.w);
     }
 
-    // Sync pins
     this.pinBodies.forEach((body, i) => {
+      if (!body) return;
       const mesh = this.pinMeshes?.[i];
-      if (!mesh) return;
+      if (!mesh || mesh.visible === false) return;
       const t = body.translation();
       const r = body.rotation();
       mesh.position.set(t.x, t.y, t.z);
@@ -188,8 +187,12 @@ export class PhysicsWorld {
     });
   }
 
+  _activePinBodies() {
+    return this.pinBodies.filter(Boolean);
+  }
+
   _checkSettle() {
-    const allStill = [this.ballBody, ...this.pinBodies].every((body) => {
+    const allStill = [this.ballBody, ...this._activePinBodies()].every((body) => {
       const lv = body.linvel();
       const av = body.angvel();
       const linMag = Math.sqrt(lv.x ** 2 + lv.y ** 2 + lv.z ** 2);
@@ -212,20 +215,17 @@ export class PhysicsWorld {
     this.onSettle?.(this.getStandingPinCount());
   }
 
+  // Local +Y mapped to world; upright if world Y component stays above cos(45deg).
+  _isPinStanding(body) {
+    const t = body.translation();
+    if (t.y < 0.15) return false;
+    const r = body.rotation();
+    const upY = 1 - 2 * (r.x * r.x + r.z * r.z);
+    return upY > 0.707;
+  }
+
   getStandingPinCount() {
-    return this.pinBodies.filter((body) => {
-      const t = body.translation();
-      const r = body.rotation();
-
-      // Pin must still be upright in Y
-      if (t.y < 0.15) return false;
-
-      // Quaternion dot with identity — if < cos(45deg) the pin has tipped over
-      // Identity quaternion is (x:0, y:0, z:0, w:1)
-      // dot = r.w (since identity has x=y=z=0)
-      const dot = Math.abs(r.w);
-      return dot > 0.707;
-    }).length;
+    return this._activePinBodies().filter((body) => this._isPinStanding(body)).length;
   }
 
   resetBall() {
@@ -239,14 +239,31 @@ export class PhysicsWorld {
     this.simTime = 0;
   }
 
+  // Keep standing pins; remove fallen rigid bodies and hide their meshes.
+  // Slot indices stay aligned with pinMeshes so a later resetPins can restore all 10.
+  clearFallenPins() {
+    clearTimeout(this._forceSettleTimer);
+    this.pinBodies.forEach((body, i) => {
+      if (!body) return;
+      if (this._isPinStanding(body)) {
+        body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        return;
+      }
+      this.world.removeRigidBody(body);
+      this.pinBodies[i] = null;
+      if (this.pinMeshes?.[i]) this.pinMeshes[i].visible = false;
+    });
+  }
+
   resetPins() {
     clearTimeout(this._forceSettleTimer);
 
-    // Remove existing pin bodies
-    this.pinBodies.forEach((body) => this.world.removeRigidBody(body));
+    this.pinBodies.forEach((body) => {
+      if (body) this.world.removeRigidBody(body);
+    });
     this.pinBodies = [];
 
-    // Reset ball
     this.ballBody.setTranslation(BALL_START, true);
     this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -257,7 +274,6 @@ export class PhysicsWorld {
     this.hookAccel = 0;
     this.simTime = 0;
 
-    // Recreate pins at starting positions
     this._createPins();
   }
 
