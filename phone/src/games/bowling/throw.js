@@ -1,7 +1,7 @@
 const G = 9.81;
 const POWER_NOISE = 2.5;
 const POWER_FULL = 28;
-const MAX_CURVE_M = 0.45;
+const MAX_CURVE_M = 1.2;
 
 function num(value) {
   return Number.isFinite(value) ? value : 0;
@@ -24,11 +24,12 @@ export function powerFromSwing(samples) {
   return clamp((excess - POWER_NOISE) / POWER_FULL, 0, 1);
 }
 
-export function tiltForThrow({ pressLean, releaseLean }) {
+export function tiltForThrow({ pressLean, releaseLean, maxCurve }) {
   const lean = clamp(num(releaseLean), -1, 1);
+  const curveM = clamp(num(maxCurve), 0, MAX_CURVE_M);
   return {
     angle: clamp(num(pressLean), -1, 1),
-    hookM: lean * MAX_CURVE_M,
+    hookM: lean * curveM,
   };
 }
 

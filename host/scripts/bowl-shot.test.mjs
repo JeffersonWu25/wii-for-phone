@@ -6,7 +6,7 @@ import { PhysicsWorld } from '../src/games/bowling/physics.js';
 const PIN_Z = -14.5;
 const LANE_EDGE = 0.52;
 const DT = 1 / 60;
-const STRAIGHT_TUNING = { speed: 1, tilt: 1, curve: 1 };
+const STRAIGHT_TUNING = { speed: 1, tilt: 1, curve: 1, maxCurve: 0.45 };
 
 function swing({ extraPeak, frames = 24 }) {
   const samples = [];
@@ -44,6 +44,7 @@ function shot({ extraPeak, pressDeg = 0, releaseDeg = 0, offset = 0, tuning = ST
     tilt: tiltForThrow({
       pressLean: bank(pressDeg, tuning.tilt).lean,
       releaseLean: curveBank(releaseDeg, tuning.curve).lean,
+      maxCurve: tuning.maxCurve,
     }),
     tuning,
   });
