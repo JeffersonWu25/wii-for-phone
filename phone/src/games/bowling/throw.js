@@ -1,6 +1,7 @@
 const G = 9.81;
 const POWER_NOISE = 2.5;
 const POWER_FULL = 28;
+const MAX_HOOK_M = 1.2;
 
 function num(value) {
   return Number.isFinite(value) ? value : 0;
@@ -23,10 +24,12 @@ export function powerFromSwing(samples) {
   return clamp((excess - POWER_NOISE) / POWER_FULL, 0, 1);
 }
 
-export function tiltForThrow({ pressLean, releaseLean }) {
+export function tiltForThrow({ pressLean, releaseLean, maxTwist }) {
+  const lean = clamp(num(releaseLean), -1, 1);
+  const maxM = clamp(num(maxTwist), 0, MAX_HOOK_M);
   return {
     angle: clamp(num(pressLean), -1, 1),
-    spin: clamp(num(releaseLean), -1, 1),
+    hookM: lean * maxM,
   };
 }
 
@@ -35,7 +38,7 @@ export function composeThrow({ samples, aim, tilt, tuning }) {
     type: 'throw',
     power: powerFromSwing(samples),
     aim: { offset: aim.offset, angle: aim.angle },
-    tilt: { angle: tilt.angle, spin: tilt.spin },
-    tuning: { speed: tuning.speed, curve: tuning.curve },
+    tilt: { angle: tilt.angle, hookM: tilt.hookM },
+    tuning: { speed: tuning.speed },
   };
 }
