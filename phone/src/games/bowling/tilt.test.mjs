@@ -31,14 +31,17 @@ test('a hard mid-swing bank that settles level before release is a straight ball
   for (let i = 0; i < 120; i++) sensor.update(bankedSample(0));
   const releaseLean = sensor.read(1).lean;
   assert.ok(Math.abs(releaseLean) < 1e-6, `release lean ${releaseLean}`);
-  assert.deepEqual(tiltForThrow({ pressLean: 0, releaseLean }), { angle: 0, spin: 0 });
+  assert.deepEqual(
+    tiltForThrow({ pressLean: 0, releaseLean, maxTwist: 0.45 }),
+    { angle: 0, hookM: 0 },
+  );
 });
 
-test('curve sensitivity scales release lean the same way tilt scales start lean', () => {
+test('curve sensitivity reaches full lean with a smaller bank', () => {
   const mild = Math.abs(leanFromGravity(downFromSample(bankedSample(12)), 1).lean);
-  const sensitive = Math.abs(leanFromGravity(downFromSample(bankedSample(12)), 2).lean);
+  const easy = Math.abs(leanFromGravity(downFromSample(bankedSample(12)), 4).lean);
   assert.ok(mild < 0.3, `default lean ${mild}`);
-  assert.ok(sensitive > mild, `sensitive ${sensitive} vs ${mild}`);
+  assert.equal(easy, 1);
 });
 
 test('higher tilt sensitivity reaches full lean sooner and shrinks the level window', () => {

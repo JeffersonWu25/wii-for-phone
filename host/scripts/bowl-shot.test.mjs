@@ -1,12 +1,12 @@
-import { composeThrow } from '../../phone/src/games/bowling/throw.js';
-import { downFromSample, leanFromDegrees, leanFromGravity } from '../../phone/src/games/bowling/tilt.js';
+import { composeThrow, tiltForThrow } from '../../phone/src/games/bowling/throw.js';
+import { downFromSample, leanFromGravity } from '../../phone/src/games/bowling/tilt.js';
 import { launchFromMessage } from '../src/games/bowling/launch.js';
 import { PhysicsWorld } from '../src/games/bowling/physics.js';
 
 const PIN_Z = -14.5;
 const LANE_EDGE = 0.52;
 const DT = 1 / 60;
-const STRAIGHT_TUNING = { speed: 1, tilt: 1, curveDeg: 35 };
+const STRAIGHT_TUNING = { speed: 1, tilt: 1, curve: 1, maxTwist: 0.45 };
 
 function swing({ extraPeak, frames = 24 }) {
   const samples = [];
@@ -24,21 +24,20 @@ function swing({ extraPeak, frames = 24 }) {
   return samples;
 }
 
-function bank(degrees) {
+function bank(degrees, sensitivity = 1) {
   const rad = degrees * Math.PI / 180;
-  return leanFromGravity(downFromSample({ ax: -9.81 * Math.sin(rad), ay: 9.81 * Math.cos(rad), az: 0 }));
+  return leanFromGravity(downFromSample({ ax: -9.81 * Math.sin(rad), ay: 9.81 * Math.cos(rad), az: 0 }), sensitivity);
 }
 
-function shot({ extraPeak, angleDeg = 0, spinDeg = 0, offset = 0, tuning = STRAIGHT_TUNING }) {
-  const pressed = bank(angleDeg);
-  const released = bank(angleDeg + spinDeg);
+function shot({ extraPeak, pressDeg = 0, releaseDeg = 0, offset = 0, tuning = STRAIGHT_TUNING }) {
   return composeThrow({
     samples: swing({ extraPeak }),
     aim: { offset, angle: 0 },
-    tilt: {
-      angle: leanFromDegrees(pressed.degrees, 35 / tuning.tilt),
-      spin: leanFromDegrees(released.degrees - pressed.degrees, tuning.curveDeg),
-    },
+    tilt: tiltForThrow({
+      pressLean: bank(pressDeg, tuning.tilt).lean,
+      releaseLean: bank(releaseDeg, tuning.curve).lean,
+      maxTwist: tuning.maxTwist,
+    }),
     tuning,
   });
 }
@@ -47,11 +46,11 @@ const SHOTS = {
   rest: shot({ extraPeak: 0 }),
   firmStraight: shot({ extraPeak: 25 }),
   hardStraight: shot({ extraPeak: 40 }),
-  gentleBank: shot({ extraPeak: 25, spinDeg: -9 }),
-  firmHook: shot({ extraPeak: 25, spinDeg: -23 }),
-  fullBank: shot({ extraPeak: 50, spinDeg: -40 }),
-  flatCurve: shot({ extraPeak: 25, spinDeg: -4, tuning: { speed: 1, tilt: 1, curveDeg: 35 } }),
-  heldLeft: shot({ extraPeak: 25, angleDeg: 23 }),
+  gentleBank: shot({ extraPeak: 25, releaseDeg: -9 }),
+  firmHook: shot({ extraPeak: 25, releaseDeg: -23 }),
+  fullBank: shot({ extraPeak: 50, releaseDeg: -40 }),
+  flatCurve: shot({ extraPeak: 25, releaseDeg: -4 }),
+  heldLeft: shot({ extraPeak: 25, pressDeg: 23, releaseDeg: 23 }),
 };
 
 async function roll(physics, msg) {
@@ -93,7 +92,7 @@ function describe(name, msg, result) {
     ? `t=${result.atPins.t.toFixed(2)} x=${result.atPins.x.toFixed(2)} hit=${result.atPins.speed.toFixed(2)}`
     : 'no-pins';
   console.log(
-    `${name.padEnd(14)} power=${msg.power.toFixed(2)} angle=${msg.tilt.angle.toFixed(2)} spin=${msg.tilt.spin.toFixed(2)} ` +
+    `${name.padEnd(14)} power=${msg.power.toFixed(2)} angle=${msg.tilt.angle.toFixed(2)} hookM=${msg.tilt.hookM.toFixed(2)} ` +
     `release=${result.releaseSpeed.toFixed(2)} ${where} knocked=${result.knocked} ` +
     `${result.leftLane ? 'GUTTER' : 'on-lane'} ${result.settled ? 'settled' : 'open'}`,
   );
@@ -138,11 +137,11 @@ check(failures, rest.power < 0.05, `rest power ${rest.power.toFixed(2)} should b
 check(failures, firm.power > 0.4 && firm.power < 0.7, `firm power ${firm.power.toFixed(2)} should sit near half`);
 check(failures, hard.power > firm.power, `hard power ${hard.power.toFixed(2)} should beat firm ${firm.power.toFixed(2)}`);
 check(failures, hard.power <= 1, `hard power ${hard.power.toFixed(2)} should cap at 1`);
-check(failures, firm.tilt.spin === 0 && firm.tilt.angle === 0, 'a level phone held level should have no slant and no spin');
-check(failures, gentle.tilt.spin > 0.05 && gentle.tilt.spin < 0.25, `gentle twist spin ${gentle.tilt.spin.toFixed(2)} should be a small hook`);
-check(failures, hook.tilt.spin > gentle.tilt.spin && hook.tilt.spin < 0.95, `firm twist spin ${hook.tilt.spin.toFixed(2)} should beat a gentle twist and stay under full`);
-check(failures, wild.tilt.spin === 1, `full twist spin ${wild.tilt.spin.toFixed(2)} should be 1`);
-check(failures, played.heldLeft.tilt.angle < -0.4 && played.heldLeft.tilt.spin === 0, 'holding a left lean should slant without adding spin');
+check(failures, firm.tilt.hookM === 0 && firm.tilt.angle === 0, 'a level phone held level should have no slant and no hook');
+check(failures, gentle.tilt.hookM > 0.05 && gentle.tilt.hookM < 0.12, `gentle bank hookM ${gentle.tilt.hookM.toFixed(2)} should be a small hook`);
+check(failures, hook.tilt.hookM > gentle.tilt.hookM && hook.tilt.hookM < 0.4, `firm hookM ${hook.tilt.hookM.toFixed(2)} should beat a gentle bank and stay under full`);
+check(failures, wild.tilt.hookM === 0.45, `full bank hookM ${wild.tilt.hookM.toFixed(2)} should hit max twist`);
+check(failures, played.heldLeft.tilt.angle < -0.4 && played.heldLeft.tilt.hookM < -0.2, 'holding a left lean at release should slant and hook left');
 
 check(failures, firm.releaseSpeed > 6 && firm.releaseSpeed < 8.2, `firm release ${firm.releaseSpeed.toFixed(2)} m/s should be a normal bowling speed`);
 check(failures, hard.releaseSpeed > firm.releaseSpeed && hard.releaseSpeed < 9.6, `hard release ${hard.releaseSpeed.toFixed(2)} m/s should be faster than firm and under 21 mph`);
@@ -152,7 +151,7 @@ check(failures, firm.atPins && Math.abs(firm.atPins.x) < 0.08, `straight entry x
 check(failures, firm.atPins && firm.atPins.t > 2.4 && firm.atPins.t < 3.6, `firm transit ${firm.atPins?.t} s should be a medium shot, not a rocket`);
 check(failures, hard.atPins && hard.atPins.t < firm.atPins.t, `hard transit ${hard.atPins?.t} s should be brisker than firm ${firm.atPins?.t}`);
 check(failures, !firm.leftLane, 'firm straight should stay on the lane');
-check(failures, flat.atPins && Math.abs(flat.atPins.x) < 0.08, `a twist inside the curve window should stay straight, x=${flat.atPins?.x}`);
+check(failures, flat.atPins && Math.abs(flat.atPins.x) < 0.08, `a bank inside the deadzone should stay straight, x=${flat.atPins?.x}`);
 check(failures, played.heldLeft.atPins && played.heldLeft.atPins.x < -0.15 && !played.heldLeft.leftLane, `held left entry x=${played.heldLeft.atPins?.x} should slant left and stay on the lane`);
 
 check(failures, gentle.atPins && !gentle.leftLane && gentle.atPins.x > 0.02 && gentle.atPins.x < 0.14, `gentle hook x=${gentle.atPins?.x} should be a small visible move`);

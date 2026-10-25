@@ -238,7 +238,7 @@ export function mount(app, sendMsg, myPlayerId) {
     const throwMsg = composeThrow({
       samples: motionBuffer,
       aim: { offset: aimOffset, angle: aimAngle },
-      tilt: tiltForThrow({ pressLean: startLean, releaseLean }),
+      tilt: tiltForThrow({ pressLean: startLean, releaseLean, maxTwist: tuning.maxTwist }),
       tuning,
     });
     motionBuffer = [];
