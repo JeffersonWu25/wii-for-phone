@@ -6,8 +6,6 @@ export const TUNING_CONTROLS = [
   { key: 'speed', label: 'Speed', min: 0.6, max: 1.5, step: 0.05, fallback: 1, format: percent },
 ];
 
-// Phone-only. Both are applied before the throw is sent.
-// tilt scales the starting slant. curve scales how much a twist becomes hook.
 export const TILT_CONTROLS = [
   { key: 'tilt', label: 'Tilt', min: 0.5, max: 2.5, step: 0.05, fallback: 1, format: multiplier },
   { key: 'curve', label: 'Curve', min: 0.25, max: 2.5, step: 0.05, fallback: 1, format: multiplier },

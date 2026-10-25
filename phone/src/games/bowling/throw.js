@@ -23,8 +23,11 @@ export function powerFromSwing(samples) {
   return clamp((excess - POWER_NOISE) / POWER_FULL, 0, 1);
 }
 
-export function twistFromLeans(startLean, releaseLean) {
-  return clamp(num(releaseLean) - num(startLean), -1, 1);
+export function tiltForThrow({ pressLean, releaseLean }) {
+  return {
+    angle: clamp(num(pressLean), -1, 1),
+    spin: clamp(num(releaseLean), -1, 1),
+  };
 }
 
 export function composeThrow({ samples, aim, tilt, tuning }) {
@@ -33,6 +36,6 @@ export function composeThrow({ samples, aim, tilt, tuning }) {
     power: powerFromSwing(samples),
     aim: { offset: aim.offset, angle: aim.angle },
     tilt: { angle: tilt.angle, spin: tilt.spin },
-    tuning: { speed: tuning.speed, curve: 1 },
+    tuning: { speed: tuning.speed, curve: tuning.curve },
   };
 }

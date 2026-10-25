@@ -2,8 +2,8 @@
 // Exported mount(app, sendMsg, myPlayerId) bootstraps the bowling controller
 // and returns an onMessage(msg) handler for the thin main.js to call.
 
-import { composeThrow } from './throw.js';
-import { createTiltSensor, hookFromTwist, rollDegrees, strongestTwist } from './tilt.js';
+import { composeThrow, tiltForThrow } from './throw.js';
+import { createTiltSensor } from './tilt.js';
 import { FEEL_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
 
 const STREAM_HZ = 20;
@@ -21,9 +21,7 @@ export function mount(app, sendMsg, myPlayerId) {
   let aimAngle = 0;
   let aimMode = 'move';
   let tuning = loadTuning();
-  let startTilt = null;
-  let startRoll = null;
-  let twistReadings = [];
+  let pressLean = null;
   const tilt = createTiltSensor();
 
   // ── Screens ─────────────────────────────────────────────────────────────────
@@ -165,7 +163,7 @@ export function mount(app, sendMsg, myPlayerId) {
     if (!label) return;
     const leaning = holdStart === null
       ? tilt.read(tuning.tilt).lean
-      : hookFromTwist(strongestTwist(startRoll, twistReadings), tuning.curve);
+      : tilt.read(tuning.curve).lean;
     setDot('dot-tilt', leaning);
     label.textContent = leaning === 0
       ? 'LEVEL'
@@ -204,10 +202,8 @@ export function mount(app, sendMsg, myPlayerId) {
   function onHoldStart() {
     if (streamInterval) clearInterval(streamInterval);
     holdStart = Date.now();
-    startTilt = tilt.read(tuning.tilt);
-    startRoll = null;
-    twistReadings = [];
-    const leanAtPress = startTilt.lean;
+    pressLean = tilt.read(tuning.tilt).lean;
+    const leanAtPress = pressLean;
     motionBuffer = [];
     setDpadEnabled(false);
     acquireWakeLock();
@@ -227,11 +223,9 @@ export function mount(app, sendMsg, myPlayerId) {
     releaseWakeLock();
     setDpadEnabled(true);
 
-    const pressedTilt = startTilt;
-    const twist = strongestTwist(startRoll, twistReadings);
-    startTilt = null;
-    startRoll = null;
-    twistReadings = [];
+    const startLean = pressLean;
+    const releaseLean = tilt.read(tuning.curve).lean;
+    pressLean = null;
 
     if (holdDuration < MIN_HOLD_MS) {
       const hint = document.getElementById('bowl-hint');
@@ -244,10 +238,7 @@ export function mount(app, sendMsg, myPlayerId) {
     const throwMsg = composeThrow({
       samples: motionBuffer,
       aim: { offset: aimOffset, angle: aimAngle },
-      tilt: {
-        angle: pressedTilt.lean,
-        spin: hookFromTwist(twist, tuning.curve),
-      },
+      tilt: tiltForThrow({ pressLean: startLean, releaseLean }),
       tuning,
     });
     motionBuffer = [];
@@ -309,11 +300,6 @@ export function mount(app, sendMsg, myPlayerId) {
     onMotion({ ax, ay, az, alpha, beta, gamma }) {
       lastRotation = { alpha, beta, gamma };
       tilt.update({ ax, ay, az });
-      if (holdStart !== null && startTilt) {
-        const roll = rollDegrees({ ax, ay, az });
-        if (startRoll === null) startRoll = roll;
-        twistReadings.push(roll);
-      }
       refreshTiltGauge();
       if (motionBuffer !== null && holdStart !== null) {
         motionBuffer.push({ ax, ay, az, alpha, beta, gamma, t: Date.now() });
@@ -323,9 +309,7 @@ export function mount(app, sendMsg, myPlayerId) {
       if (streamInterval) clearInterval(streamInterval);
       streamInterval = null;
       holdStart = null;
-      startTilt = null;
-      startRoll = null;
-      twistReadings = [];
+      pressLean = null;
       releaseWakeLock();
     },
   };
