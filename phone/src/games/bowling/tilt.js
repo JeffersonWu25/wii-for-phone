@@ -22,7 +22,6 @@ export function leanFromGravity(down, sensitivity = 1) {
   const mag = Math.hypot(down.x, down.y, down.z);
   if (mag < 1) return LEVEL;
   const scale = sensitivity > 0 ? sensitivity : 1;
-  // Negate so the player's left is negative. The raw axis had that backwards.
   const signed = -Math.asin(clamp(down.x / mag, -1, 1)) * 180 / Math.PI;
   const degrees = signed || 0;
   const full = FULL_LEAN_DEG / scale;
