@@ -12,41 +12,10 @@ export function downFromSample({ ax, ay, az }) {
   return { x: -ax, y: -ay, z: -az };
 }
 
-// Roll around the phone's forward axis. The swing's forward acceleration is ignored,
-// because folding it into the tilt angle shrinks a real roll to a few degrees.
-export function rollDegrees(sample) {
-  const down = downFromSample(sample);
-  const degrees = -Math.atan2(down.x, down.y) * 180 / Math.PI;
-  return Number.isFinite(degrees) ? (degrees || 0) : 0;
-}
-
 export function leanFromDegrees(degrees, fullDeg = FULL_LEAN_DEG, deadzone = DEADZONE_DEG) {
   if (!Number.isFinite(degrees) || !(fullDeg > deadzone)) return 0;
   if (Math.abs(degrees) <= deadzone) return 0;
   return Math.sign(degrees) * Math.min(1, (Math.abs(degrees) - deadzone) / (fullDeg - deadzone));
-}
-
-// A large deliberate roll is a full hook at sensitivity 1. The slider scales that
-// slope, so a small roll stays a small hook until sensitivity is turned up.
-const FULL_TWIST_DEG = 90;
-
-export function hookFromTwist(degrees, sensitivity = 1) {
-  if (!Number.isFinite(degrees) || !Number.isFinite(sensitivity)) return 0;
-  if (Math.abs(degrees) <= DEADZONE_DEG) return 0;
-  const past = Math.sign(degrees) * (Math.abs(degrees) - DEADZONE_DEG);
-  const gain = Math.max(0, sensitivity);
-  return Math.sign(past) * Math.min(1, (Math.abs(past) * gain) / (FULL_TWIST_DEG - DEADZONE_DEG));
-}
-
-export function strongestTwist(startDegrees, readings) {
-  let best = 0;
-  const origin = Number.isFinite(startDegrees) ? startDegrees : 0;
-  for (const degrees of readings) {
-    if (!Number.isFinite(degrees)) continue;
-    const delta = degrees - origin;
-    if (Math.abs(delta) > Math.abs(best)) best = delta;
-  }
-  return best;
 }
 
 export function leanFromGravity(down, sensitivity = 1) {

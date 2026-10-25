@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTiltSensor, downFromSample, hookFromTwist, leanFromGravity, rollDegrees, strongestTwist } from './tilt.js';
+import { createTiltSensor, downFromSample, leanFromGravity } from './tilt.js';
+import { tiltForThrow } from './throw.js';
 
 const G = 9.81;
 
@@ -24,37 +25,22 @@ test('player left is negative lean, player right is positive', () => {
   assert.equal(leanFromGravity(downFromSample(bankedSample(50))).lean, -1);
 });
 
-test('a roll during a hard swing keeps its degrees', () => {
-  const readings = [];
-  for (let i = 0; i < 24; i++) {
-    const t = i / 23;
-    const roll = 25 * Math.sin(t * Math.PI) * Math.PI / 180;
-    const down = { x: 9.81 * Math.sin(roll), y: 9.81 * Math.cos(roll), z: 0 };
-    readings.push(rollDegrees({
-      ax: -down.x,
-      ay: -down.y,
-      az: 30 * Math.sin(t * Math.PI),
-    }));
-  }
-  const twist = strongestTwist(0, readings);
-  assert.ok(twist < -20, `twist ${twist} was shrunk by the swing`);
-  const light = Math.abs(hookFromTwist(twist, 0.5));
-  const heavy = Math.abs(hookFromTwist(twist, 1.5));
-  assert.ok(heavy > light && light > 0 && light < 0.5, `0.5× ${light}, 1.5× ${heavy}`);
+test('a hard mid-swing bank that settles level before release is a straight ball', () => {
+  const sensor = createTiltSensor();
+  for (let i = 0; i < 40; i++) sensor.update(bankedSample(45));
+  for (let i = 0; i < 120; i++) sensor.update(bankedSample(0));
+  const releaseLean = sensor.read(1).lean;
+  assert.ok(Math.abs(releaseLean) < 1e-6, `release lean ${releaseLean}`);
+  assert.deepEqual(tiltForThrow({ pressLean: 0, releaseLean }), { angle: 0, spin: 0 });
 });
-test('a twist that returns to the start is still the curve', () => {
-  assert.equal(strongestTwist(0, [0, -22, -4, 0]), -22);
-  assert.equal(strongestTwist(10, [10, 12, -8]), -18);
+
+test('curve sensitivity scales release lean the same way tilt scales start lean', () => {
+  const mild = Math.abs(leanFromGravity(downFromSample(bankedSample(12)), 1).lean);
+  const sensitive = Math.abs(leanFromGravity(downFromSample(bankedSample(12)), 2).lean);
+  assert.ok(mild < 0.3, `default lean ${mild}`);
+  assert.ok(sensitive > mild, `sensitive ${sensitive} vs ${mild}`);
 });
-test('curve sensitivity scales the twist without turning a small roll into a full hook', () => {
-  const straight = Math.abs(hookFromTwist(12, 1));
-  const twisted = Math.abs(hookFromTwist(45, 1));
-  assert.ok(straight < 0.15, `straight ${straight}`);
-  assert.ok(twisted > straight * 2 && twisted < 1, `twist ${twisted}`);
-  assert.ok(Math.abs(hookFromTwist(45, 0.5)) < twisted);
-  assert.ok(Math.abs(hookFromTwist(12, 2)) < Math.abs(hookFromTwist(45, 2)));
-  assert.equal(hookFromTwist(4, 2), 0);
-});
+
 test('higher tilt sensitivity reaches full lean sooner and shrinks the level window', () => {
   const mild = Math.abs(leanFromGravity(downFromSample(bankedSample(12))).lean);
   const sensitive = Math.abs(leanFromGravity(downFromSample(bankedSample(20)), 2).lean);

@@ -7,7 +7,7 @@ export const TUNING_CONTROLS = [
 ];
 
 // Phone-only. Both are applied before the throw is sent.
-// tilt scales the starting slant. curve scales how much a twist becomes hook.
+// tilt scales lean at press (aim slant). curve scales lean at release (hook).
 export const TILT_CONTROLS = [
   { key: 'tilt', label: 'Tilt', min: 0.5, max: 2.5, step: 0.05, fallback: 1, format: multiplier },
   { key: 'curve', label: 'Curve', min: 0.25, max: 2.5, step: 0.05, fallback: 1, format: multiplier },
