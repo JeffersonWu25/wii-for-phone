@@ -16,29 +16,30 @@ test('composeThrow builds the wire message without phone-only feel knobs', () =>
       samples: [],
       aim: { offset: 0.2, angle: -0.4 },
       tilt: { angle: -0.4, hookM: 0.225 },
-      tuning: { speed: 1.2, curve: 4, maxTwist: 0.9 },
+      tuning: { speed: 1.2, curve: 4 },
     }),
     { type: 'throw', power: 0.5, aim: { offset: 0.2, angle: -0.4 }, tilt: { angle: -0.4, hookM: 0.225 }, tuning: { speed: 1.2 } },
   );
 });
 
-test('press lean aims, release lean times max twist is hook meters', () => {
+test('press lean aims and full release lean is the fixed max curve', () => {
   assert.deepEqual(
-    tiltForThrow({ pressLean: -0.4, releaseLean: 0, maxTwist: 0.45 }),
+    tiltForThrow({ pressLean: -0.4, releaseLean: 0 }),
     { angle: -0.4, hookM: 0 },
   );
   assert.deepEqual(
-    tiltForThrow({ pressLean: 0, releaseLean: 0.5, maxTwist: 0.45 }),
+    tiltForThrow({ pressLean: 0, releaseLean: 0.5 }),
     { angle: 0, hookM: 0.225 },
   );
-  const left = tiltForThrow({ pressLean: -0.4, releaseLean: -0.4, maxTwist: 0.9 });
-  assert.equal(left.angle, -0.4);
-  assert.ok(Math.abs(left.hookM - (-0.36)) < 1e-12);
+  assert.deepEqual(
+    tiltForThrow({ pressLean: -0.4, releaseLean: -1 }),
+    { angle: -0.4, hookM: -0.45 },
+  );
 });
 
-test('tilt for throw clamps lean and max twist', () => {
+test('tilt for throw clamps lean to the fixed max curve', () => {
   assert.deepEqual(
-    tiltForThrow({ pressLean: -2, releaseLean: 3, maxTwist: 5 }),
-    { angle: -1, hookM: 1.2 },
+    tiltForThrow({ pressLean: -2, releaseLean: 3 }),
+    { angle: -1, hookM: 0.45 },
   );
 });

@@ -1,12 +1,12 @@
 import { composeThrow, tiltForThrow } from '../../phone/src/games/bowling/throw.js';
-import { downFromSample, leanFromGravity } from '../../phone/src/games/bowling/tilt.js';
+import { curveFromGravity, downFromSample, leanFromGravity } from '../../phone/src/games/bowling/tilt.js';
 import { launchFromMessage } from '../src/games/bowling/launch.js';
 import { PhysicsWorld } from '../src/games/bowling/physics.js';
 
 const PIN_Z = -14.5;
 const LANE_EDGE = 0.52;
 const DT = 1 / 60;
-const STRAIGHT_TUNING = { speed: 1, tilt: 1, curve: 1, maxTwist: 0.45 };
+const STRAIGHT_TUNING = { speed: 1, tilt: 1, curve: 1 };
 
 function swing({ extraPeak, frames = 24 }) {
   const samples = [];
@@ -24,9 +24,17 @@ function swing({ extraPeak, frames = 24 }) {
   return samples;
 }
 
-function bank(degrees, sensitivity = 1) {
+function sampleDown(degrees) {
   const rad = degrees * Math.PI / 180;
-  return leanFromGravity(downFromSample({ ax: -9.81 * Math.sin(rad), ay: 9.81 * Math.cos(rad), az: 0 }), sensitivity);
+  return downFromSample({ ax: -9.81 * Math.sin(rad), ay: 9.81 * Math.cos(rad), az: 0 });
+}
+
+function bank(degrees, sensitivity = 1) {
+  return leanFromGravity(sampleDown(degrees), sensitivity);
+}
+
+function curveBank(degrees, sensitivity = 1) {
+  return curveFromGravity(sampleDown(degrees), sensitivity);
 }
 
 function shot({ extraPeak, pressDeg = 0, releaseDeg = 0, offset = 0, tuning = STRAIGHT_TUNING }) {
@@ -35,8 +43,7 @@ function shot({ extraPeak, pressDeg = 0, releaseDeg = 0, offset = 0, tuning = ST
     aim: { offset, angle: 0 },
     tilt: tiltForThrow({
       pressLean: bank(pressDeg, tuning.tilt).lean,
-      releaseLean: bank(releaseDeg, tuning.curve).lean,
-      maxTwist: tuning.maxTwist,
+      releaseLean: curveBank(releaseDeg, tuning.curve).lean,
     }),
     tuning,
   });
