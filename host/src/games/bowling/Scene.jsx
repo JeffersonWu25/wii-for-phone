@@ -374,6 +374,9 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
         ballMeshRef.current.quaternion.set(0, 0, 0, 1);
       }
     },
+    clearFallenPins() {
+      physicsRef.current?.clearFallenPins();
+    },
     resetPins() {
       physicsRef.current?.resetPins();
       targetBallXRef.current = 0;
@@ -389,10 +392,14 @@ const Scene = forwardRef(function Scene({ onSettle }, ref) {
       const positions = getPinPositions();
       pinMeshesRef.current.forEach((mesh, i) => {
         if (mesh && positions[i]) {
+          mesh.visible = true;
           mesh.position.set(positions[i].x, 0.19, positions[i].z);
           mesh.quaternion.set(0, 0, 0, 1);
         }
       });
+      if (physicsRef.current) {
+        physicsRef.current.pinMeshes = pinMeshesRef.current;
+      }
     },
   }), []);
 

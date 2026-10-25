@@ -194,7 +194,8 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
       setTimeout(() => setFrameResultLabel(null), RESET_DELAY_MS);
     }
 
-    if (advancedPlayer) {
+    const needsFreshRack = advancedPlayer || standingCount === 0;
+    if (needsFreshRack) {
       setTimeout(() => {
         sceneRef.current?.resetPins();
         pinsStandingBeforeRoll.current = 10;
@@ -203,16 +204,19 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
           throwInFlight.current = false;
           send({ type: 'game_over', scores: updatedScores });
           setIsGameOver(true);
-        } else {
+        } else if (advancedPlayer) {
           const nextId = game.getCurrentPlayer().id;
           currentPlayerIdRef.current = nextId;
           setCurrentPlayerId(nextId);
           sendYourTurnOrPause(nextId);
+        } else {
+          sendYourTurnOrPause(currentPlayerIdRef.current);
         }
       }, RESET_DELAY_MS);
     } else {
       pinsStandingBeforeRoll.current = standingCount;
       setTimeout(() => {
+        sceneRef.current?.clearFallenPins();
         sceneRef.current?.resetBall();
         sendYourTurnOrPause(currentPlayerIdRef.current);
       }, RESET_DELAY_MS);
