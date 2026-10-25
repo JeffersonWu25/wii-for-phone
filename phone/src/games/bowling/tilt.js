@@ -18,15 +18,37 @@ export function leanFromDegrees(degrees, fullDeg = FULL_LEAN_DEG, deadzone = DEA
   return Math.sign(degrees) * Math.min(1, (Math.abs(degrees) - deadzone) / (fullDeg - deadzone));
 }
 
-export function leanFromGravity(down, sensitivity = 1) {
+function bankDegrees(down) {
   const mag = Math.hypot(down.x, down.y, down.z);
-  if (mag < 1) return LEVEL;
-  const scale = sensitivity > 0 ? sensitivity : 1;
+  if (mag < 1) return null;
   const signed = -Math.asin(clamp(down.x / mag, -1, 1)) * 180 / Math.PI;
-  const degrees = signed || 0;
-  const full = FULL_LEAN_DEG / scale;
-  const deadzone = DEADZONE_DEG / scale;
-  return { lean: leanFromDegrees(degrees, full, deadzone), degrees };
+  return signed || 0;
+}
+
+function gain(sensitivity) {
+  return sensitivity > 0 ? sensitivity : 1;
+}
+
+export function leanFromGravity(down, sensitivity = 1) {
+  const degrees = bankDegrees(down);
+  if (degrees === null) return LEVEL;
+  const scale = gain(sensitivity);
+  return {
+    lean: leanFromDegrees(degrees, FULL_LEAN_DEG / scale, DEADZONE_DEG / scale),
+    degrees,
+  };
+}
+
+// Curve gain divides only the span above a fixed deadzone, so the same
+// multiplier moves every in-range twist by the same factor until it saturates.
+export function curveFromGravity(down, sensitivity = 1) {
+  const degrees = bankDegrees(down);
+  if (degrees === null) return LEVEL;
+  const span = (FULL_LEAN_DEG - DEADZONE_DEG) / gain(sensitivity);
+  return {
+    lean: leanFromDegrees(degrees, DEADZONE_DEG + span, DEADZONE_DEG),
+    degrees,
+  };
 }
 
 export function createTiltSensor() {
@@ -46,6 +68,9 @@ export function createTiltSensor() {
     },
     read(sensitivity = 1) {
       return gravity ? leanFromGravity(gravity, sensitivity) : LEVEL;
+    },
+    readCurve(sensitivity = 1) {
+      return gravity ? curveFromGravity(gravity, sensitivity) : LEVEL;
     },
   };
 }

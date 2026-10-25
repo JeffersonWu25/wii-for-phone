@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTiltSensor, downFromSample, leanFromGravity } from './tilt.js';
+import { createTiltSensor, curveFromGravity, downFromSample, leanFromGravity } from './tilt.js';
 import { tiltForThrow } from './throw.js';
 
 const G = 9.81;
@@ -32,16 +32,21 @@ test('a hard mid-swing bank that settles level before release is a straight ball
   const releaseLean = sensor.read(1).lean;
   assert.ok(Math.abs(releaseLean) < 1e-6, `release lean ${releaseLean}`);
   assert.deepEqual(
-    tiltForThrow({ pressLean: 0, releaseLean, maxTwist: 0.45 }),
+    tiltForThrow({ pressLean: 0, releaseLean }),
     { angle: 0, hookM: 0 },
   );
 });
 
-test('curve sensitivity reaches full lean with a smaller bank', () => {
-  const mild = Math.abs(leanFromGravity(downFromSample(bankedSample(12)), 1).lean);
-  const easy = Math.abs(leanFromGravity(downFromSample(bankedSample(12)), 4).lean);
-  assert.ok(mild < 0.3, `default lean ${mild}`);
-  assert.equal(easy, 1);
+test('curve sensitivity scales in-range twist linearly and leaves the deadzone fixed', () => {
+  const down = downFromSample(bankedSample(11));
+  const mild = Math.abs(curveFromGravity(down, 1).lean);
+  const doubled = Math.abs(curveFromGravity(down, 2).lean);
+  const quadrupled = Math.abs(curveFromGravity(down, 4).lean);
+  assert.ok(Math.abs(mild - 0.2) < 1e-9, `lean ${mild}`);
+  assert.ok(Math.abs(doubled - mild * 2) < 1e-9);
+  assert.ok(Math.abs(quadrupled - mild * 4) < 1e-9);
+  assert.equal(curveFromGravity(downFromSample(bankedSample(4)), 4).lean, 0);
+  assert.equal(Math.abs(curveFromGravity(downFromSample(bankedSample(13)), 4).lean), 1);
 });
 
 test('higher tilt sensitivity reaches full lean sooner and shrinks the level window', () => {

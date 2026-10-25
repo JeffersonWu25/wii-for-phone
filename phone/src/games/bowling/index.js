@@ -163,7 +163,7 @@ export function mount(app, sendMsg, myPlayerId) {
     if (!label) return;
     const leaning = holdStart === null
       ? tilt.read(tuning.tilt).lean
-      : tilt.read(tuning.curve).lean;
+      : tilt.readCurve(tuning.curve).lean;
     setDot('dot-tilt', leaning);
     label.textContent = leaning === 0
       ? 'LEVEL'
@@ -224,7 +224,7 @@ export function mount(app, sendMsg, myPlayerId) {
     setDpadEnabled(true);
 
     const startLean = pressLean;
-    const releaseLean = tilt.read(tuning.curve).lean;
+    const releaseLean = tilt.readCurve(tuning.curve).lean;
     pressLean = null;
 
     if (holdDuration < MIN_HOLD_MS) {
@@ -238,7 +238,7 @@ export function mount(app, sendMsg, myPlayerId) {
     const throwMsg = composeThrow({
       samples: motionBuffer,
       aim: { offset: aimOffset, angle: aimAngle },
-      tilt: tiltForThrow({ pressLean: startLean, releaseLean, maxTwist: tuning.maxTwist }),
+      tilt: tiltForThrow({ pressLean: startLean, releaseLean }),
       tuning,
     });
     motionBuffer = [];
