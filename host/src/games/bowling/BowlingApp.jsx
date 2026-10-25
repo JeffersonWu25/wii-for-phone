@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Scene from './Scene.jsx';
 import { BowlingGame } from './BowlingGame.js';
-import { launchFromMessage } from './launch.js';
+import { launchFromMessage, parseThrow, rollReadout } from './launch.js';
 
 const RESET_DELAY_MS = 1500;
 
@@ -23,6 +23,7 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
   const bowlingGameRef = useRef(null);
   const throwInFlight = useRef(false);
   const pinsStandingBeforeRoll = useRef(10);
+  const lastRollRef = useRef(null);
   const currentPlayerIdRef = useRef(null);
   const startedRef = useRef(false);
   const waitingForReconnectRef = useRef(null);
@@ -79,8 +80,10 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
         case 'throw': {
           if (msg.playerId !== currentPlayerIdRef.current) return;
           if (throwInFlight.current) return;
-          const launch = launchFromMessage(msg);
+          const parsed = parseThrow(msg);
+          const launch = parsed && launchFromMessage(msg);
           if (!launch) return;
+          lastRollRef.current = rollReadout(parsed);
           throwInFlight.current = true;
           sceneRef.current?.throwBall(launch);
           break;
@@ -187,6 +190,7 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
       pinsKnocked,
       frameScore,
       totalScore,
+      roll: lastRollRef.current,
     });
 
     if (frameScore) {

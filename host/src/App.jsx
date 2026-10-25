@@ -4,6 +4,7 @@ import LobbyScreen from './shared/LobbyScreen.jsx';
 import GameSelectScreen from './shared/GameSelectScreen.jsx';
 import BowlingApp from './games/bowling/BowlingApp.jsx';
 import KartApp from './games/kart/KartApp.jsx';
+import FeelSettings from './shared/FeelSettings.jsx';
 
 // ── App — thin 3-screen router ────────────────────────────────────────────────
 // Screens: 'lobby' → 'game-select' → [game]
@@ -58,27 +59,37 @@ export default function App() {
     return <LostConnectionScreen onReconnect={handleReconnect} />;
   }
 
+  const settings = <FeelSettings send={send} status={status} />;
+
   if (screen === 'lobby') {
     return (
-      <LobbyScreen
-        sessionId={sessionId}
-        players={players}
-        onStart={() => setScreen('game-select')}
-      />
+      <>
+        {settings}
+        <LobbyScreen
+          sessionId={sessionId}
+          players={players}
+          onStart={() => setScreen('game-select')}
+        />
+      </>
     );
   }
 
   if (screen === 'game-select') {
     return (
-      <GameSelectScreen
-        send={send}
-        onSelect={handleGameSelect}
-      />
+      <>
+        {settings}
+        <GameSelectScreen
+          send={send}
+          onSelect={handleGameSelect}
+        />
+      </>
     );
   }
 
   if (screen === 'bowling') {
     return (
+      <>
+        {settings}
       <BowlingApp
         wsRef={wsRef}
         send={send}
@@ -87,17 +98,21 @@ export default function App() {
         onGameOver={leaveToSelect}
         onAbandon={leaveToSelect}
       />
+      </>
     );
   }
 
   if (screen === 'kart') {
     return (
+      <>
+        {settings}
       <KartApp
         wsRef={wsRef}
         send={send}
         players={players}
         onAbandon={leaveToSelect}
       />
+      </>
     );
   }
 

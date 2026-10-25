@@ -4,7 +4,7 @@
 
 import { composeThrow, tiltForThrow } from './throw.js';
 import { createTiltSensor } from './tilt.js';
-import { FEEL_CONTROLS, clampTuning, loadTuning, saveTuning } from './tuning.js';
+import { clampTuning } from './tuning.js';
 
 const STREAM_HZ = 20;
 const MIN_HOLD_MS = 150;
@@ -20,7 +20,7 @@ export function mount(app, sendMsg, myPlayerId) {
   let aimOffset = 0;
   let aimAngle = 0;
   let aimMode = 'move';
-  let tuning = loadTuning();
+  let tuning = clampTuning(null);
   let pressLean = null;
   const tilt = createTiltSensor();
 
@@ -31,10 +31,8 @@ export function mount(app, sendMsg, myPlayerId) {
       <div class="screen" id="screen-waiting">
         <h1>Bowling</h1>
         <p id="waiting-label">${label}</p>
-        ${tuningMarkup()}
       </div>
     `;
-    bindTuning();
   }
 
   function updateWaitingLabel(label) {
@@ -80,8 +78,6 @@ export function mount(app, sendMsg, myPlayerId) {
           <span id="tilt-label">LEVEL</span>
         </div>
 
-        ${tuningMarkup()}
-
         <p id="bowl-prompt">Hold and swing to bowl!</p>
         <button id="btn-bowl">BOWL</button>
         <p id="bowl-hint"></p>
@@ -90,7 +86,6 @@ export function mount(app, sendMsg, myPlayerId) {
 
     refreshDots();
     refreshTiltGauge();
-    bindTuning();
 
     document.getElementById('tab-move').addEventListener('click', () => setMode('move'));
     document.getElementById('tab-aim').addEventListener('click',  () => setMode('aim'));
@@ -107,9 +102,16 @@ export function mount(app, sendMsg, myPlayerId) {
     let label = `${pinsKnocked} pin${pinsKnocked !== 1 ? 's' : ''} knocked down`;
     if (frameScore === 'strike') label = 'STRIKE!';
     if (frameScore === 'spare')  label = 'SPARE!';
+    const roll = result.roll;
+    const stats = roll ? `
+        <p class="roll-stat">Speed ${roll.speed}</p>
+        <p class="roll-stat">Angle ${roll.tilt}</p>
+        <p class="roll-stat">Curve ${roll.curve}</p>
+    ` : '';
     app.innerHTML = `
       <div class="screen" id="screen-result">
         <h1>${label}</h1>
+        ${stats}
         <p>Score: ${totalScore}</p>
         <p id="result-sub">Waiting for your next turn...</p>
       </div>
@@ -172,31 +174,6 @@ export function mount(app, sendMsg, myPlayerId) {
 
   // ── Tuning sliders ──────────────────────────────────────────────────────────
 
-  function tuningMarkup() {
-    const rows = FEEL_CONTROLS.map(({ key, label, min, max, step, format }) => `
-      <label class="tuning-row">
-        <span class="tuning-label">${label}</span>
-        <input type="range" class="tuning-input" data-key="${key}"
-          min="${min}" max="${max}" step="${step}" value="${tuning[key]}">
-        <span class="tuning-value" id="tuning-value-${key}">${format(tuning[key])}</span>
-      </label>
-    `).join('');
-    return `<div class="tuning">${rows}</div>`;
-  }
-
-  function bindTuning() {
-    app.querySelectorAll('.tuning-input').forEach((input) => {
-      input.addEventListener('input', () => {
-        const { key } = input.dataset;
-        tuning = clampTuning({ ...tuning, [key]: Number(input.value) });
-        saveTuning(tuning);
-        const control = FEEL_CONTROLS.find((c) => c.key === key);
-        document.getElementById(`tuning-value-${key}`).textContent = control.format(tuning[key]);
-        refreshTiltGauge();
-      });
-    });
-  }
-
   // ── Bowl button ─────────────────────────────────────────────────────────────
 
   function onHoldStart() {
@@ -253,7 +230,6 @@ export function mount(app, sendMsg, myPlayerId) {
       const el = document.getElementById(id);
       if (el) el.disabled = !enabled;
     });
-    app.querySelectorAll('.tuning-input').forEach((el) => { el.disabled = !enabled; });
   }
 
   // ── Wake lock ───────────────────────────────────────────────────────────────
@@ -292,6 +268,10 @@ export function mount(app, sendMsg, myPlayerId) {
           break;
         case 'game_started':
           updateWaitingLabel('Game started! Waiting for your turn...');
+          break;
+        case 'feel':
+          tuning = clampTuning(msg);
+          refreshTiltGauge();
           break;
       }
     },

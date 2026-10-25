@@ -45,4 +45,16 @@ export function launchFromMessage(msg) {
   return parsed && launchFromThrow(parsed);
 }
 
+export function rollReadout(parsed) {
+  const launch = launchFromThrow(parsed);
+  const speedMs = Math.hypot(launch.velocity.x, launch.velocity.z);
+  const deg = Math.atan2(launch.velocity.x, -launch.velocity.z) * 180 / Math.PI;
+  const cm = Math.round(parsed.tilt.hookM * 100);
+  return {
+    speed: `${Math.round(speedMs * 3.6)} km/h`,
+    tilt: Math.abs(deg) < 0.05 ? 'Straight' : `${Math.abs(deg).toFixed(1)}° ${deg > 0 ? 'right' : 'left'}`,
+    curve: Math.abs(cm) < 1 ? 'Straight' : `${Math.abs(cm)} cm ${cm > 0 ? 'right' : 'left'}`,
+  };
+}
+
 export { LANE_DISTANCE, MAX_HOOK_M };

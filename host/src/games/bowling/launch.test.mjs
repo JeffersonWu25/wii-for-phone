@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LANE_DISTANCE, launchFromMessage, launchFromThrow, parseThrow } from './launch.js';
+import { LANE_DISTANCE, launchFromMessage, launchFromThrow, parseThrow, rollReadout } from './launch.js';
 import { TUNING_CONTROLS } from '../../../../phone/src/games/bowling/tuning.js';
 
 function throwMsg({ power = 0.5, offset = 0, angle = 0, tiltAngle = 0, hookM = 0, speed = 1 } = {}) {
@@ -44,6 +44,19 @@ test('positive hookM hooks right, negative hookM hooks left', () => {
 test('hook meters at the pins match the wire value', () => {
   assert.ok(Math.abs(breakAtPins(launchFromMessage(throwMsg({ hookM: 0.45 }))) - 0.45) < 1e-12);
   assert.ok(Math.abs(breakAtPins(launchFromMessage(throwMsg({ hookM: 0.9 }))) - 0.9) < 1e-12);
+});
+
+test('a straight half-power throw reads in km/h with no tilt or curve', () => {
+  const readout = rollReadout(parseThrow(throwMsg({ power: 0.5 })));
+  assert.equal(readout.speed, '23 km/h');
+  assert.equal(readout.tilt, 'Straight');
+  assert.equal(readout.curve, 'Straight');
+});
+
+test('tilt and hook read as degrees and centimeters', () => {
+  const readout = rollReadout(parseThrow(throwMsg({ tiltAngle: 1, hookM: -0.4 })));
+  assert.equal(readout.tilt, '3.0° right');
+  assert.equal(readout.curve, '40 cm left');
 });
 
 test('speed tuning does not change break at the pins', () => {
