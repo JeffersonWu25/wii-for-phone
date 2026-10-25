@@ -5,10 +5,13 @@ import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
   CHECKPOINTS,
+  DEFAULT_TUNING,
   LAPS,
+  TUNING_LIMITS,
   applyDrive,
   applyUseItem,
   createRace,
+  driftView,
   noteProgress,
   placeLabel,
   rankKarts,
@@ -87,7 +90,7 @@ test('gas on the straight builds speed without leaving the track', () => {
   const kart = race.karts[0];
   kart.x = 16;
   kart.z = -10;
-  kart.heading = 0;
+  kart.facing = 0;
   let now = 0;
   for (let i = 0; i < 30; i++) {
     now += 50;
@@ -107,7 +110,7 @@ test('a drift release adds a boost', () => {
   const kart = race.karts[0];
   kart.x = 16;
   kart.z = -18;
-  kart.heading = 0;
+  kart.facing = 0;
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -115,11 +118,12 @@ test('a drift release adds a boost', () => {
     applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i }, now);
     stepRace(race, 0.05, now);
   }
-  assert.ok(kart.driftCharge > 0.55);
+  assert.equal(driftView(kart).charged, true);
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
   stepRace(race, 0.05, now);
-  assert.ok(kart.boostT > 0);
+  assert.equal(driftView(kart).phase, 'boosting');
+  assert.ok(driftView(kart).boost > 0);
 });
 
 test('stale input coasts', () => {
@@ -188,7 +192,7 @@ test('a late driver holding the gas finishes a lap inside the walls', () => {
     const sample = sampleTrack(kart.x, kart.z);
     const aim = poseAt(sample.progress + 0.045);
     const desired = Math.atan2(aim.x - kart.x, aim.z - kart.z);
-    let err = desired - kart.heading;
+    let err = desired - kart.facing;
     while (err > Math.PI) err -= Math.PI * 2;
     while (err < -Math.PI) err += Math.PI * 2;
     const intent = Math.max(-1, Math.min(1, err / 0.4));
@@ -225,7 +229,7 @@ test('the stick on the rim drifts the kart and releasing it boosts', () => {
   const kart = race.karts[0];
   kart.x = 16;
   kart.z = -18;
-  kart.heading = 0;
+  kart.facing = 0;
   kart.speed = 20;
   const rim = stickInput(-120, 0, 120);
   let now = 0;
@@ -240,7 +244,7 @@ test('the stick on the rim drifts the kart and releasing it boosts', () => {
     }, now);
     stepRace(race, 0.05, now);
   }
-  assert.ok(kart.driftCharge > 0.55, `charge ${kart.driftCharge}`);
+  assert.equal(driftView(kart).charged, true, `charge ${driftView(kart).charge}`);
   const release = stickInput(0, 0, 120);
   now += 50;
   applyDrive(race, {
@@ -251,7 +255,7 @@ test('the stick on the rim drifts the kart and releasing it boosts', () => {
     seq: 100,
   }, now);
   stepRace(race, 0.05, now);
-  assert.ok(kart.boostT > 0);
+  assert.equal(driftView(kart).phase, 'boosting');
 });
 
 test('each use_item while racing adds exactly one to itemPresses', () => {
@@ -313,4 +317,187 @@ test('snapshot exposes MK8 HUD fields and world poses', () => {
     assert.equal(typeof player.z, 'number');
     assert.equal(typeof player.progress, 'number');
   }
+});
+
+test('tuning key sets match', () => {
+  assert.deepEqual(Object.keys(DEFAULT_TUNING), Object.keys(TUNING_LIMITS));
+});
+
+test('a short hold does not boost and a long hold does', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  const kart = race.karts[0];
+  kart.x = 16;
+  kart.z = -18;
+  kart.facing = 0;
+  kart.speed = 20;
+  let now = 0;
+  for (let i = 0; i < 12; i++) {
+    now += 50;
+    applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i }, now);
+    stepRace(race, 0.05, now);
+  }
+  assert.equal(driftView(kart).charged, false);
+  now += 50;
+  applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 50 }, now);
+  stepRace(race, 0.05, now);
+  assert.notEqual(driftView(kart).phase, 'boosting');
+
+  for (let i = 0; i < 14; i++) {
+    now += 50;
+    applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: 60 + i }, now);
+    stepRace(race, 0.05, now);
+  }
+  assert.equal(driftView(kart).charged, true);
+  now += 50;
+  applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 200 }, now);
+  stepRace(race, 0.05, now);
+  assert.equal(driftView(kart).phase, 'boosting');
+});
+
+test('left drift slips and rolls into the turn', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  const kart = race.karts[0];
+  kart.x = 16;
+  kart.z = -18;
+  kart.facing = 0;
+  kart.speed = 20;
+  let now = 0;
+  for (let i = 0; i < 8; i++) {
+    now += 50;
+    applyDrive(race, { playerId: 'p1', steer: 0.9, gas: true, drift: true, seq: i }, now);
+    stepRace(race, 0.05, now);
+  }
+  const view = driftView(kart);
+  assert.ok(view.slip > 0, `slip ${view.slip}`);
+  assert.ok(view.roll < 0, `roll ${view.roll}`);
+  assert.ok(Math.abs(view.travel - wrap(view.facing - view.slip)) < 1e-9);
+});
+
+function wrap(a) {
+  let x = a;
+  while (x > Math.PI) x -= Math.PI * 2;
+  while (x < -Math.PI) x += Math.PI * 2;
+  return x;
+}
+
+test('drift scale 0 keeps the nose on the path and scale 2 slips more', () => {
+  function hold(driftScale) {
+    const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+    race.phase = 'racing';
+    setTuning(race, { drift: driftScale });
+    const kart = race.karts[0];
+    kart.x = 16;
+    kart.z = -18;
+    kart.facing = 0;
+    kart.speed = 20;
+    let now = 0;
+    for (let i = 0; i < 20; i++) {
+      now += 50;
+      applyDrive(race, { playerId: 'p1', steer: 0.9, gas: true, drift: true, seq: i }, now);
+      stepRace(race, 0.05, now);
+    }
+    return driftView(kart);
+  }
+  const zero = hold(0);
+  const one = hold(1);
+  const two = hold(2);
+  assert.ok(Math.abs(zero.slip) < 1e-3, `slip ${zero.slip}`);
+  assert.ok(Math.abs(two.slip) > Math.abs(one.slip));
+});
+
+test('a charged release from the unboosted cap kicks to the boost cap', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  const kart = race.karts[0];
+  kart.x = 16;
+  kart.z = -18;
+  kart.facing = 0;
+  kart.speed = 20;
+  let now = 0;
+  for (let i = 0; i < 40; i++) {
+    now += 50;
+    applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i }, now);
+    stepRace(race, 0.05, now);
+  }
+  kart.speed = 32;
+  kart.x = 16;
+  kart.z = -18;
+  kart.facing = 0;
+  now += 50;
+  applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
+  stepRace(race, 0.05, now);
+  assert.equal(driftView(kart).phase, 'boosting');
+  assert.ok(Math.abs(kart.speed - 42) < 1e-6, `speed ${kart.speed}`);
+  assert.ok(Math.abs(driftView(kart).boost - 0.7) < 1e-9, `boost ${driftView(kart).boost}`);
+});
+
+test('boost scale doubles the kick and setTuning merges partial keys', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  setTuning(race, { boost: 2 });
+  setTuning(race, { speed: 1 });
+  assert.equal(race.tuning.boost, 2);
+  assert.equal(race.tuning.speed, 1);
+  assert.equal(race.tuning.turn, 1);
+  setTuning(race, { drift: 9, boost: -1 });
+  assert.equal(race.tuning.drift, 2);
+  assert.equal(race.tuning.boost, 0);
+
+  setTuning(race, { boost: 2, drift: 1 });
+  const kart = race.karts[0];
+  kart.x = 16;
+  kart.z = -18;
+  kart.facing = 0;
+  kart.speed = 20;
+  let now = 0;
+  for (let i = 0; i < 40; i++) {
+    now += 50;
+    applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i }, now);
+    stepRace(race, 0.05, now);
+  }
+  kart.speed = 32;
+  kart.x = 16;
+  kart.z = -18;
+  now += 50;
+  applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
+  stepRace(race, 0.05, now);
+  assert.ok(Math.abs(kart.speed - 52) < 1e-6, `speed ${kart.speed}`);
+});
+
+test('yaw bonus scales as 1 / 1.35 / 1.7 at drift 0 / 1 / 2', () => {
+  function yawDelta(driftScale) {
+    const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+    race.phase = 'racing';
+    setTuning(race, { drift: driftScale, turn: 1 });
+    const kart = race.karts[0];
+    kart.x = 16;
+    kart.z = -18;
+    kart.facing = 0;
+    kart.speed = 20;
+    kart.appliedSteer = 1;
+    applyDrive(race, { playerId: 'p1', steer: 1, gas: true, drift: true, seq: 1 }, 0);
+    const before = kart.facing;
+    stepRace(race, 0.05, 0);
+    return Math.abs(kart.facing - before);
+  }
+  const d0 = yawDelta(0);
+  const d1 = yawDelta(1);
+  const d2 = yawDelta(2);
+  assert.ok(Math.abs(d1 / d0 - 1.35) < 1e-6, `ratio1 ${d1 / d0}`);
+  assert.ok(Math.abs(d2 / d0 - 1.7) < 1e-6, `ratio2 ${d2 / d0}`);
+});
+
+test('straight up on the rim does not charge', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  const kart = race.karts[0];
+  kart.speed = 20;
+  for (let i = 0; i < 20; i++) {
+    applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: true, seq: i }, i * 50);
+    stepRace(race, 0.05, i * 50);
+  }
+  assert.equal(driftView(kart).phase, 'idle');
+  assert.equal(driftView(kart).charge, 0);
 });

@@ -11,13 +11,38 @@ const ACCEL = 22;
 const COAST = 14;
 const MAX_SPEED = 32;
 const BOOST_SPEED = 42;
+const BOOST_GAP = BOOST_SPEED - MAX_SPEED;
 const HOLD_RADIUS = 14;
 const LOW_SPEED_TURN = 1.7;
 const DRIFT_CHARGE_RATE = 0.85;
+const CHARGE_TO_BOOST = 0.55;
 const BOOST_TIME = 0.75;
+const CHARGE_DECAY = 0.8;
 const KART_RADIUS = 1.15;
+const MIN_DRIFT_SPEED = 5;
+const MIN_DRIFT_STEER = 0.15;
+const SLIP_MAX = 0.45;
+const SLIP_ACQUIRE = 8;
+const SLIP_RECOVER = 12;
+const DRIFT_YAW_BONUS = 0.35;
+const ROLL_AT_FULL_SLIP = 0.30;
+const ROLL_CLAMP = 0.40;
 
-export const DEFAULT_TUNING = { speed: 1, turn: 1 };
+export const DEFAULT_TUNING = Object.freeze({
+  speed: 1,
+  turn: 1,
+  drift: 1,
+  boost: 1,
+});
+
+export const TUNING_LIMITS = Object.freeze({
+  speed: Object.freeze({ min: 0.5, max: 1.8, step: 0.05 }),
+  turn: Object.freeze({ min: 0.4, max: 2.2, step: 0.05 }),
+  drift: Object.freeze({ min: 0, max: 2, step: 0.05 }),
+  boost: Object.freeze({ min: 0, max: 2, step: 0.05 }),
+});
+
+const IDLE_PHASE = Object.freeze({ phase: 'idle', slip: 0 });
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -30,6 +55,153 @@ function wrapPi(a) {
   return x;
 }
 
+function idlePhase(slip = 0) {
+  return Object.freeze({ phase: 'idle', slip });
+}
+
+function driftingPhase(charge, slip) {
+  return Object.freeze({
+    phase: 'drifting',
+    charge: clamp(charge, 0, 1),
+    slip,
+  });
+}
+
+function boostingPhase(remaining, slip) {
+  return Object.freeze({
+    phase: 'boosting',
+    remaining: Math.max(0, remaining),
+    slip,
+  });
+}
+
+function tuningScales(tuning) {
+  const scales = {};
+  for (const key of Object.keys(TUNING_LIMITS)) {
+    const { min, max } = TUNING_LIMITS[key];
+    const raw = tuning?.[key];
+    const fallback = DEFAULT_TUNING[key];
+    scales[key] = clamp(Number.isFinite(raw) ? raw : fallback, min, max);
+  }
+  return scales;
+}
+
+function travelOf(facing, slip) {
+  return wrapPi(facing - slip);
+}
+
+function rollOf(slip, charge) {
+  const lean = 0.55 + 0.45 * clamp(charge, 0, 1);
+  const roll = -slip * (ROLL_AT_FULL_SLIP / SLIP_MAX) * lean;
+  return clamp(roll, -ROLL_CLAMP, ROLL_CLAMP);
+}
+
+function speedCap(phase, scales) {
+  const base = MAX_SPEED * scales.speed;
+  if (phase.phase !== 'boosting') return base;
+  return base + BOOST_GAP * scales.speed * scales.boost;
+}
+
+function easeSlip(slip, target, dt) {
+  const rate = target === 0 ? SLIP_RECOVER : SLIP_ACQUIRE;
+  return slip + (target - slip) * (1 - Math.exp(-rate * dt));
+}
+
+function slipTarget(input, scales) {
+  if (!input.drift) return 0;
+  const steer = input.steer;
+  if (steer === 0) return 0;
+  return Math.sign(steer) * SLIP_MAX * scales.drift * Math.min(1, Math.abs(steer));
+}
+
+function qualifying(input, speed) {
+  return input.drift && speed > MIN_DRIFT_SPEED && Math.abs(input.steer) > MIN_DRIFT_STEER;
+}
+
+export function driftView(kart) {
+  const phase = kart.driftPhase || IDLE_PHASE;
+  const charge = phase.phase === 'drifting' ? phase.charge : 0;
+  const slip = phase.slip || 0;
+  return {
+    phase: phase.phase,
+    facing: kart.facing,
+    travel: travelOf(kart.facing, slip),
+    slip,
+    roll: rollOf(slip, charge),
+    charge,
+    charged: phase.phase === 'drifting' && charge >= CHARGE_TO_BOOST,
+    boost: phase.phase === 'boosting' ? phase.remaining : 0,
+  };
+}
+
+function clearDriftPose(kart) {
+  kart.driftPhase = IDLE_PHASE;
+}
+
+function stepDrift(phase, input, speed, dt, scales) {
+  const qualifies = qualifying(input, speed);
+  const slipAim = slipTarget(input, scales);
+  let slip = easeSlip(phase.slip || 0, slipAim, dt);
+  let boostKick = 0;
+  let next = phase;
+  let yawScale = 1;
+
+  if (phase.phase === 'boosting') {
+    if (qualifies) {
+      next = driftingPhase(Math.min(1, DRIFT_CHARGE_RATE * dt), slip);
+      yawScale = 1 + DRIFT_YAW_BONUS * scales.drift;
+      return { phase: next, yawScale, boostKick: 0 };
+    }
+    const remaining = phase.remaining - dt;
+    if (remaining > 0) {
+      next = boostingPhase(remaining, slip);
+    } else {
+      next = idlePhase(slip);
+    }
+    return { phase: next, yawScale: 1, boostKick: 0 };
+  }
+
+  if (phase.phase === 'idle') {
+    if (qualifies) {
+      next = driftingPhase(Math.min(1, DRIFT_CHARGE_RATE * dt), slip);
+      yawScale = 1 + DRIFT_YAW_BONUS * scales.drift;
+    } else {
+      next = idlePhase(slip);
+    }
+    return { phase: next, yawScale, boostKick: 0 };
+  }
+
+  if (qualifies) {
+    next = driftingPhase(Math.min(1, phase.charge + DRIFT_CHARGE_RATE * dt), slip);
+    yawScale = 1 + DRIFT_YAW_BONUS * scales.drift;
+    return { phase: next, yawScale, boostKick: 0 };
+  }
+
+  if (input.drift) {
+    next = driftingPhase(phase.charge, slip);
+    return { phase: next, yawScale: 1, boostKick: 0 };
+  }
+
+  if (phase.charge >= CHARGE_TO_BOOST) {
+    const window = BOOST_TIME * scales.boost;
+    if (window <= 0) {
+      next = idlePhase(slip);
+      return { phase: next, yawScale: 1, boostKick: 0 };
+    }
+    const preCap = speedCap(phase, scales);
+    const post = boostingPhase(Math.max(0, window - dt), slip);
+    const postCap = speedCap(post, scales);
+    boostKick = Math.max(0, postCap - preCap);
+    if (post.remaining > 0) next = post;
+    else next = idlePhase(slip);
+    return { phase: next, yawScale: 1, boostKick };
+  }
+
+  const charge = Math.max(0, phase.charge - CHARGE_DECAY * dt);
+  next = charge > 0 ? driftingPhase(charge, slip) : idlePhase(slip);
+  return { phase: next, yawScale: 1, boostKick: 0 };
+}
+
 export function gridPose(index) {
   const row = Math.floor(index / 2);
   const col = index % 2;
@@ -40,7 +212,7 @@ export function gridPose(index) {
   return {
     x: pose.x + rx * side,
     z: pose.z + rz * side,
-    heading: pose.heading,
+    facing: pose.heading,
   };
 }
 
@@ -54,7 +226,7 @@ export function createRace(players, now) {
       character: characterFor(index),
       x: pose.x,
       z: pose.z,
-      heading: pose.heading,
+      facing: pose.facing,
       speed: 0,
       steer: 0,
       appliedSteer: 0,
@@ -68,8 +240,7 @@ export function createRace(players, now) {
       finished: false,
       finishTimeMs: null,
       progress: sample.progress,
-      driftCharge: 0,
-      boostT: 0,
+      driftPhase: IDLE_PHASE,
       itemPresses: 0,
       coins: 0,
       itemPrimary: null,
@@ -96,10 +267,12 @@ export function createRace(players, now) {
 
 export function setTuning(race, partial) {
   if (!race.tuning) race.tuning = { ...DEFAULT_TUNING };
-  const speed = Number(partial.speed);
-  const turn = Number(partial.turn);
-  if (Number.isFinite(speed)) race.tuning.speed = clamp(speed, 0.5, 1.8);
-  if (Number.isFinite(turn)) race.tuning.turn = clamp(turn, 0.4, 2.2);
+  for (const key of Object.keys(TUNING_LIMITS)) {
+    const value = Number(partial?.[key]);
+    if (!Number.isFinite(value)) continue;
+    const { min, max } = TUNING_LIMITS[key];
+    race.tuning[key] = clamp(value, min, max);
+  }
 }
 
 export function applyUseItem(race, msg) {
@@ -147,6 +320,7 @@ export function noteProgress(kart, progress, onTrack, timeMs) {
         kart.finished = true;
         kart.finishTimeMs = timeMs;
         kart.speed = 0;
+        clearDriftPose(kart);
       }
     }
   }
@@ -157,15 +331,17 @@ function contain(kart, sample) {
   const overflow = Math.abs(sample.lateral) - HALF + 0.05;
   kart.x -= sample.dirX * overflow;
   kart.z -= sample.dirZ * overflow;
-  const headingOut = Math.sin(kart.heading) * sample.dirX + Math.cos(kart.heading) * sample.dirZ;
+  const slip = kart.driftPhase?.slip || 0;
+  const travel = travelOf(kart.facing, slip);
+  const headingOut = Math.sin(travel) * sample.dirX + Math.cos(travel) * sample.dirZ;
   const movingOut = headingOut * Math.sign(sample.lateral || 1);
   if (movingOut > 0.05) {
     const along = Math.atan2(sample.tx, sample.tz);
     const flipped = wrapPi(along + Math.PI);
-    const target = Math.abs(wrapPi(flipped - kart.heading)) < Math.abs(wrapPi(along - kart.heading))
+    const target = Math.abs(wrapPi(flipped - travel)) < Math.abs(wrapPi(along - travel))
       ? flipped
       : along;
-    kart.heading += wrapPi(target - kart.heading) * 0.8;
+    kart.facing += wrapPi(target - travel) * 0.8;
     kart.speed *= 0.94;
   }
   return sampleTrack(kart.x, kart.z);
@@ -196,33 +372,32 @@ function separate(karts) {
 }
 
 function stepKart(kart, input, dt, tuning) {
-  const speedScale = tuning?.speed ?? 1;
-  const turnScale = tuning?.turn ?? 1;
-  const drifting = input.drift && kart.speed > 5 && Math.abs(input.steer) > 0.15;
-  const max = (kart.boostT > 0 ? BOOST_SPEED : MAX_SPEED) * speedScale;
-  const target = input.gas ? max : 0;
-  if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * speedScale * dt);
+  const scales = tuningScales(tuning);
+  const oldPhase = kart.driftPhase || IDLE_PHASE;
+  const stepped = stepDrift(oldPhase, input, kart.speed, dt, scales);
+
+  const preCap = speedCap(oldPhase, scales);
+  const target = input.gas ? preCap : 0;
+  if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * scales.speed * dt);
   else kart.speed = Math.max(target, kart.speed - COAST * dt);
 
-  const pace = clamp(kart.speed / max, 0, 1);
-  const cornerTurn = (kart.speed / HOLD_RADIUS) * turnScale;
-  const low = LOW_SPEED_TURN * turnScale * (1 - pace * 0.25);
-  const turn = (drifting ? 1.35 : 1) * Math.max(low, cornerTurn);
+  const pace = clamp(kart.speed / Math.max(preCap, 1e-6), 0, 1);
+  const cornerTurn = (kart.speed / HOLD_RADIUS) * scales.turn;
+  const low = LOW_SPEED_TURN * scales.turn * (1 - pace * 0.25);
+  const turn = stepped.yawScale * Math.max(low, cornerTurn);
   const follow = 1 - Math.exp(-10 * dt);
   kart.appliedSteer += (input.steer - kart.appliedSteer) * follow;
-  kart.heading += kart.appliedSteer * turn * dt;
+  kart.facing += kart.appliedSteer * turn * dt;
 
-  if (drifting) kart.driftCharge = Math.min(1, kart.driftCharge + DRIFT_CHARGE_RATE * dt);
-  if (!input.drift && kart.driftCharge >= 0.55) {
-    kart.boostT = BOOST_TIME;
-    kart.driftCharge = 0;
-  } else if (!input.drift) {
-    kart.driftCharge = Math.max(0, kart.driftCharge - dt * 0.8);
+  kart.driftPhase = stepped.phase;
+  if (stepped.boostKick > 0) {
+    const cap = speedCap(kart.driftPhase, scales);
+    kart.speed = Math.min(cap, kart.speed + stepped.boostKick);
   }
-  if (kart.boostT > 0) kart.boostT -= dt;
 
-  kart.x += Math.sin(kart.heading) * kart.speed * dt;
-  kart.z += Math.cos(kart.heading) * kart.speed * dt;
+  const travel = travelOf(kart.facing, kart.driftPhase.slip || 0);
+  kart.x += Math.sin(travel) * kart.speed * dt;
+  kart.z += Math.cos(travel) * kart.speed * dt;
 }
 
 export function rankKarts(karts) {
@@ -315,7 +490,10 @@ export function stepRace(race, dt, now) {
 
   race.timeMs = now - race.startedAt;
   for (const kart of race.karts) {
-    if (kart.finished) continue;
+    if (kart.finished) {
+      if (kart.driftPhase?.phase !== 'idle' || kart.driftPhase?.slip) clearDriftPose(kart);
+      continue;
+    }
     stepKart(kart, liveInput(kart, now), step, race.tuning);
     let sample = sampleTrack(kart.x, kart.z);
     sample = contain(kart, sample);
