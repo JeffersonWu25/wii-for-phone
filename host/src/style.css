@@ -11,6 +11,60 @@ html, body, #root {
   font-family: system-ui, sans-serif;
 }
 
+.feel-settings {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 40;
+}
+
+.feel-settings-btn {
+  width: auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #1c1c38;
+  color: #d8d8f0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 1px solid #3a3a68;
+}
+
+.feel-panel {
+  margin-top: 8px;
+  width: min(360px, 70vw);
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #14142c;
+  border: 1px solid #2e2e58;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feel-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feel-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.feel-scale {
+  display: grid;
+  grid-template-columns: 42px 1fr 42px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: #9a9ab8;
+}
+
+.feel-scale input {
+  width: 100%;
+}
+
 /* ── Lobby ───────────────────────────────────────────────────── */
 
 .lobby {

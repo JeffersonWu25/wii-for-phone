@@ -1,20 +1,13 @@
-const STORAGE_KEY = 'bowling.tuning';
+const HOST_FEEL_KEY = 'bowling.hostFeel';
 
-const percent = (value) => `${Math.round(value * 100)}%`;
-const multiplier = (value) => `${value.toFixed(2)}×`;
-const meters = (value) => `${value.toFixed(2)} m`;
-
-export const TUNING_CONTROLS = [
-  { key: 'speed', label: 'Speed', min: 0.6, max: 1.5, step: 0.05, fallback: 1, format: percent },
+export const FEEL_CONTROLS = [
+  { key: 'speed', label: 'Speed', min: 0.7, max: 1.3, step: 0.05, fallback: 1 },
+  { key: 'tilt', label: 'Tilt', min: 1, max: 2.5, step: 0.05, fallback: 1.75 },
+  { key: 'curve', label: 'Curve', min: 0, max: 3.2, step: 0.05, fallback: 1.6 },
+  { key: 'maxCurve', label: 'Max Curve', min: 0, max: 1.3, step: 0.05, fallback: 0.65 },
 ];
 
-export const TILT_CONTROLS = [
-  { key: 'tilt', label: 'Tilt', min: 0.5, max: 2.5, step: 0.05, fallback: 1, format: multiplier },
-  { key: 'curve', label: 'Curve', min: 0.5, max: 5, step: 0.1, fallback: 2, format: multiplier },
-  { key: 'maxCurve', label: 'Max Curve', min: 0.15, max: 1.2, step: 0.05, fallback: 0.45, format: meters },
-];
-
-export const FEEL_CONTROLS = [...TUNING_CONTROLS, ...TILT_CONTROLS];
+export const TUNING_CONTROLS = FEEL_CONTROLS.filter((control) => control.key === 'speed');
 
 export function clampTuning(raw) {
   const tuning = {};
@@ -26,16 +19,16 @@ export function clampTuning(raw) {
   return tuning;
 }
 
-export function loadTuning() {
+export function loadHostFeel() {
   try {
-    return clampTuning(JSON.parse(localStorage.getItem(STORAGE_KEY)));
+    return clampTuning(JSON.parse(localStorage.getItem(HOST_FEEL_KEY)));
   } catch (_) {
     return clampTuning(null);
   }
 }
 
-export function saveTuning(tuning) {
+export function saveHostFeel(tuning) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(clampTuning(tuning)));
+    localStorage.setItem(HOST_FEEL_KEY, JSON.stringify(clampTuning(tuning)));
   } catch (_) {}
 }

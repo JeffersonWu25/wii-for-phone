@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LANE_DISTANCE, launchFromMessage, launchFromThrow, parseThrow } from './launch.js';
+import { LANE_DISTANCE, launchFromMessage, launchFromThrow, parseThrow, rollReadout } from './launch.js';
 import { TUNING_CONTROLS } from '../../../../phone/src/games/bowling/tuning.js';
 
 function throwMsg({ power = 0.5, offset = 0, angle = 0, tiltAngle = 0, hookM = 0, speed = 1 } = {}) {
@@ -46,6 +46,19 @@ test('hook meters at the pins match the wire value', () => {
   assert.ok(Math.abs(breakAtPins(launchFromMessage(throwMsg({ hookM: 0.9 }))) - 0.9) < 1e-12);
 });
 
+test('a straight half-power throw reads in km/h with no tilt or curve', () => {
+  const readout = rollReadout(parseThrow(throwMsg({ power: 0.5 })));
+  assert.equal(readout.speed, '23 km/h');
+  assert.equal(readout.tilt, 'Straight');
+  assert.equal(readout.curve, 'Straight');
+});
+
+test('tilt and hook read as degrees and centimeters', () => {
+  const readout = rollReadout(parseThrow(throwMsg({ tiltAngle: 1, hookM: -0.4 })));
+  assert.equal(readout.tilt, '3.0° right');
+  assert.equal(readout.curve, '40 cm left');
+});
+
 test('speed tuning does not change break at the pins', () => {
   const slow = breakAtPins(launchFromMessage(throwMsg({ hookM: 0.6, speed: 0.6 })));
   const fast = breakAtPins(launchFromMessage(throwMsg({ hookM: 0.6, speed: 1.5 })));
@@ -82,7 +95,7 @@ test('out-of-range fields clamp', () => {
   assert.deepEqual(parseThrow(throwMsg({ power: 2, offset: -3, angle: 3, tiltAngle: 4, hookM: -4, speed: 10 })), {
     power: 1,
     aim: { offset: -1, angle: 1 },
-    tilt: { angle: 1, hookM: -1.2 },
+    tilt: { angle: 1, hookM: -1.3 },
     tuning: { speed: 3 },
   });
 });

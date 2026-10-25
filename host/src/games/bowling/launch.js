@@ -8,7 +8,7 @@ const BASE_SPEED = 4;
 const POWER_SPEED = 5;
 const MAX_SPEED = 14;
 const MAX_ANGLE_DEG = 3;
-const MAX_HOOK_M = 1.2;
+const MAX_HOOK_M = 1.3;
 
 function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
@@ -43,6 +43,18 @@ export function launchFromThrow({ power, aim, tilt, tuning }) {
 export function launchFromMessage(msg) {
   const parsed = parseThrow(msg);
   return parsed && launchFromThrow(parsed);
+}
+
+export function rollReadout(parsed) {
+  const launch = launchFromThrow(parsed);
+  const speedMs = Math.hypot(launch.velocity.x, launch.velocity.z);
+  const deg = Math.atan2(launch.velocity.x, -launch.velocity.z) * 180 / Math.PI;
+  const cm = Math.round(parsed.tilt.hookM * 100);
+  return {
+    speed: `${Math.round(speedMs * 3.6)} km/h`,
+    tilt: Math.abs(deg) < 0.05 ? 'Straight' : `${Math.abs(deg).toFixed(1)}° ${deg > 0 ? 'right' : 'left'}`,
+    curve: Math.abs(cm) < 1 ? 'Straight' : `${Math.abs(cm)} cm ${cm > 0 ? 'right' : 'left'}`,
+  };
 }
 
 export { LANE_DISTANCE, MAX_HOOK_M };

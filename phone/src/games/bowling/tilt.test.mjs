@@ -46,6 +46,7 @@ test('curve sensitivity scales in-range twist linearly and leaves the deadzone f
   assert.ok(Math.abs(doubled - mild * 2) < 1e-9);
   assert.ok(Math.abs(quadrupled - mild * 4) < 1e-9);
   assert.equal(curveFromGravity(downFromSample(bankedSample(4)), 4).lean, 0);
+  assert.equal(curveFromGravity(downFromSample(bankedSample(40)), 0).lean, 0);
   assert.equal(Math.abs(curveFromGravity(downFromSample(bankedSample(13)), 4).lean), 1);
 });
 

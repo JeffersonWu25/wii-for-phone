@@ -44,6 +44,7 @@ export function leanFromGravity(down, sensitivity = 1) {
 export function curveFromGravity(down, sensitivity = 1) {
   const degrees = bankDegrees(down);
   if (degrees === null) return LEVEL;
+  if (!(sensitivity > 0)) return { lean: 0, degrees };
   const span = (FULL_LEAN_DEG - DEADZONE_DEG) / gain(sensitivity);
   return {
     lean: leanFromDegrees(degrees, DEADZONE_DEG + span, DEADZONE_DEG),

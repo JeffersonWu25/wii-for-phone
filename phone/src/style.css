@@ -296,8 +296,10 @@ button:active {
   background: #7c7cff;
 }
 
-.tuning-input:disabled {
-  opacity: 0.3;
+.roll-stat {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
 }
 
 @media (max-height: 700px) {
