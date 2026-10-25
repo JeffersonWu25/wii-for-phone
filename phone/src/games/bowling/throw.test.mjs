@@ -44,6 +44,6 @@ test('press lean aims and release lean scales the chosen max curve', () => {
 test('tilt for throw clamps lean and max curve', () => {
   assert.deepEqual(
     tiltForThrow({ pressLean: -2, releaseLean: 3, maxCurve: 5 }),
-    { angle: -1, hookM: 1.2 },
+    { angle: -1, hookM: 1.3 },
   );
 });

@@ -8,7 +8,7 @@ const BASE_SPEED = 4;
 const POWER_SPEED = 5;
 const MAX_SPEED = 14;
 const MAX_ANGLE_DEG = 3;
-const MAX_HOOK_M = 1.2;
+const MAX_HOOK_M = 1.3;
 
 function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));

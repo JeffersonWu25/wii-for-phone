@@ -95,7 +95,7 @@ test('out-of-range fields clamp', () => {
   assert.deepEqual(parseThrow(throwMsg({ power: 2, offset: -3, angle: 3, tiltAngle: 4, hookM: -4, speed: 10 })), {
     power: 1,
     aim: { offset: -1, angle: 1 },
-    tilt: { angle: 1, hookM: -1.2 },
+    tilt: { angle: 1, hookM: -1.3 },
     tuning: { speed: 3 },
   });
 });

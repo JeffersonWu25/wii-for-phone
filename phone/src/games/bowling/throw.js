@@ -1,7 +1,7 @@
 const G = 9.81;
 const POWER_NOISE = 2.5;
 const POWER_FULL = 28;
-const MAX_CURVE_M = 1.2;
+const MAX_CURVE_M = 1.3;
 
 function num(value) {
   return Number.isFinite(value) ? value : 0;
