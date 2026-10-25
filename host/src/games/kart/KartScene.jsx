@@ -2,12 +2,15 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { HALF, poseAt } from './track.js';
 import { viewports } from './layout.js';
+import { driftView } from './race.js';
 
 const CAM_DIST = 6.8;
 const CAM_HEIGHT = 2.95;
 const LOOK_AHEAD = 6.0;
 const LOOK_Y = 0.7;
 const FOV = 58;
+const PIVOT_Y = 0.42;
+const TRACK_HALF = 0.58;
 
 function ribbon(halfWidth, y, color) {
   const n = 180;
@@ -38,70 +41,81 @@ function ribbon(halfWidth, y, color) {
 
 function makeRacer(character) {
   const group = new THREE.Group();
+  const body = new THREE.Group();
+  body.position.y = PIVOT_Y;
+  group.add(body);
+
   const bodyMat = new THREE.MeshLambertMaterial({ color: character.body });
   const accentMat = new THREE.MeshLambertMaterial({ color: character.hat });
   const skinMat = new THREE.MeshLambertMaterial({ color: character.skin });
   const darkMat = new THREE.MeshLambertMaterial({ color: 0x1c1c22 });
   const metalMat = new THREE.MeshLambertMaterial({ color: 0x8a919c });
 
-  const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.32, 1.85), bodyMat);
-  chassis.position.y = 0.42;
-  chassis.castShadow = true;
-  group.add(chassis);
+  function add(mesh, x, y, z) {
+    mesh.position.set(x, y - PIVOT_Y, z);
+    mesh.castShadow = true;
+    body.add(mesh);
+    return mesh;
+  }
 
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.22, 0.55), bodyMat);
-  nose.position.set(0, 0.4, 0.95);
-  nose.castShadow = true;
-  group.add(nose);
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.32, 1.85), bodyMat), 0, 0.42, 0);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.22, 0.55), bodyMat), 0, 0.4, 0.95);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.28, 0.55), darkMat), 0, 0.62, -0.15);
 
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.28, 0.55), darkMat);
-  seat.position.set(0, 0.62, -0.15);
-  group.add(seat);
-
-  const spoilerPostL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), metalMat);
-  spoilerPostL.position.set(-0.35, 0.72, -0.85);
-  group.add(spoilerPostL);
+  const spoilerPostL = add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), metalMat), -0.35, 0.72, -0.85);
   const spoilerPostR = spoilerPostL.clone();
   spoilerPostR.position.x = 0.35;
-  group.add(spoilerPostR);
-  const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.08, 0.28), accentMat);
-  spoiler.position.set(0, 0.92, -0.88);
-  spoiler.castShadow = true;
-  group.add(spoiler);
+  body.add(spoilerPostR);
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.08, 0.28), accentMat), 0, 0.92, -0.88);
 
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.42, 0.38), accentMat);
-  torso.position.set(0, 0.95, -0.05);
-  torso.castShadow = true;
-  group.add(torso);
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), skinMat);
-  head.position.set(0, 1.28, -0.02);
-  head.castShadow = true;
-  group.add(head);
-
-  const hat = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-    accentMat,
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.42, 0.38), accentMat), 0, 0.95, -0.05);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), skinMat), 0, 1.28, -0.02);
+  add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+      accentMat,
+    ),
+    0,
+    1.38,
+    -0.02,
   );
-  hat.position.set(0, 1.38, -0.02);
-  group.add(hat);
-  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.05, 16), accentMat);
-  brim.position.set(0, 1.36, -0.02);
-  group.add(brim);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.05, 16), accentMat), 0, 1.36, -0.02);
 
   const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.26, 14);
   for (const [wx, wz] of [[-0.58, 0.62], [0.58, 0.62], [-0.58, -0.62], [0.58, -0.62]]) {
     const wheel = new THREE.Mesh(wheelGeo, darkMat);
     wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(wx, 0.3, wz);
-    wheel.castShadow = true;
-    group.add(wheel);
+    add(wheel, wx, 0.3, wz);
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.28, 10), metalMat);
     hub.rotation.z = Math.PI / 2;
-    hub.position.set(wx, 0.3, wz);
-    group.add(hub);
+    add(hub, wx, 0.3, wz);
   }
 
+  const sparks = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 8, 6),
+    new THREE.MeshLambertMaterial({
+      color: 0x9ecbff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    }),
+  );
+  sparks.position.set(0, 0.05, -0.95);
+  body.add(sparks);
+
+  const glow = new THREE.Mesh(
+    new THREE.ConeGeometry(0.22, 0.55, 10),
+    new THREE.MeshLambertMaterial({ color: 0xffb15a }),
+  );
+  glow.rotation.x = Math.PI / 2;
+  glow.position.set(0, 0.05, -1.15);
+  glow.visible = false;
+  glow.castShadow = false;
+  body.add(glow);
+
+  group.userData.body = body;
+  group.userData.sparks = sparks;
+  group.userData.glow = glow;
   return group;
 }
 
@@ -177,9 +191,9 @@ function addTrack(scene) {
   addScenery(scene);
 }
 
-function placeCamera(camera, kart) {
-  const backX = Math.sin(kart.heading);
-  const backZ = Math.cos(kart.heading);
+function placeCamera(camera, kart, travel) {
+  const backX = Math.sin(travel);
+  const backZ = Math.cos(travel);
   camera.position.set(
     kart.x - backX * CAM_DIST,
     CAM_HEIGHT,
@@ -190,6 +204,22 @@ function placeCamera(camera, kart) {
     LOOK_Y,
     kart.z + backZ * LOOK_AHEAD,
   );
+  camera.up.set(0, 1, 0);
+  camera.fov = FOV;
+}
+
+function placeRacer(mesh, kart) {
+  const view = driftView(kart);
+  const body = mesh.userData.body;
+  const sparks = mesh.userData.sparks;
+  const glow = mesh.userData.glow;
+  mesh.position.set(kart.x, 0, kart.z);
+  mesh.rotation.set(0, view.facing, 0);
+  body.position.y = PIVOT_Y + Math.abs(view.roll) * TRACK_HALF;
+  body.rotation.set(0, 0, view.roll);
+  sparks.material.opacity = view.charge;
+  sparks.material.color.set(view.charged ? 0xff8a2a : 0x9ecbff);
+  glow.visible = view.phase === 'boosting';
 }
 
 export default function KartScene({ raceRef }) {
@@ -250,8 +280,7 @@ export default function KartScene({ raceRef }) {
       race.karts.forEach((kart, i) => {
         const mesh = racers[i];
         if (!mesh) return;
-        mesh.position.set(kart.x, 0, kart.z);
-        mesh.rotation.y = kart.heading;
+        placeRacer(mesh, kart);
       });
 
       const w = wrap.clientWidth || 1;
@@ -262,7 +291,7 @@ export default function KartScene({ raceRef }) {
         renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
         renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
         camera.aspect = rect.w / Math.max(rect.h, 1);
-        placeCamera(camera, kart);
+        placeCamera(camera, kart, driftView(kart).travel);
         camera.updateProjectionMatrix();
         renderer.render(scene, camera);
       });
