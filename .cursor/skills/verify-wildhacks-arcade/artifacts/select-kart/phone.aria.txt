@@ -1,0 +1,14 @@
+BODY TEXT:
+Mario
+
+Get ready
+
+P1
+
+Lap 1 / 3
+
+Use item
+3
+
+ROLES:
+        button: Use item

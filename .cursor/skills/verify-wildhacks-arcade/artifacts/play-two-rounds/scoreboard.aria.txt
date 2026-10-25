@@ -1,4 +1,20 @@
-# play-two-rounds session 7bcb97 host after both players finished two frames
-# roll cells are not in the accessibility tree; see scoreboard.json
-- role: button
-  name: ← Games
+BODY TEXT:
+← Games
+SCORES
+Verify Player
+5
+0
+5
+5
+0
+10
+Second Player
+5
+0
+5
+5
+0
+10
+
+ROLES:
+        button: ← Games

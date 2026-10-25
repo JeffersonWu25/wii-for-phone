@@ -1,7 +1,6 @@
-# host-leaves after relay PID was killed and the host was reopened
-- role: button
-  name: Reconnect
-- role: heading
-  name: Lost Connection
-  level: 1
-- name: Could not reach the relay server.
+BODY TEXT:
+Lost Connection
+
+Could not reach the relay server.
+
+Reconnect

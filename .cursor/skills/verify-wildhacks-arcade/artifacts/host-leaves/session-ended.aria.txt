@@ -1,5 +1,4 @@
-# host-leaves phone after host tab closed
-- role: heading
-  name: Session Ended
-  level: 1
-- name: Host disconnected.
+BODY TEXT:
+Session Ended
+
+Host disconnected.

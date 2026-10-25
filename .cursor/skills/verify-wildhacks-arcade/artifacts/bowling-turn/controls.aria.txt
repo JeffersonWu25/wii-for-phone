@@ -1,0 +1,29 @@
+BODY TEXT:
+MOVE
+AIM
+◀
+▶
+LEVEL
+Speed
+100%
+Tilt
+1.00×
+Curve
+2.00×
+Max Curve
+0.45 m
+
+Hold and swing to bowl!
+
+BOWL
+
+ROLES:
+        button: MOVE
+        button: AIM
+          button: ◀
+          button: ▶
+          input: 
+          input: 
+          input: 
+          input: 
+      button: BOWL

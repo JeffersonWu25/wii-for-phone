@@ -1,6 +1,6 @@
 ---
 name: verify-wildhacks-arcade
-description: Drive the WildHacks Arcade host and phone web apps (on-screen title Wii Playground) against a local relay to prove lobby join, game selection, bowling controls, a simulated bowl, two frames with two players, disconnect, and session end. Use when verifying UI behavior, after changes to host, phone, or relay, or when asked to prove a user-facing flow.
+description: Drive the WildHacks Arcade host and phone web apps (on-screen title Wii Playground) against a local relay to prove lobby join, game selection (bowling and Mario Kart), bowling controls, a simulated bowl, two frames with two players, disconnect, and session end. Use when verifying UI behavior, after changes to host, phone, or relay, or when asked to prove a user-facing flow.
 ---
 
 # Verify WildHacks Arcade
@@ -54,9 +54,9 @@ Tab discipline:
 
 Stable handles are accessible names and the ids in the feature files. Snapshot first, then click or fill the `ref` whose name matches. `browser_snapshot` `selector` can scope to an id such as `#btn-join`.
 
-The desktop browser used here does not implement `DeviceMotionEvent.requestPermission`, so the phone opens on the name screen (`#screen-name`, heading `Wii Playground`, button `Join Game`). If a screen titled with button `Enable Motion Sensors` appears instead, stop and report that entry point unreachable. Do not treat the name screen as proof of the permission screen.
+On browsers without `DeviceMotionEvent.requestPermission`, the phone opens on the name screen (`#screen-name`, heading `Wii Playground`, button `Join Game`). Some Chromium builds expose `requestPermission` and show `Enable Motion Sensors` (`#btn-permission`) first. If a click cannot produce `granted` (common in headless Chromium, where the API returns `prompt`), remove or replace `DeviceMotionEvent.requestPermission` before load so the name screen opens, then continue the name-join path. Do not treat that stub as proof of the iOS permission screen. Prove `join-permission` only when a real grant path is available; otherwise report it `verified-unreachable` with that prerequisite.
 
-Dev StrictMode opens the host socket twice. The lobby can briefly show `Connecting...` and the relay log can contain an extra `Session ended` line. Read the session id from the lobby text `Session: ` after `Connecting...` is gone. Open the phone on the URL printed under that id. Ignore earlier ids in the log.
+Dev StrictMode opens the host socket twice. The lobby can briefly show a `Connecting` QR placeholder and the relay log can contain an extra `Session ended` line. Read the session id from the lobby text `Session: ` after that placeholder is gone. Open the phone on the URL printed under that id. Ignore earlier ids in the log.
 
 Names are trimmed. The input `maxlength` is 16. An empty name does not send `join`. A duplicate name among connected players returns the phone to the name screen with `That name is already taken. Choose another.`
 

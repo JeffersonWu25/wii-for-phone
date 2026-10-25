@@ -1,0 +1,8 @@
+BODY TEXT:
+← Games
+SCORES
+Verify Player
+7
+
+ROLES:
+        button: ← Games
