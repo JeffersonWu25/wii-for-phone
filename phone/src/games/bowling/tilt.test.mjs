@@ -32,7 +32,7 @@ test('a hard mid-swing bank that settles level before release is a straight ball
   const releaseLean = sensor.read(1).lean;
   assert.ok(Math.abs(releaseLean) < 1e-6, `release lean ${releaseLean}`);
   assert.deepEqual(
-    tiltForThrow({ pressLean: 0, releaseLean }),
+    tiltForThrow({ pressLean: 0, releaseLean, maxCurve: 0.45 }),
     { angle: 0, hookM: 0 },
   );
 });
