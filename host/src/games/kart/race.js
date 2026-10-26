@@ -1,5 +1,8 @@
 import { characterFor } from './characters.js';
+import { attachItems, activateItem, controlOf, effectView, presentation, stepItems } from './items.js';
 import { HALF, poseAt, sampleTrack } from './track.js';
+
+export { effectView };
 
 export const LAPS = 3;
 export const CHECKPOINTS = 8;
@@ -96,10 +99,12 @@ function rollOf(slip, charge) {
   return clamp(roll, -ROLL_CLAMP, ROLL_CLAMP);
 }
 
-function speedCap(phase, scales) {
+function speedCap(phase, scales, speedMul = 1) {
   const base = MAX_SPEED * scales.speed;
-  if (phase.phase !== 'boosting') return base;
-  return base + BOOST_GAP * scales.speed * scales.boost;
+  const driftCap = phase.phase === 'boosting'
+    ? base + BOOST_GAP * scales.speed * scales.boost
+    : base;
+  return Math.max(driftCap, base * speedMul);
 }
 
 function easeSlip(slip, target, dt) {
@@ -216,7 +221,7 @@ export function gridPose(index) {
   };
 }
 
-export function createRace(players, now) {
+export function createRace(players, now, rng = Math.random) {
   const karts = players.map((player, index) => {
     const pose = gridPose(index);
     const sample = sampleTrack(pose.x, pose.z);
@@ -245,9 +250,11 @@ export function createRace(players, now) {
       coins: 0,
       itemPrimary: null,
       itemSecondary: null,
+      modifiers: {},
+      speedMul: 1,
     };
   });
-  return {
+  const race = {
     phase: 'countdown',
     countdown: 3,
     startedAt: null,
@@ -262,7 +269,10 @@ export function createRace(players, now) {
     _sentFinish: false,
     _createdAt: now,
     tuning: { ...DEFAULT_TUNING },
+    rng,
   };
+  attachItems(race);
+  return race;
 }
 
 export function setTuning(race, partial) {
@@ -278,8 +288,8 @@ export function setTuning(race, partial) {
 export function applyUseItem(race, msg) {
   if (race.phase !== 'racing') return;
   const kart = race.karts.find((k) => k.playerId === msg.playerId);
-  if (!kart || kart.finished) return;
-  kart.itemPresses += 1;
+  if (!kart || kart.finished || !kart.itemPrimary) return;
+  activateItem(race, kart);
 }
 
 export function applyDrive(race, msg, now) {
@@ -373,10 +383,26 @@ function separate(karts) {
 
 function stepKart(kart, input, dt, tuning) {
   const scales = tuningScales(tuning);
+  const ctrl = controlOf(kart);
+  if (ctrl.locked) {
+    // Once per spin. The lock lasts many ticks, and repeating the scale would stop the kart.
+    if (!kart.spinScaleApplied) {
+      kart.speed *= ctrl.spinSpeedScale;
+      kart.spinScaleApplied = true;
+    }
+    kart.speed = Math.max(0, kart.speed - COAST * dt);
+    kart.facing += ctrl.yawRate * dt;
+    const travel = travelOf(kart.facing, kart.driftPhase?.slip || 0);
+    kart.x += Math.sin(travel) * kart.speed * dt;
+    kart.z += Math.cos(travel) * kart.speed * dt;
+    return;
+  }
+  kart.spinScaleApplied = false;
+
   const oldPhase = kart.driftPhase || IDLE_PHASE;
   const stepped = stepDrift(oldPhase, input, kart.speed, dt, scales);
 
-  const preCap = speedCap(oldPhase, scales);
+  const preCap = speedCap(oldPhase, scales, ctrl.speedMul);
   const target = input.gas ? preCap : 0;
   if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * scales.speed * dt);
   else kart.speed = Math.max(target, kart.speed - COAST * dt);
@@ -391,7 +417,7 @@ function stepKart(kart, input, dt, tuning) {
 
   kart.driftPhase = stepped.phase;
   if (stepped.boostKick > 0) {
-    const cap = speedCap(kart.driftPhase, scales);
+    const cap = speedCap(kart.driftPhase, scales, ctrl.speedMul);
     kart.speed = Math.min(cap, kart.speed + stepped.boostKick);
   }
 
@@ -440,7 +466,10 @@ function viewportOrderedPlayers(race) {
       lap: lapNumber(kart),
       coins: clamp(kart.coins | 0, 0, 10),
       itemPrimary: kart.itemPrimary ?? null,
-      itemSecondary: kart.itemSecondary ?? null,
+      itemSecondary: null,
+      itemLabel: presentation(kart.itemPrimary)?.label ?? null,
+      itemColor: presentation(kart.itemPrimary)?.color ?? null,
+      effect: effectView(kart),
       x: kart.x,
       z: kart.z,
       progress: kart.progress,
@@ -502,6 +531,7 @@ export function stepRace(race, dt, now) {
     kart.progress = sample.progress;
     if (kart.finished && race.firstFinishAt == null) race.firstFinishAt = now;
   }
+  stepItems(race, step, KART_RADIUS);
   separate(race.karts);
 
   const allDone = race.karts.every((k) => k.finished);
