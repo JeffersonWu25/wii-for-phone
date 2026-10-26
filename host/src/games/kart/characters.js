@@ -31,7 +31,3 @@ export function playableCharacters() {
 }
 
 playableCharacters();
-
-export function characterFor(index) {
-  return CHARACTERS[index % CHARACTERS.length];
-}
