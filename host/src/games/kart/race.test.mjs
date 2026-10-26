@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERIM, followTrack, poseAt, sampleTrack } from './track.js';
+import { PERIM, followTrack, poseAt, sampleTrack, trackVisuals } from './track.js';
 import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
@@ -172,6 +172,7 @@ function placeOnStraight(kart, metersAhead) {
   kart.z = pose.z;
   kart.facing = pose.heading;
   kart.progress = metersAhead / PERIM;
+  kart.surface = sampleTrack(pose.x, pose.z, kart.progress).surface;
   return pose;
 }
 
@@ -191,16 +192,17 @@ test('perimeter is a closed loop longer than the straights', () => {
   assert.ok(PERIM > 150);
 });
 
-test('a late driver holding the gas finishes a lap inside the walls', () => {
+test('a late driver holding the gas finishes a lap', () => {
   const race = createRace([{ playerId: 'p1', name: 'Ada' }], 0);
   const kart = race.karts[0];
   race.phase = 'racing';
+  const grass = trackVisuals().grassRadius;
   const hist = [];
-  let off = 0;
+  let farthest = 0;
   let steps = 0;
   const dt = 1 / 60;
   for (let t = 0; t < 20; t += dt) {
-    const sample = sampleTrack(kart.x, kart.z);
+    const sample = sampleTrack(kart.x, kart.z, kart.progress);
     const aim = poseAt(sample.progress + 0.045);
     const desired = Math.atan2(aim.x - kart.x, aim.z - kart.z);
     let err = desired - kart.facing;
@@ -211,13 +213,13 @@ test('a late driver holding the gas finishes a lap inside the walls', () => {
     const delayed = hist[Math.max(0, hist.length - 10)];
     applyDrive(race, { playerId: 'p1', steer: delayed, gas: true, drift: false, seq: steps + 1 }, t * 1000);
     stepRace(race, dt, t * 1000);
-    const live = sampleTrack(kart.x, kart.z);
-    if (typeof live.halfWidth === 'number' && Math.abs(live.lateral) > live.halfWidth * 1.15) off += 1;
+    farthest = Math.max(farthest, Math.hypot(kart.x, kart.z));
     steps += 1;
     if (kart.completedLaps >= 1) break;
   }
   assert.equal(kart.completedLaps >= 1, true);
-  assert.ok(off / steps < 0.08, `off track ${(off / steps).toFixed(3)}`);
+  assert.ok(farthest <= grass + 1e-6, `left the course at ${farthest.toFixed(2)}`);
+  assert.ok(steps > 30, `finished too fast in ${steps} steps`);
 });
 
 test('speed tuning lowers the top speed a gas-holding kart reaches', () => {

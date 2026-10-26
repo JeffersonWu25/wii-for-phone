@@ -1,11 +1,11 @@
 import { characterFor } from './characters.js';
-import { gridPose, sampleTrack } from './track.js';
+import { PERIM, PROGRESS_CONTINUITY, followTrack, gridPose, sampleTrack } from './track.js';
 
 export const LAPS = 3;
 export const CHECKPOINTS = 8;
 export const STALE_MS = 400;
 export const FINISH_GRACE_MS = 20000;
-const GATE_WINDOW = 0.15;
+const GATE_WINDOW = PROGRESS_CONTINUITY + 0.05;
 
 const ACCEL = 22;
 const COAST = 14;
@@ -41,6 +41,24 @@ export const TUNING_LIMITS = Object.freeze({
   drift: Object.freeze({ min: 0, max: 2, step: 0.05 }),
   boost: Object.freeze({ min: 0, max: 2, step: 0.05 }),
 });
+
+const SURFACE_MUL = Object.freeze({ asphalt: 1, sand: 0.42, grass: 0.3 });
+const DASH_CAP = 40;
+const DASH_TIME = 0.6;
+const MUSHROOM_CAP = 40;
+const MUSHROOM_TIME = 1.35;
+
+const MAX_TUNED_SPEED = Math.max(
+  MAX_SPEED * TUNING_LIMITS.speed.max + BOOST_GAP * TUNING_LIMITS.speed.max * TUNING_LIMITS.boost.max,
+  DASH_CAP * TUNING_LIMITS.speed.max,
+  MUSHROOM_CAP * TUNING_LIMITS.speed.max,
+);
+if (!(PROGRESS_CONTINUITY < 1 / CHECKPOINTS)) {
+  throw new Error('progress budget can skip a checkpoint');
+}
+if (MAX_TUNED_SPEED * 0.05 / PERIM > PROGRESS_CONTINUITY) {
+  throw new Error('tuned step exceeds the progress budget');
+}
 
 const IDLE_PHASE = Object.freeze({ phase: 'idle', slip: 0 });
 
@@ -96,10 +114,24 @@ function rollOf(slip, charge) {
   return clamp(roll, -ROLL_CLAMP, ROLL_CLAMP);
 }
 
-function speedCap(phase, scales) {
-  const base = MAX_SPEED * scales.speed;
-  if (phase.phase !== 'boosting') return base;
-  return base + BOOST_GAP * scales.speed * scales.boost;
+function speedCap(phase, scales, kart) {
+  const asphalt = MAX_SPEED * scales.speed;
+  const turbo = phase?.phase === 'boosting'
+    ? asphalt + BOOST_GAP * scales.speed * scales.boost
+    : 0;
+  const dash = kart?.dashRemaining > 0 ? DASH_CAP * scales.speed : 0;
+  const shroom = kart?.mushroomRemaining > 0 ? MUSHROOM_CAP * scales.speed : 0;
+  const want = Math.max(asphalt, turbo, dash, shroom);
+  const surface = kart?.surface || 'asphalt';
+  // A mushroom is the sand-cut button, so it ignores surface drag.
+  const mul = kart?.mushroomRemaining > 0 ? 1 : SURFACE_MUL[surface];
+  if (mul == null) throw new Error(`unknown surface ${surface}`);
+  return want * mul;
+}
+
+function raiseToCap(kart, scales) {
+  const cap = speedCap(kart.driftPhase || IDLE_PHASE, scales, kart);
+  if (kart.speed < cap) kart.speed = cap;
 }
 
 function easeSlip(slip, target, dt) {
@@ -136,9 +168,11 @@ export function driftView(kart) {
 
 function clearDriftPose(kart) {
   kart.driftPhase = IDLE_PHASE;
+  kart.dashRemaining = 0;
+  kart.mushroomRemaining = 0;
 }
 
-function stepDrift(phase, input, speed, dt, scales) {
+function stepDrift(phase, input, speed, dt, scales, kart) {
   const qualifies = qualifying(input, speed);
   const slipAim = slipTarget(input, scales);
   let slip = easeSlip(phase.slip || 0, slipAim, dt);
@@ -188,9 +222,9 @@ function stepDrift(phase, input, speed, dt, scales) {
       next = idlePhase(slip);
       return { phase: next, yawScale: 1, boostKick: 0 };
     }
-    const preCap = speedCap(phase, scales);
+    const preCap = speedCap(phase, scales, kart);
     const post = boostingPhase(Math.max(0, window - dt), slip);
-    const postCap = speedCap(post, scales);
+    const postCap = speedCap(post, scales, kart);
     boostKick = Math.max(0, postCap - preCap);
     if (post.remaining > 0) next = post;
     else next = idlePhase(slip);
@@ -226,6 +260,9 @@ export function createRace(players, now) {
       finished: false,
       finishTimeMs: null,
       progress: sample.progress,
+      surface: sample.surface,
+      dashRemaining: 0,
+      mushroomRemaining: 0,
       driftPhase: IDLE_PHASE,
       itemPresses: 0,
       coins: 0,
@@ -266,6 +303,8 @@ export function applyUseItem(race, msg) {
   const kart = race.karts.find((k) => k.playerId === msg.playerId);
   if (!kart || kart.finished) return;
   kart.itemPresses += 1;
+  kart.mushroomRemaining = MUSHROOM_TIME;
+  raiseToCap(kart, tuningScales(race.tuning));
 }
 
 export function applyDrive(race, msg, now) {
@@ -312,26 +351,11 @@ export function noteProgress(kart, progress, onTrack, timeMs) {
   }
 }
 
-function contain(kart, sample) {
-  const half = sample.halfWidth;
-  if (Math.abs(sample.lateral) <= half) return sample;
-  const overflow = Math.abs(sample.lateral) - half + 0.05;
-  kart.x -= sample.dirX * overflow;
-  kart.z -= sample.dirZ * overflow;
-  const slip = kart.driftPhase?.slip || 0;
-  const travel = travelOf(kart.facing, slip);
-  const headingOut = Math.sin(travel) * sample.dirX + Math.cos(travel) * sample.dirZ;
-  const movingOut = headingOut * Math.sign(sample.lateral || 1);
-  if (movingOut > 0.05) {
-    const along = Math.atan2(sample.tx, sample.tz);
-    const flipped = wrapPi(along + Math.PI);
-    const target = Math.abs(wrapPi(flipped - travel)) < Math.abs(wrapPi(along - travel))
-      ? flipped
-      : along;
-    kart.facing += wrapPi(target - travel) * 0.8;
-    kart.speed *= 0.94;
-  }
-  return sampleTrack(kart.x, kart.z, kart.progress);
+function commitContact(kart, hit) {
+  kart.x = hit.x;
+  kart.z = hit.z;
+  kart.surface = hit.surface;
+  if (hit.dashEntered) kart.dashRemaining = Math.max(kart.dashRemaining || 0, DASH_TIME);
 }
 
 function separate(karts) {
@@ -359,11 +383,13 @@ function separate(karts) {
 }
 
 function stepKart(kart, input, dt, tuning) {
+  if (kart.dashRemaining > 0) kart.dashRemaining = Math.max(0, kart.dashRemaining - dt);
+  if (kart.mushroomRemaining > 0) kart.mushroomRemaining = Math.max(0, kart.mushroomRemaining - dt);
   const scales = tuningScales(tuning);
   const oldPhase = kart.driftPhase || IDLE_PHASE;
-  const stepped = stepDrift(oldPhase, input, kart.speed, dt, scales);
+  const stepped = stepDrift(oldPhase, input, kart.speed, dt, scales, kart);
 
-  const preCap = speedCap(oldPhase, scales);
+  const preCap = speedCap(oldPhase, scales, kart);
   const target = input.gas ? preCap : 0;
   if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * scales.speed * dt);
   else kart.speed = Math.max(target, kart.speed - COAST * dt);
@@ -378,7 +404,7 @@ function stepKart(kart, input, dt, tuning) {
 
   kart.driftPhase = stepped.phase;
   if (stepped.boostKick > 0) {
-    const cap = speedCap(kart.driftPhase, scales);
+    const cap = speedCap(kart.driftPhase, scales, kart);
     kart.speed = Math.min(cap, kart.speed + stepped.boostKick);
   }
 
@@ -481,13 +507,20 @@ export function stepRace(race, dt, now) {
       if (kart.driftPhase?.phase !== 'idle' || kart.driftPhase?.slip) clearDriftPose(kart);
       continue;
     }
+    const prevX = kart.x;
+    const prevZ = kart.z;
     stepKart(kart, liveInput(kart, now), step, race.tuning);
-    let sample = sampleTrack(kart.x, kart.z, kart.progress);
-    sample = contain(kart, sample);
-    const half = sample.halfWidth;
-    const onTrack = sample.lateral > -half - 0.8 && sample.lateral < half + 1.6;
-    noteProgress(kart, sample.progress, onTrack, race.timeMs);
-    kart.progress = sample.progress;
+    const hit = followTrack({
+      x0: prevX,
+      z0: prevZ,
+      x1: kart.x,
+      z1: kart.z,
+      seedProgress: kart.progress,
+    });
+    commitContact(kart, hit);
+    if (hit.dashEntered) raiseToCap(kart, tuningScales(race.tuning));
+    noteProgress(kart, hit.progress, true, race.timeMs);
+    kart.progress = hit.progress;
     if (kart.finished && race.firstFinishAt == null) race.firstFinishAt = now;
   }
   separate(race.karts);
