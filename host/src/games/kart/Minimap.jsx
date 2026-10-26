@@ -1,5 +1,3 @@
-import { trackVisuals } from './track.js';
-
 const PAD = 8;
 
 function fit(points) {
@@ -43,8 +41,11 @@ function stripQuads(poly) {
   return quads;
 }
 
-function courseMap() {
-  const vis = trackVisuals();
+function courseMap(track) {
+  if (!track || typeof track.trackVisuals !== 'function') {
+    throw new Error('Minimap requires a track with trackVisuals()');
+  }
+  const vis = track.trackVisuals();
   const pts = [];
   for (const p of vis.edges.outer) pts.push([p.x, p.z]);
   for (const p of vis.edges.inner) pts.push([p.x, p.z]);
@@ -64,25 +65,24 @@ function courseMap() {
   return { road, sand, dashes, stripe, project };
 }
 
-const MAP = courseMap();
-
-export default function Minimap({ players, track: _track }) {
+export default function Minimap({ players, track }) {
+  const map = courseMap(track);
   const markers = (players || []).map((player) => {
-    const [cx, cy] = MAP.project(player.x, player.z);
+    const [cx, cy] = map.project(player.x, player.z);
     return { ...player, cx, cy };
   });
 
   return (
     <div className="kart-minimap" aria-hidden="true">
       <svg viewBox="0 0 100 100" className="kart-minimap-svg">
-        {MAP.sand.map((d, i) => (
+        {map.sand.map((d, i) => (
           <path key={`sand-${i}`} d={d} fill="rgba(210,180,130,0.72)" stroke="none" />
         ))}
-        <path d={MAP.road} fill="rgba(255,255,255,0.82)" stroke="rgba(255,255,255,0.95)" strokeWidth="0.6" />
-        {MAP.dashes.map((d, i) => (
+        <path d={map.road} fill="rgba(255,255,255,0.82)" stroke="rgba(255,255,255,0.95)" strokeWidth="0.6" />
+        {map.dashes.map((d, i) => (
           <path key={`dash-${i}`} d={d} fill="rgba(242,122,18,0.95)" stroke="none" />
         ))}
-        <path d={MAP.stripe} fill="none" stroke="#111" strokeWidth="1.1" />
+        <path d={map.stripe} fill="none" stroke="#111" strokeWidth="1.1" />
         {markers.map((m) => (
           <g key={m.playerId} transform={`translate(${m.cx}, ${m.cy})`}>
             <circle r="3.6" fill="rgba(0,0,0,0.35)" />

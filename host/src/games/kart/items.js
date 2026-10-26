@@ -1,6 +1,3 @@
-import { HALF, poseAt, sampleTrack } from './track.js';
-
-const BOX_T = Object.freeze([0.08, 0.22, 0.38, 0.55, 0.72, 0.88]);
 const BOX_COOLDOWN = 3;
 const BOX_RADIUS = 1.7;
 const HIT_RADIUS = 1.25;
@@ -182,8 +179,13 @@ export function attachItems(race) {
   race.entities = [];
   race._nextEntityId = 1;
   race._touchPairs = new Set();
-  for (const t of BOX_T) {
-    const pose = poseAt(t);
+  const track = race.track;
+  const boxes = track.itemBoxProgress;
+  if (!Array.isArray(boxes) || boxes.length === 0) {
+    throw new Error('track.itemBoxProgress required');
+  }
+  for (const t of boxes) {
+    const pose = track.poseAt(t);
     spawn(race, {
       kind: 'box',
       x: pose.x,
@@ -257,7 +259,10 @@ export function stepItems(race, dt, kartRadius) {
     if (guide !== 'straight') throw new Error(`not implemented: guide ${guide}`);
     entity.x += entity.vx * dt;
     entity.z += entity.vz * dt;
-    if (Math.abs(sampleTrack(entity.x, entity.z).lateral) > HALF) retired.add(entity.id);
+    const track = race.track;
+    if (Math.abs(track.sampleTrack(entity.x, entity.z).lateral) > track.HALF) {
+      retired.add(entity.id);
+    }
   }
 
   collide(race, kartRadius, retired);

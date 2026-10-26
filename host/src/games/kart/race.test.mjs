@@ -30,7 +30,7 @@ function raceWith(players, now = 0) {
   );
 }
 
-const BOX_T = [0.08, 0.22, 0.38, 0.55, 0.72, 0.88];
+const BOX_T = luigi.itemBoxProgress;
 const MUSHROOM_CAP = 32 * 1.45;
 const STAR_CAP = 32 * 1.55;
 

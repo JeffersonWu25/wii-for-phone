@@ -87,6 +87,8 @@ const COURSE = compile(LUIGI_PLAN);
 export const PERIM = COURSE.perim;
 /** Start-straight asphalt half-width. Items and older contain paths still read this. */
 export const HALF = poseAtS(0).half;
+/** Progress fractions where item boxes sit on this track's centerline. */
+export const itemBoxProgress = Object.freeze([0.08, 0.22, 0.38, 0.55, 0.72, 0.88]);
 
 export function poseAt(t) {
   const hit = poseAtS(wrap01(t) * PERIM);
