@@ -43,14 +43,20 @@ const KNOB_COPY = {
   },
 };
 
-function ItemSlots({ primary, secondary }) {
+function ItemSlots({ primary, secondary, color, effect }) {
+  const fx = effect ? ` kart-fx-${effect}` : '';
   return (
-    <div className="kart-items">
+    <div className={`kart-items${fx}`}>
       <div className={`kart-item kart-item-secondary${secondary ? ' is-filled' : ''}`}>
         {secondary ? <span className={`kart-item-icon item-${secondary}`} /> : null}
       </div>
       <div className={`kart-item kart-item-primary${primary ? ' is-filled' : ''}`}>
-        {primary ? <span className={`kart-item-icon item-${primary}`} /> : null}
+        {primary ? (
+          <span
+            className={`kart-item-icon item-${primary}`}
+            style={color ? { '--item': color } : undefined}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -136,7 +142,12 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
       <div className="kart-hud">
         {view?.players.map((player, i) => (
           <div key={player.playerId} className="kart-pane" style={panes[i].css}>
-            <ItemSlots primary={player.itemPrimary} secondary={player.itemSecondary} />
+            <ItemSlots
+              primary={player.itemPrimary}
+              secondary={player.itemSecondary}
+              color={player.itemColor}
+              effect={player.effect}
+            />
             <CoinLap coins={player.coins} lap={player.lap} lapsTotal={lapsTotal} />
             <PlaceBadge place={player.place} placeText={player.placeText} />
           </div>

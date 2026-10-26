@@ -140,6 +140,10 @@ export function mount(app, sendMsg, myPlayerId) {
         placeEl.textContent = `P${me.place}`;
         lapEl.textContent = `Lap ${me.lap} / ${msg.lapsTotal}`;
         if (msg.phase === 'racing') subEl.textContent = me.name;
+        itemEl.textContent = me.itemLabel || 'Use item';
+        itemEl.classList.toggle('is-armed', me.itemPrimary != null);
+        itemEl.classList.toggle('is-spinning', me.effect === 'spin');
+        itemEl.classList.toggle('is-star', me.effect === 'star');
       } else if (msg.type === 'race_finished') {
         const row = msg.results?.find((player) => player.playerId === myPlayerId);
         showBanner(row ? `P${row.place}` : 'Finish');
