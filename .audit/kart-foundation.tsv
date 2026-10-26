@@ -19,3 +19,4 @@ ts	phase	decision	why	evidence	result
 2026-10-26T21:06:06Z	chars	clamp host knobs only so weight-class ratios survive high host speed	reviewer flagged TUNING_LIMITS crushing Bowser vs Toad at host 1.55	characters.test.mjs hot host case	VERIFIED
 2026-10-26T21:06:06Z	harness	ban race.js from importing ./track.js and require Luigi plan file	reviewer flagged harness gap	foundation-check.mjs	VERIFIED
 2026-10-26T21:06:06Z	items	green shell motion test proves GUIDES path	reviewer wanted evidence beyond mushroom	items.test.mjs	VERIFIED
+2026-10-26T21:07:06Z	design	late arena candidate-1 arrived after ship; no further graft	createTrack plan file stats clamp and GUIDES already landed; registerItem and course.js split skipped per laziness	/tmp/arena-kart-foundation/candidate-1/design.md	no graft
