@@ -14,6 +14,7 @@ import {
   takeBroadcast,
 } from './race.js';
 import { viewports } from './layout.js';
+import GameSettings from '../../shared/GameSettings.jsx';
 
 const KNOB_COPY = {
   speed: {
@@ -161,41 +162,36 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
         )}
       </div>
       {view?.phase !== 'finished' && (
-        <div className="kart-chrome">
-          <button type="button" className="kart-back" onClick={onAbandon}>Back</button>
-          <button
-            type="button"
-            className="kart-settings-toggle"
-            aria-expanded={settingsOpen}
-            onClick={() => setSettingsOpen((open) => !open)}
-          >
-            Tuning
+        <button type="button" className="btn-abandon" onClick={onAbandon}>← Games</button>
+      )}
+      {view?.phase !== 'finished' && (
+        <GameSettings open={settingsOpen} onToggle={() => setSettingsOpen((open) => !open)}>
+          <form className="game-settings-form" onSubmit={(event) => event.preventDefault()}>
+            {Object.keys(TUNING_LIMITS).map((key) => {
+              const copy = KNOB_COPY[key];
+              if (!copy) throw new Error(`missing tuning label for ${key}`);
+              const limit = TUNING_LIMITS[key];
+              return (
+                <label key={key} title={copy.title}>
+                  {copy.label}
+                  <input
+                    type="range"
+                    min={limit.min}
+                    max={limit.max}
+                    step={limit.step}
+                    value={knobs[key]}
+                    aria-valuetext={copy.aria(knobs[key])}
+                    onChange={(event) => slide(key, event.target.value)}
+                  />
+                  <span>{copy.text(knobs[key])}</span>
+                </label>
+              );
+            })}
+          </form>
+          <button type="button" className="game-settings-action" onClick={onAbandon}>
+            Back to games
           </button>
-          {settingsOpen && (
-            <form className="kart-settings" onSubmit={(event) => event.preventDefault()}>
-              {Object.keys(TUNING_LIMITS).map((key) => {
-                const copy = KNOB_COPY[key];
-                if (!copy) throw new Error(`missing tuning label for ${key}`);
-                const limit = TUNING_LIMITS[key];
-                return (
-                  <label key={key} title={copy.title}>
-                    {copy.label}
-                    <input
-                      type="range"
-                      min={limit.min}
-                      max={limit.max}
-                      step={limit.step}
-                      value={knobs[key]}
-                      aria-valuetext={copy.aria(knobs[key])}
-                      onChange={(event) => slide(key, event.target.value)}
-                    />
-                    <span>{copy.text(knobs[key])}</span>
-                  </label>
-                );
-              })}
-            </form>
-          )}
-        </div>
+        </GameSettings>
       )}
     </div>
   );
