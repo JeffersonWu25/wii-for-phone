@@ -45,6 +45,10 @@ export const TUNING_LIMITS = Object.freeze({
   boost: Object.freeze({ min: 0, max: 2, step: 0.05 }),
 });
 
+const SURFACE_MUL = Object.freeze({ asphalt: 1, sand: 0.42, grass: 0.3 });
+const DASH_CAP = 40;
+const DASH_TIME = 0.6;
+
 const IDLE_PHASE = Object.freeze({ phase: 'idle', slip: 0 });
 
 function clamp(v, min, max) {
@@ -99,12 +103,23 @@ function rollOf(slip, charge) {
   return clamp(roll, -ROLL_CLAMP, ROLL_CLAMP);
 }
 
-function speedCap(phase, scales, speedMul = 1) {
+function speedCap(phase, scales, kart) {
   const base = MAX_SPEED * scales.speed;
-  const driftCap = phase.phase === 'boosting'
+  const driftCap = phase?.phase === 'boosting'
     ? base + BOOST_GAP * scales.speed * scales.boost
     : base;
-  return Math.max(driftCap, base * speedMul);
+  const itemMul = Number(kart?.speedMul) > 0 ? kart.speedMul : 1;
+  const dash = kart?.dashRemaining > 0 ? DASH_CAP * scales.speed : 0;
+  const want = Math.max(driftCap, base * itemMul, dash);
+  const surface = kart?.surface || 'asphalt';
+  const mul = itemMul > 1 ? 1 : SURFACE_MUL[surface];
+  if (mul == null) throw new Error(`unknown surface ${surface}`);
+  return want * mul;
+}
+
+function raiseToCap(kart, scales) {
+  const cap = speedCap(kart.driftPhase || IDLE_PHASE, scales, kart);
+  if (kart.speed < cap) kart.speed = cap;
 }
 
 function easeSlip(slip, target, dt) {
@@ -141,6 +156,7 @@ export function driftView(kart) {
 
 function clearDriftPose(kart) {
   kart.driftPhase = IDLE_PHASE;
+  kart.dashRemaining = 0;
 }
 
 function stepDrift(phase, input, speed, dt, scales) {
@@ -193,9 +209,9 @@ function stepDrift(phase, input, speed, dt, scales) {
       next = idlePhase(slip);
       return { phase: next, yawScale: 1, boostKick: 0 };
     }
-    const preCap = speedCap(phase, scales);
+    const preCap = speedCap(phase, scales, null);
     const post = boostingPhase(Math.max(0, window - dt), slip);
-    const postCap = speedCap(post, scales);
+    const postCap = speedCap(post, scales, null);
     boostKick = Math.max(0, postCap - preCap);
     if (post.remaining > 0) next = post;
     else next = idlePhase(slip);
@@ -208,6 +224,7 @@ function stepDrift(phase, input, speed, dt, scales) {
 }
 
 export function gridPose(index, track) {
+  if (typeof track.gridPose === 'function') return track.gridPose(index);
   const row = Math.floor(index / 2);
   const col = index % 2;
   const pose = track.poseAt(1 - 0.012 - row * 0.016);
@@ -259,6 +276,8 @@ export function createRace(players, now, track, rng = Math.random) {
       finished: false,
       finishTimeMs: null,
       progress: sample.progress,
+      surface: sample.surface || 'asphalt',
+      dashRemaining: 0,
       driftPhase: IDLE_PHASE,
       itemPresses: 0,
       coins: 0,
@@ -374,6 +393,13 @@ function contain(kart, sample, track) {
   return track.sampleTrack(kart.x, kart.z);
 }
 
+function commitContact(kart, hit) {
+  kart.x = hit.x;
+  kart.z = hit.z;
+  kart.surface = hit.surface;
+  if (hit.dashEntered) kart.dashRemaining = Math.max(kart.dashRemaining || 0, DASH_TIME);
+}
+
 function separate(karts) {
   const min = KART_RADIUS * 2;
   for (let i = 0; i < karts.length; i++) {
@@ -399,8 +425,10 @@ function separate(karts) {
 }
 
 function stepKart(kart, input, dt, tuning) {
+  if (kart.dashRemaining > 0) kart.dashRemaining = Math.max(0, kart.dashRemaining - dt);
   const scales = tuningScales(tuning);
   const ctrl = controlOf(kart);
+  kart.speedMul = ctrl.speedMul;
   if (ctrl.locked) {
     if (!kart.spinScaleApplied) {
       kart.speed *= ctrl.spinSpeedScale;
@@ -418,7 +446,7 @@ function stepKart(kart, input, dt, tuning) {
   const oldPhase = kart.driftPhase || IDLE_PHASE;
   const stepped = stepDrift(oldPhase, input, kart.speed, dt, scales);
 
-  const preCap = speedCap(oldPhase, scales, ctrl.speedMul);
+  const preCap = speedCap(oldPhase, scales, kart);
   const target = input.gas ? preCap : 0;
   if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * scales.speed * dt);
   else kart.speed = Math.max(target, kart.speed - COAST * dt);
@@ -433,7 +461,7 @@ function stepKart(kart, input, dt, tuning) {
 
   kart.driftPhase = stepped.phase;
   if (stepped.boostKick > 0) {
-    const cap = speedCap(kart.driftPhase, scales, ctrl.speedMul);
+    const cap = speedCap(kart.driftPhase, scales, kart);
     kart.speed = Math.min(cap, kart.speed + stepped.boostKick);
   }
 
@@ -539,13 +567,30 @@ export function stepRace(race, dt, now) {
       if (kart.driftPhase?.phase !== 'idle' || kart.driftPhase?.slip) clearDriftPose(kart);
       continue;
     }
+    const prevX = kart.x;
+    const prevZ = kart.z;
     stepKart(kart, liveInput(kart, now), step, race.tuning);
-    let sample = race.track.sampleTrack(kart.x, kart.z);
-    sample = contain(kart, sample, race.track);
-    const half = race.track.HALF;
-    const onTrack = sample.lateral > -half - 0.8 && sample.lateral < half + 1.6;
-    noteProgress(kart, sample.progress, onTrack, race.timeMs);
-    kart.progress = sample.progress;
+    if (typeof race.track.followTrack === 'function') {
+      const hit = race.track.followTrack({
+        x0: prevX,
+        z0: prevZ,
+        x1: kart.x,
+        z1: kart.z,
+        seedProgress: kart.progress,
+      });
+      commitContact(kart, hit);
+      if (hit.dashEntered) raiseToCap(kart, tuningScales(race.tuning));
+      noteProgress(kart, hit.progress, true, race.timeMs);
+      kart.progress = hit.progress;
+    } else {
+      let sample = race.track.sampleTrack(kart.x, kart.z);
+      sample = contain(kart, sample, race.track);
+      const half = race.track.HALF;
+      const onTrack = sample.lateral > -half - 0.8 && sample.lateral < half + 1.6;
+      noteProgress(kart, sample.progress, onTrack, race.timeMs);
+      kart.progress = sample.progress;
+      if (sample.surface) kart.surface = sample.surface;
+    }
     if (kart.finished && race.firstFinishAt == null) race.firstFinishAt = now;
   }
   stepItems(race, step, KART_RADIUS);

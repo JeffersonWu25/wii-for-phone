@@ -19,11 +19,11 @@ function ready(state, playerId, value) {
   return reduce(state, { type: 'ready', playerId, ready: value });
 }
 
-test('a fresh lobby is the menu on stadium and seats disconnected rows', () => {
+test('a fresh lobby is the menu on Luigi Circuit and seats disconnected rows', () => {
   const state = lobby([ada, bo], ['bo']);
   assert.equal(state.phase, 'menu');
   assert.equal(state.revision, 1);
-  assert.equal(state.trackId, 'stadium');
+  assert.equal(state.trackId, 'luigi-circuit');
   assert.deepEqual(state.seats.ada, { connected: true, characterId: null, ready: false });
   assert.deepEqual(state.seats.bo, { connected: false, characterId: null, ready: false });
 
@@ -36,8 +36,8 @@ test('a fresh lobby is the menu on stadium and seats disconnected rows', () => {
   assert.equal(projected.wire.type, 'kart_lobby');
   assert.equal(projected.wire.revision, 1);
   assert.equal(projected.wire.phase, 'menu');
-  assert.equal(projected.wire.trackId, 'stadium');
-  assert.equal(projected.wire.trackName, 'Stadium Oval');
+  assert.equal(projected.wire.trackId, 'luigi-circuit');
+  assert.equal(projected.wire.trackName, 'Luigi Circuit');
   assert.equal(projected.wire.racers[0].surface, 'splash');
   assert.equal(projected.wire.racers[1].surface, 'splash');
   assert.equal(projected.wire.racers[1].connected, false);
@@ -72,7 +72,7 @@ test('two phones can pick the same character and reach the start gate', () => {
 
   state = reduce(state, characters.view.primary.event);
   assert.equal(state.phase, 'track');
-  assert.equal(state.trackId, 'stadium');
+  assert.equal(state.trackId, 'luigi-circuit');
   const trackView = project(state, [ada, bo]).view;
   assert.equal(trackView.primary.label, 'Continue');
   assert.equal(trackView.primary.enabled, true);
@@ -195,7 +195,7 @@ test('back from the lobby clears ready and keeps the character and the track', (
   state = pick(state, 'ada', 'daisy');
   state = pick(state, 'bo', 'mario');
   state = reduce(state, commands.advance());
-  assert.equal(reduce(state, commands.selectTrack('stadium')), state);
+  assert.equal(reduce(state, commands.selectTrack('luigi-circuit')), state);
   assert.equal(reduce(state, commands.selectTrack('rainbow')), state);
   state = reduce(state, commands.advance());
   state = ready(state, 'ada', true);
@@ -203,7 +203,7 @@ test('back from the lobby clears ready and keeps the character and the track', (
 
   const track = reduce(state, commands.back());
   assert.equal(track.phase, 'track');
-  assert.equal(track.trackId, 'stadium');
+  assert.equal(track.trackId, 'luigi-circuit');
   assert.equal(track.seats.ada.characterId, 'daisy');
   assert.equal(track.seats.bo.characterId, 'mario');
   assert.equal(track.seats.ada.ready, false);
@@ -211,12 +211,12 @@ test('back from the lobby clears ready and keeps the character and the track', (
 
   const characters = reduce(track, commands.back());
   assert.equal(characters.phase, 'characters');
-  assert.equal(characters.trackId, 'stadium');
+  assert.equal(characters.trackId, 'luigi-circuit');
   assert.equal(characters.seats.ada.characterId, 'daisy');
 
   const menu = reduce(characters, commands.back());
   assert.equal(menu.phase, 'menu');
-  assert.equal(menu.trackId, 'stadium');
+  assert.equal(menu.trackId, 'luigi-circuit');
   assert.equal(menu.seats.ada.characterId, 'daisy');
   assert.equal(project(menu, [ada, bo]).wire.racers[0].surface, 'splash');
   assert.equal(reduce(menu, commands.back()), menu);
@@ -282,7 +282,7 @@ test('every event after the start returns the same state', () => {
   const events = [
     commands.advance(),
     commands.back(),
-    commands.selectTrack('stadium'),
+    commands.selectTrack('luigi-circuit'),
     commands.start(),
     commands.rosterSync([{ playerId: 'ada', connected: false }, { playerId: 'bo', connected: true }]),
     { type: 'pick', playerId: 'ada', characterId: 'peach' },

@@ -1,11 +1,11 @@
-import * as stadium from './track.js';
+import * as luigi from './track.js';
 
 export const TRACKS = [
   {
-    id: 'stadium',
-    name: 'Stadium Oval',
-    blurb: 'Two long straights and a wide pair of bends.',
-    track: stadium,
+    id: 'luigi-circuit',
+    name: 'Luigi Circuit',
+    blurb: 'Wide asphalt, sand cuts, and dash panels on the final bank.',
+    track: luigi,
   },
 ];
 

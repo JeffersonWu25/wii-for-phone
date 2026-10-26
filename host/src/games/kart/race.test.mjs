@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HALF, PERIM, poseAt, sampleTrack } from './track.js';
-import * as stadium from './track.js';
+import * as luigi from './track.js';
 import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
@@ -26,7 +26,7 @@ function raceWith(players, now = 0) {
   return createRace(
     players.map((player) => ({ characterId: 'mario', ...player })),
     now,
-    stadium,
+    luigi,
   );
 }
 
@@ -38,7 +38,7 @@ function startRace(players, rng) {
   const race = createRace(
     players.map((player) => ({ characterId: 'mario', ...player })),
     0,
-    stadium,
+    luigi,
     rng,
   );
   race.phase = 'racing';
@@ -46,7 +46,7 @@ function startRace(players, rng) {
   return race;
 }
 
-function park(kart, x, z, facing = 0) {
+function park(kart, x, z, facing = 0, progressHint) {
   kart.x = x;
   kart.z = z;
   kart.facing = facing;
@@ -56,6 +56,35 @@ function park(kart, x, z, facing = 0) {
   kart.gas = false;
   kart.drift = false;
   kart.lastInputAt = 0;
+  const sample = sampleTrack(x, z, progressHint);
+  kart.surface = sample.surface;
+  kart.progress = sample.progress;
+  kart.dashRemaining = 0;
+}
+
+function asphaltPose(t = 0.05) {
+  const pose = poseAt(t);
+  return { x: pose.x, z: pose.z, facing: pose.heading, t };
+}
+
+function parkOnTrack(kart, t = 0.05) {
+  const pose = asphaltPose(t);
+  park(kart, pose.x, pose.z, pose.facing, t);
+}
+
+function parkNear(kart, t, lateral = 0, along = 0, facingOffset = 0) {
+  const pose = poseAt(t);
+  const rx = Math.cos(pose.heading);
+  const rz = -Math.sin(pose.heading);
+  const tx = Math.sin(pose.heading);
+  const tz = Math.cos(pose.heading);
+  park(
+    kart,
+    pose.x + rx * lateral + tx * along,
+    pose.z + rz * lateral + tz * along,
+    pose.heading + facingOffset,
+    t,
+  );
 }
 
 function firstBox(race) {
@@ -79,14 +108,18 @@ test('centerline pose stays on the track and progress matches', () => {
   }
 });
 
-test('a point outside the right straight is past the wall', () => {
-  const sample = sampleTrack(RC_OUT(), 0);
+test('grass beside the start straight is not asphalt', () => {
+  const pose = poseAt(0.05);
+  const rx = Math.cos(pose.heading);
+  const rz = -Math.sin(pose.heading);
+  const sample = sampleTrack(
+    pose.x + rx * (pose.halfWidth + 4),
+    pose.z + rz * (pose.halfWidth + 4),
+    0.05,
+  );
+  assert.equal(sample.surface, 'grass');
   assert.ok(sample.lateral > HALF);
 });
-
-function RC_OUT() {
-  return 16 + HALF + 3;
-}
 
 test('crossing the start line opens checkpoint 1 and does not finish a lap', () => {
   const kart = freshKart();
@@ -135,19 +168,19 @@ test('gas on the straight builds speed without leaving the track', () => {
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -10;
-  kart.facing = 0;
+  parkOnTrack(kart, 0.02);
+  const start = { x: kart.x, z: kart.z };
   let now = 0;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 22; i++) {
     now += 50;
     applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: i + 1 }, now);
     stepRace(race, 0.05, now);
   }
-  const sample = sampleTrack(kart.x, kart.z);
+  const sample = sampleTrack(kart.x, kart.z, kart.progress);
   assert.ok(kart.speed > 20, `speed ${kart.speed}`);
   assert.ok(Math.abs(sample.lateral) < 0.5, `lateral ${sample.lateral}`);
-  assert.ok(kart.z > -10);
+  assert.ok(sample.surface === 'asphalt', sample.surface);
+  assert.ok(Math.hypot(kart.x - start.x, kart.z - start.z) > 2);
 });
 
 test('a drift release adds a boost', () => {
@@ -155,9 +188,7 @@ test('a drift release adds a boost', () => {
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -227,16 +258,15 @@ test('perimeter is a closed loop longer than the straights', () => {
   assert.ok(PERIM > 150);
 });
 
-test('a late driver holding the gas finishes a lap inside the walls', () => {
+test('a late driver holding the gas finishes a lap', () => {
   const race = raceWith([{ playerId: 'p1', name: 'Ada' }]);
   const kart = race.karts[0];
   race.phase = 'racing';
   const hist = [];
-  let off = 0;
   let steps = 0;
   const dt = 1 / 60;
-  for (let t = 0; t < 20; t += dt) {
-    const sample = sampleTrack(kart.x, kart.z);
+  for (let t = 0; t < 30; t += dt) {
+    const sample = sampleTrack(kart.x, kart.z, kart.progress);
     const aim = poseAt(sample.progress + 0.045);
     const desired = Math.atan2(aim.x - kart.x, aim.z - kart.z);
     let err = desired - kart.facing;
@@ -247,12 +277,11 @@ test('a late driver holding the gas finishes a lap inside the walls', () => {
     const delayed = hist[Math.max(0, hist.length - 10)];
     applyDrive(race, { playerId: 'p1', steer: delayed, gas: true, drift: false, seq: steps + 1 }, t * 1000);
     stepRace(race, dt, t * 1000);
-    if (Math.abs(sampleTrack(kart.x, kart.z).lateral) > HALF * 0.98) off += 1;
     steps += 1;
     if (kart.completedLaps >= 1) break;
   }
   assert.equal(kart.completedLaps >= 1, true);
-  assert.ok(off / steps < 0.08, `off track ${(off / steps).toFixed(3)}`);
+  assert.ok(Math.hypot(kart.x, kart.z) < luigi.trackVisuals().grassRadius);
 });
 
 test('speed tuning lowers the top speed a gas-holding kart reaches', () => {
@@ -274,9 +303,7 @@ test('the stick on the rim drifts the kart and releasing it boosts', () => {
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   const rim = stickInput(-120, 0, 120);
   let now = 0;
@@ -389,9 +416,7 @@ test('a short hold does not boost and a long hold does', () => {
   const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 12; i++) {
@@ -421,9 +446,7 @@ test('left drift slips and rolls into the turn', () => {
   const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 8; i++) {
@@ -450,9 +473,7 @@ test('drift scale 0 keeps the nose on the path and scale 2 slips more', () => {
     race.phase = 'racing';
     setTuning(race, { drift: driftScale });
     const kart = race.karts[0];
-    kart.x = 16;
-    kart.z = -18;
-    kart.facing = 0;
+    parkOnTrack(kart, 0.05);
     kart.speed = 20;
     let now = 0;
     for (let i = 0; i < 20; i++) {
@@ -473,9 +494,7 @@ test('a charged release from the unboosted cap kicks to the boost cap', () => {
   const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -483,10 +502,8 @@ test('a charged release from the unboosted cap kicks to the boost cap', () => {
     applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i }, now);
     stepRace(race, 0.05, now);
   }
+  parkOnTrack(kart, 0.05);
   kart.speed = 32;
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
   stepRace(race, 0.05, now);
@@ -509,9 +526,7 @@ test('boost scale doubles the kick and setTuning merges partial keys', () => {
 
   setTuning(race, { boost: 2, drift: 1 });
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -519,9 +534,8 @@ test('boost scale doubles the kick and setTuning merges partial keys', () => {
     applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i }, now);
     stepRace(race, 0.05, now);
   }
+  parkOnTrack(kart, 0.05);
   kart.speed = 32;
-  kart.x = 16;
-  kart.z = -18;
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
   stepRace(race, 0.05, now);
@@ -534,9 +548,7 @@ test('yaw bonus scales as 1 / 1.35 / 1.7 at drift 0 / 1 / 2', () => {
     race.phase = 'racing';
     setTuning(race, { drift: driftScale, turn: 1 });
     const kart = race.karts[0];
-    kart.x = 16;
-    kart.z = -18;
-    kart.facing = 0;
+    parkOnTrack(kart, 0.05);
     kart.speed = 20;
     kart.appliedSteer = 1;
     applyDrive(race, { playerId: 'p1', steer: 1, gas: true, drift: true, seq: 1 }, 0);
@@ -551,35 +563,35 @@ test('yaw bonus scales as 1 / 1.35 / 1.7 at drift 0 / 1 / 2', () => {
   assert.ok(Math.abs(d2 / d0 - 1.7) < 1e-6, `ratio2 ${d2 / d0}`);
 });
 
-test('createRace keeps the chosen characters and the stadium module', () => {
+test('createRace keeps the chosen characters and the luigi module', () => {
   const race = createRace([
     { playerId: 'a', name: 'Ada', characterId: 'peach' },
     { playerId: 'b', name: 'Bo', characterId: 'peach' },
-  ], 0, stadium);
+  ], 0, luigi);
   assert.equal(race.phase, 'countdown');
   assert.equal(race.countdown, 3);
-  assert.equal(race.track, stadium);
-  assert.equal(race.trackId, 'stadium');
+  assert.equal(race.track, luigi);
+  assert.equal(race.trackId, 'luigi-circuit');
   assert.equal(race.karts[0].character.id, 'peach');
   assert.equal(race.karts[1].character.id, 'peach');
   assert.equal(race.karts[0].character.name, 'Peach');
   assert.equal(race.karts[0].seq, -1);
   assert.equal(race.karts[1].character.css, '#f28cb6');
-  const pose = gridPose(0, stadium);
+  const pose = gridPose(0, luigi);
   assert.equal(race.karts[0].x, pose.x);
   assert.equal(race.karts[0].z, pose.z);
   assert.notEqual(race.karts[0].character.id, 'mario');
 
   const daisy = createRace([
     { playerId: 'c', name: 'Cy', characterId: 'daisy' },
-  ], 0, stadium);
+  ], 0, luigi);
   assert.equal(daisy.karts[0].character.id, 'daisy');
   assert.equal(daisy.karts[0].character.css, '#f5a423');
 });
 
 test('createRace rejects a missing character and a track module without the sample contract', () => {
-  assert.throws(() => createRace([{ playerId: 'a', name: 'A' }], 0, stadium));
-  assert.throws(() => createRace([{ playerId: 'a', name: 'A', characterId: 'not-a-racer' }], 0, stadium));
+  assert.throws(() => createRace([{ playerId: 'a', name: 'A' }], 0, luigi));
+  assert.throws(() => createRace([{ playerId: 'a', name: 'A', characterId: 'not-a-racer' }], 0, luigi));
   assert.throws(() => createRace(
     [{ playerId: 'a', name: 'A', characterId: 'peach' }],
     0,
@@ -698,7 +710,7 @@ test('a mushroom raises the speed cap without touching drift and then expires', 
   assert.equal(kart.driftPhase, phase);
   assert.equal(snapshot(race).players[0].effect, 'boost');
 
-  park(kart, 16, -18);
+  parkOnTrack(kart, 0.05);
   kart.speed = 47;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 1 }, 50);
   stepRace(race, 0.05, 100);
@@ -716,6 +728,7 @@ test('a mushroom raises the speed cap without touching drift and then expires', 
   }
   assert.equal(kart.modifiers.speed, undefined);
   assert.equal(snapshot(race).players[0].effect, null);
+  parkOnTrack(kart, 0.05);
   kart.speed = 10;
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 80 }, now);
@@ -726,7 +739,7 @@ test('a mushroom raises the speed cap without touching drift and then expires', 
 test('a mini-turbo still boosts while a mushroom is up and the cap is the greater one', () => {
   const race = startRace([{ playerId: 'p1', name: 'A' }]);
   const kart = race.karts[0];
-  park(kart, 16, -18);
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   hold(race, kart, 'mushroom');
   assert.equal(kart.modifiers.speed, 1.5);
@@ -738,10 +751,8 @@ test('a mini-turbo still boosts while a mushroom is up and the cap is the greate
   }
   assert.equal(driftView(kart).charged, true);
   assert.ok(kart.modifiers.speed > 0);
+  parkOnTrack(kart, 0.05);
   kart.speed = 44;
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
   stepRace(race, 0.05, now);
@@ -758,8 +769,8 @@ test('a banana spins another kart, despawns, and ages out', () => {
   ]);
   const owner = race.karts[0];
   const victim = race.karts[1];
-  park(owner, 16, -16);
-  park(victim, 16, 10);
+  parkNear(owner, 0.05, 0, 0);
+  parkNear(victim, 0.12, 0, 0);
   hold(race, owner, 'banana');
   const peel = race.entities.find((entity) => entity.kind === 'banana');
   assert.ok(peel);
@@ -773,7 +784,7 @@ test('a banana spins another kart, despawns, and ages out', () => {
   assert.equal(owner.modifiers.spin, undefined);
   assert.equal(race.entities.includes(peel), true);
 
-  park(owner, 16, 10);
+  parkNear(owner, 0.12, 0, 0);
   park(victim, peel.x, peel.z);
   stepRace(race, 0.05, 100);
   assert.ok(Math.abs(victim.modifiers.spin - (1 - 0.05)) < 1e-9, `spin ${victim.modifiers.spin}`);
@@ -781,8 +792,8 @@ test('a banana spins another kart, despawns, and ages out', () => {
   assert.equal(snapshot(race).players.find((player) => player.playerId === 'victim').effect, 'spin');
   const phase = { phase: 'boosting', remaining: 0.5, slip: 0.2 };
   victim.driftPhase = phase;
-  park(victim, 16, 8);
-  park(owner, 16, 12);
+  parkNear(victim, 0.1, -1.2, 0);
+  parkNear(owner, 0.1, 1.2, 0);
   stepRace(race, 0.05, 120);
   assert.equal(victim.driftPhase, phase);
   assert.equal(victim.driftPhase.remaining, 0.5);
@@ -796,8 +807,8 @@ test('a banana spins another kart, despawns, and ages out', () => {
   assert.ok(Math.abs(victim.modifiers.spin - (spun - 0.05)) < 1e-9);
   assert.equal(race.entities.includes(second), false);
 
-  park(owner, 16, -16);
-  park(victim, 16, 10);
+  parkNear(owner, 0.05, 0, 0);
+  parkNear(victim, 0.12, 0, 0);
   hold(race, owner, 'banana');
   const aged = race.entities.find((entity) => entity.kind === 'banana');
   let now = 150;
@@ -820,12 +831,12 @@ test('a green shell flies straight, spins on contact, and dies past the wall', (
   ]);
   const owner = race.karts[0];
   const victim = race.karts[1];
-  park(owner, 16, -16);
-  park(victim, 16, 10);
+  parkNear(owner, 0.05, 0, 0);
+  parkNear(victim, 0.12, 0, 0);
   hold(race, owner, 'green_shell');
   const shell = race.entities.find((entity) => entity.kind === 'shell');
   assert.ok(shell);
-  const ahead = (shell.x - 16) * Math.sin(0) + (shell.z - (-16)) * Math.cos(0);
+  const ahead = (shell.x - owner.x) * Math.sin(owner.facing) + (shell.z - owner.z) * Math.cos(owner.facing);
   assert.ok(ahead > 0);
   assert.equal(shell.vx, Math.sin(0) * 48);
   assert.equal(shell.vz, Math.cos(0) * 48);
@@ -839,8 +850,8 @@ test('a green shell flies straight, spins on contact, and dies past the wall', (
   assert.ok(Math.abs(victim.modifiers.spin - (1 - 0.05)) < 1e-9);
   assert.equal(owner.modifiers.spin, undefined);
 
-  park(owner, 16, -16, Math.PI / 2);
-  park(victim, 16, 10);
+  parkNear(owner, 0.05, 0, 0, Math.PI / 2);
+  parkNear(victim, 0.12, 0, 0);
   victim.modifiers = {};
   hold(race, owner, 'green_shell');
   const wall = race.entities.find((entity) => entity.kind === 'shell');
@@ -865,8 +876,8 @@ test('a star blocks spins, rams on a new touch, and then expires', () => {
   ]);
   const star = race.karts[0];
   const victim = race.karts[1];
-  park(star, 16, 10);
-  park(victim, 16, 16);
+  parkNear(star, 0.12, 0, 0);
+  parkNear(victim, 0.16, 0, 0);
   star.modifiers.spin = 0.4;
   hold(race, star, 'star');
   assert.equal(star.modifiers.spin, undefined);
@@ -882,8 +893,8 @@ test('a star blocks spins, rams on a new touch, and then expires', () => {
   assert.ok(star.speed <= STAR_CAP + 1e-6, `speed ${star.speed}`);
 
   function pile() {
-    park(star, 16, -16);
-    park(victim, 17, -16);
+    parkNear(star, 0.05, 0, 0);
+    parkNear(victim, 0.05, 1.0, 0);
   }
   pile();
   stepRace(race, 0.05, 100);
@@ -907,8 +918,8 @@ test('a star blocks spins, rams on a new touch, and then expires', () => {
   now += 50;
   stepRace(race, 0.05, now);
   assert.equal(victim.modifiers.spin, undefined, 'still overlapped after the spin ended');
-  park(star, 16, -16);
-  park(victim, 16, 10);
+  parkNear(star, 0.05, 0, 0);
+  parkNear(victim, 0.12, 0, 0);
   now += 50;
   stepRace(race, 0.05, now);
   pile();
@@ -917,19 +928,19 @@ test('a star blocks spins, rams on a new touch, and then expires', () => {
   assert.ok(Math.abs(victim.modifiers.spin - (1 - 0.05)) < 1e-9, `re-spin ${victim.modifiers.spin}`);
   assert.equal(star.modifiers.spin, undefined);
 
-  park(victim, 16, 10);
+  parkNear(victim, 0.12, 0, 0);
   victim.modifiers = {};
   hold(race, victim, 'banana');
   const peel = race.entities.find((entity) => entity.kind === 'banana');
   park(star, peel.x, peel.z);
-  park(victim, 16, 12);
+  parkNear(victim, 0.12, 1.2, 0);
   now += 50;
   stepRace(race, 0.05, now);
   assert.equal(star.modifiers.spin, undefined);
   assert.equal(race.entities.includes(peel), false);
   assert.ok(star.modifiers.invuln > 0);
 
-  park(star, 16, -16);
+  parkNear(star, 0.05, 0, 0);
   hold(race, victim, 'green_shell');
   const shell = race.entities.find((entity) => entity.kind === 'shell');
   park(star, shell.x, shell.z + shell.vz * 0.05);
@@ -953,13 +964,13 @@ test('a star blocks spins, rams on a new touch, and then expires', () => {
   while (((star.modifiers.speed || 0) > 0.05 || (star.modifiers.invuln || 0) > 0.05) && left < 200) {
     left += 1;
     now += 50;
-    park(star, 16, 8);
-    park(victim, 16, 14);
+    parkNear(star, 0.1, 0, 0);
+    parkNear(victim, 0.14, 0, 0);
     stepRace(race, 0.05, now);
   }
   assert.ok(left < 200, 'star timers did not run out');
-  park(star, 16, 8);
-  park(victim, 16, 14);
+  parkNear(star, 0.1, 0, 0);
+  parkNear(victim, 0.14, 0, 0);
   star.speed = 20;
   now += 50;
   stepRace(race, 0.05, now);
