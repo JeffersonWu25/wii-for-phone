@@ -1,5 +1,5 @@
 import { characterFor } from './characters.js';
-import { HALF, poseAt, sampleTrack } from './track.js';
+import { gridPose, sampleTrack } from './track.js';
 
 export const LAPS = 3;
 export const CHECKPOINTS = 8;
@@ -202,20 +202,6 @@ function stepDrift(phase, input, speed, dt, scales) {
   return { phase: next, yawScale: 1, boostKick: 0 };
 }
 
-export function gridPose(index) {
-  const row = Math.floor(index / 2);
-  const col = index % 2;
-  const pose = poseAt(1 - 0.012 - row * 0.016);
-  const side = (col === 0 ? -1 : 1) * 1.6;
-  const rx = Math.cos(pose.heading);
-  const rz = -Math.sin(pose.heading);
-  return {
-    x: pose.x + rx * side,
-    z: pose.z + rz * side,
-    facing: pose.heading,
-  };
-}
-
 export function createRace(players, now) {
   const karts = players.map((player, index) => {
     const pose = gridPose(index);
@@ -327,8 +313,9 @@ export function noteProgress(kart, progress, onTrack, timeMs) {
 }
 
 function contain(kart, sample) {
-  if (Math.abs(sample.lateral) <= HALF) return sample;
-  const overflow = Math.abs(sample.lateral) - HALF + 0.05;
+  const half = sample.halfWidth;
+  if (Math.abs(sample.lateral) <= half) return sample;
+  const overflow = Math.abs(sample.lateral) - half + 0.05;
   kart.x -= sample.dirX * overflow;
   kart.z -= sample.dirZ * overflow;
   const slip = kart.driftPhase?.slip || 0;
@@ -344,7 +331,7 @@ function contain(kart, sample) {
     kart.facing += wrapPi(target - travel) * 0.8;
     kart.speed *= 0.94;
   }
-  return sampleTrack(kart.x, kart.z);
+  return sampleTrack(kart.x, kart.z, kart.progress);
 }
 
 function separate(karts) {
@@ -495,9 +482,10 @@ export function stepRace(race, dt, now) {
       continue;
     }
     stepKart(kart, liveInput(kart, now), step, race.tuning);
-    let sample = sampleTrack(kart.x, kart.z);
+    let sample = sampleTrack(kart.x, kart.z, kart.progress);
     sample = contain(kart, sample);
-    const onTrack = sample.lateral > -HALF - 0.8 && sample.lateral < HALF + 1.6;
+    const half = sample.halfWidth;
+    const onTrack = sample.lateral > -half - 0.8 && sample.lateral < half + 1.6;
     noteProgress(kart, sample.progress, onTrack, race.timeMs);
     kart.progress = sample.progress;
     if (kart.finished && race.firstFinishAt == null) race.firstFinishAt = now;

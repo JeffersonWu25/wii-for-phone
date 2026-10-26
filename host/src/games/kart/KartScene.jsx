@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { HALF, poseAt } from './track.js';
+import { poseAt } from './track.js';
 import { viewports } from './layout.js';
 import { driftView } from './race.js';
 
@@ -11,6 +11,7 @@ const LOOK_Y = 0.7;
 const FOV = 58;
 const PIVOT_Y = 0.42;
 const TRACK_HALF = 0.58;
+const START_HALF = poseAt(0).halfWidth;
 
 function ribbon(halfWidth, y, color) {
   const n = 180;
@@ -127,7 +128,7 @@ function addScenery(scene) {
     const rx = Math.cos(pose.heading);
     const rz = -Math.sin(pose.heading);
     const side = i % 2 === 0 ? 1 : -1;
-    const dist = HALF + 2.4 + (i % 3) * 0.35;
+    const dist = START_HALF + 2.4 + (i % 3) * 0.35;
     const hedge = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 0.7), hedgeMat);
     hedge.position.set(
       pose.x + rx * side * dist,
@@ -174,13 +175,13 @@ function addTrack(scene) {
   grass.receiveShadow = true;
   scene.add(grass);
 
-  scene.add(ribbon(HALF + 1.15, 0.02, 0xf0ebe0));
-  scene.add(ribbon(HALF + 0.35, 0.04, 0xe4d5b5));
-  scene.add(ribbon(HALF, 0.07, 0xd2b48c));
+  scene.add(ribbon(START_HALF + 1.15, 0.02, 0xf0ebe0));
+  scene.add(ribbon(START_HALF + 0.35, 0.04, 0xe4d5b5));
+  scene.add(ribbon(START_HALF, 0.07, 0xd2b48c));
 
   const start = poseAt(0);
   const checker = new THREE.Mesh(
-    new THREE.BoxGeometry(HALF * 2, 0.06, 1.1),
+    new THREE.BoxGeometry(START_HALF * 2, 0.06, 1.1),
     new THREE.MeshLambertMaterial({ color: 0xf7f7f7 }),
   );
   checker.position.set(start.x, 0.11, start.z);
