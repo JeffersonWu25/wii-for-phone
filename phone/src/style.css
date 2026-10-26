@@ -296,6 +296,16 @@ button:active {
   background: #7c7cff;
 }
 
+#screen-result {
+  width: 100%;
+  cursor: pointer;
+}
+
+.result-dismiss {
+  font-weight: 700;
+  opacity: 1;
+}
+
 .roll-stat {
   margin: 0;
   font-size: 1.15rem;

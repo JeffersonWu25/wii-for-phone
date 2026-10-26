@@ -88,8 +88,6 @@ export default function App() {
 
   if (screen === 'bowling') {
     return (
-      <>
-        {settings}
       <BowlingApp
         wsRef={wsRef}
         send={send}
@@ -97,22 +95,19 @@ export default function App() {
         disconnectedPlayerIds={disconnectedPlayerIds}
         onGameOver={leaveToSelect}
         onAbandon={leaveToSelect}
+        status={status}
       />
-      </>
     );
   }
 
   if (screen === 'kart') {
     return (
-      <>
-        {settings}
       <KartApp
         wsRef={wsRef}
         send={send}
         players={players}
         onAbandon={leaveToSelect}
       />
-      </>
     );
   }
 

@@ -54,6 +54,9 @@ export function rollReadout(parsed) {
     speed: `${Math.round(speedMs * 3.6)} km/h`,
     tilt: Math.abs(deg) < 0.05 ? 'Straight' : `${Math.abs(deg).toFixed(1)}° ${deg > 0 ? 'right' : 'left'}`,
     curve: Math.abs(cm) < 1 ? 'Straight' : `${Math.abs(cm)} cm ${cm > 0 ? 'right' : 'left'}`,
+    speedAmount: Math.min(1, speedMs / MAX_SPEED),
+    tiltAmount: Math.min(1, Math.abs(deg) / MAX_ANGLE_DEG),
+    curveAmount: Math.min(1, Math.abs(parsed.tilt.hookM) / MAX_HOOK_M),
   };
 }
 

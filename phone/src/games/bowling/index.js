@@ -21,6 +21,8 @@ export function mount(app, sendMsg, myPlayerId) {
   let aimAngle = 0;
   let aimMode = 'move';
   let tuning = clampTuning(null);
+  let resultOpen = false;
+  let afterResult = null;
   let pressLean = null;
   const tilt = createTiltSensor();
 
@@ -103,19 +105,40 @@ export function mount(app, sendMsg, myPlayerId) {
     if (frameScore === 'strike') label = 'STRIKE!';
     if (frameScore === 'spare')  label = 'SPARE!';
     const roll = result.roll;
+    resultOpen = true;
     const stats = roll ? `
-        <p class="roll-stat">Speed ${roll.speed}</p>
-        <p class="roll-stat">Angle ${roll.tilt}</p>
-        <p class="roll-stat">Curve ${roll.curve}</p>
+        <p class="roll-stat" style="color:${heatColor(roll.speedAmount)}">Speed ${roll.speed}</p>
+        <p class="roll-stat" style="color:${heatColor(roll.tiltAmount)}">Angle ${roll.tilt}</p>
+        <p class="roll-stat" style="color:${heatColor(roll.curveAmount)}">Curve ${roll.curve}</p>
     ` : '';
     app.innerHTML = `
       <div class="screen" id="screen-result">
         <h1>${label}</h1>
         ${stats}
         <p>Score: ${totalScore}</p>
-        <p id="result-sub">Waiting for your next turn...</p>
+        <p class="result-dismiss">Tap anywhere to dismiss</p>
       </div>
     `;
+    document.getElementById('screen-result').addEventListener('click', dismissResult);
+  }
+
+  function dismissResult() {
+    if (!resultOpen) return;
+    resultOpen = false;
+    const next = afterResult;
+    afterResult = null;
+    if (next) next();
+    else showWaitingScreen('Waiting for your next turn...');
+  }
+
+  function showWhenClear(next) {
+    if (resultOpen) afterResult = next;
+    else next();
+  }
+
+  function heatColor(amount) {
+    const t = Math.max(0, Math.min(1, Number(amount) || 0));
+    return `hsl(${120 - t * 120} 80% 48%)`;
   }
 
   // ── D-pad ───────────────────────────────────────────────────────────────────
@@ -257,11 +280,10 @@ export function mount(app, sendMsg, myPlayerId) {
     onMessage(msg) {
       switch (msg.type) {
         case 'your_turn':
-          if (msg.playerId === myPlayerId) {
-            showBowlScreen();
-          } else {
-            updateWaitingLabel('Waiting for your turn...');
-          }
+          showWhenClear(() => {
+            if (msg.playerId === myPlayerId) showBowlScreen();
+            else showWaitingScreen('Waiting for your turn...');
+          });
           break;
         case 'throw_result':
           if (msg.playerId === myPlayerId) showResultScreen(msg);
