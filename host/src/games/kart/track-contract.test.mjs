@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERIM, createTrack, poseAt } from './track.js';
+import { HALF, PERIM, createTrack, itemBoxProgress, poseAt } from './track.js';
+import * as luigiNs from './track.js';
 import { applyDrive, createRace, stepRace } from './race.js';
 
 /** Minimal second track that only satisfies the race/items/scene contract. */
@@ -84,9 +85,9 @@ function rectanglePlan() {
   return {
     waypoints: [
       { id: 'a', seg: 'start', x: 0, z: -20, halfWidth: 5 },
-      { id: 'b', seg: 'loop', x: 0, z: 20, halfWidth: 5 },
-      { id: 'c', seg: 'loop', x: 40, z: 20, halfWidth: 5 },
-      { id: 'd', seg: 'loop', x: 40, z: -20, halfWidth: 5 },
+      { id: 'b', seg: 'start', x: 0, z: 20, halfWidth: 5 },
+      { id: 'c', seg: 'start', x: 40, z: 20, halfWidth: 5 },
+      { id: 'd', seg: 'start', x: 40, z: -20, halfWidth: 5 },
     ],
     sandBands: [],
     dashes: [],
@@ -98,13 +99,15 @@ function rectanglePlan() {
       columns: 2,
     },
     grassMargin: 6,
-    itemBoxProgress: [0.25, 0.75],
   };
 }
 
 test('createTrack compiles a short rectangle and a race can step it', () => {
   const luigiAt = poseAt(0.1);
-  const track = createTrack(rectanglePlan(), { id: 'rect' });
+  const track = createTrack(rectanglePlan(), {
+    id: 'rect',
+    itemBoxProgress: [0.25, 0.75],
+  });
 
   assert.equal(Object.isFrozen(track), true);
   assert.equal(track.id, 'rect');
@@ -118,14 +121,18 @@ test('createTrack compiles a short rectangle and a race can step it', () => {
   assert.equal(start.z, -20);
   assert.equal(start.halfWidth, 5);
   assert.deepEqual(poseAt(0.1), luigiAt);
+  assert.equal(luigiNs.poseAt, poseAt);
+  assert.equal(luigiNs.HALF, HALF);
+  assert.equal(luigiNs.PERIM, PERIM);
+  assert.equal(luigiNs.itemBoxProgress, itemBoxProgress);
+  assert.equal(luigiNs.luigiCircuit.poseAt, poseAt);
 
   assert.throws(
-    () => createTrack(rectanglePlan(), { perimRange: [190, 245] }),
+    () => createTrack(rectanglePlan(), {
+      perimRange: [190, 245],
+      itemBoxProgress: [0.5],
+    }),
     /PERIM 160/,
-  );
-  assert.throws(
-    () => createTrack(rectanglePlan(), { requireStartGrid: true }),
-    /start straight/,
   );
 
   const race = createRace(

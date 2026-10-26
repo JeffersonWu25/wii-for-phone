@@ -1,4 +1,3 @@
-/** Luigi Circuit plan for createTrack. */
 export const LUIGI_PLAN = {
   waypoints: [
     { id: 'sf', seg: 'start', x: 34, z: -6, halfWidth: 6 },
@@ -75,6 +74,5 @@ export const LUIGI_PLAN = {
     colOffset: 1.6,
     columns: 2,
   }),
-  itemBoxProgress: Object.freeze([0.08, 0.22, 0.38, 0.55, 0.72, 0.88]),
   grassMargin: 12,
 };
