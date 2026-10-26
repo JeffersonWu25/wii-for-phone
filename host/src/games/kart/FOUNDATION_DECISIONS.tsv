@@ -1,0 +1,11 @@
+ts	phase	decision	why	evidence	result
+2026-10-26T20:48:04Z	start	figure-it-out kart foundation run	user asked for scalable maps characters items before bugfix	branch cursor/kart-foundation-6164	open
+2026-10-26T20:48:04Z	frame	done predicate is multi-map multi-character multi-item without editing race core	measured from coupling in items KartScene Minimap to track.js singleton and cosmetics-only characters	host/src/games/kart/{items,KartScene,Minimap,characters,tracks,race}.js	framed
+2026-10-26T20:48:46Z	frame	scope is foundation only not bugfix not new content maps	reversible reshape of track character item ownership about 5k LOC kart tree	.audit/kart-foundation-framing.md	framed
+2026-10-26T20:49:31Z	harness	captured failing foundation-check baseline before reshape	prove-it-works needs old vs new on the real harness	/opt/cursor/artifacts/foundation-check-baseline.log	baseline FAIL as expected
+2026-10-26T20:50:03Z	harness	reran foundation-check baseline after write settled	first run raced the write	/opt/cursor/artifacts/foundation-check-baseline.log	baseline FAIL as expected
+2026-10-26T20:52:41Z	design	provisional deepen track-object character-stats item-bind design while arena runs	existing createRace already takes a track; deepen that rather than invent ECS	.audit/kart-foundation-design-provisional.md	provisional
+2026-10-26T20:52:58Z	chars	baked character stats into tuningScales	model the domain as weight classes times host knobs	commit 9652769, characters.test.mjs	tests green
+2026-10-26T20:54:47Z	track	bound items scene minimap to race.track	remove singleton leakage so multi-map is possible	foundation-check OK, 66 tests pass	VERIFIED
+2026-10-26T20:55:52Z	items	GUIDES registry for shell motion	extensible items without stepItems switch growth	items.js GUIDES, race tests green	VERIFIED
+2026-10-26T20:59:55Z	createTrack	extracted createTrack and luigiCircuit export	second map is plan plus TRACKS row	foundation-check OK, 79 tests pass, b5d7354	VERIFIED
