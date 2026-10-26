@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { poseAt } from './track.js';
+import { trackVisuals } from './track.js';
 import { viewports } from './layout.js';
 import { driftView } from './race.js';
 
@@ -11,33 +11,58 @@ const LOOK_Y = 0.7;
 const FOV = 58;
 const PIVOT_Y = 0.42;
 const TRACK_HALF = 0.58;
-const START_HALF = poseAt(0).halfWidth;
 
-function ribbon(halfWidth, y, color) {
-  const n = 180;
+function lambert(color, extra) {
+  return new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide, ...extra });
+}
+
+function meshFrom(positions, indices, material, colors) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  if (colors) geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function right(heading) {
+  return [Math.cos(heading), -Math.sin(heading)];
+}
+
+function closedStrip(samples, pointAt) {
+  const n = samples.length;
   const positions = [];
   const indices = [];
   for (let i = 0; i <= n; i++) {
-    const pose = poseAt(i / n);
-    const rx = Math.cos(pose.heading);
-    const rz = -Math.sin(pose.heading);
-    positions.push(
-      pose.x + rx * halfWidth, y, pose.z + rz * halfWidth,
-      pose.x - rx * halfWidth, y, pose.z - rz * halfWidth,
-    );
+    const pose = samples[i % n];
+    positions.push(...pointAt(pose));
   }
   for (let i = 0; i < n; i++) {
     const a = i * 2;
     indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  const mat = new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
-  return mesh;
+  return { positions, indices };
+}
+
+function sandPositions(polys, y) {
+  const positions = [];
+  const indices = [];
+  for (const poly of polys) {
+    const half = poly.length / 2;
+    if (half < 2 || poly.length % 2 !== 0) continue;
+    const base = positions.length / 3;
+    for (const p of poly) positions.push(p.x, y, p.z);
+    for (let i = 0; i < half - 1; i++) {
+      const l0 = base + i;
+      const l1 = base + i + 1;
+      const r0 = base + (poly.length - 1 - i);
+      const r1 = base + (poly.length - 2 - i);
+      indices.push(l0, r0, l1, l1, r0, r1);
+    }
+  }
+  return { positions, indices };
 }
 
 function makeRacer(character) {
@@ -120,37 +145,45 @@ function makeRacer(character) {
   return group;
 }
 
-function addScenery(scene) {
-  const hedgeMat = new THREE.MeshLambertMaterial({ color: 0x2f8f3a });
-  const flowerMat = new THREE.MeshLambertMaterial({ color: 0xd94b4b });
-  for (let i = 0; i < 18; i++) {
-    const pose = poseAt((i + 0.12) / 18);
-    const rx = Math.cos(pose.heading);
-    const rz = -Math.sin(pose.heading);
-    const side = i % 2 === 0 ? 1 : -1;
-    const dist = START_HALF + 2.4 + (i % 3) * 0.35;
-    const hedge = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 0.7), hedgeMat);
-    hedge.position.set(
-      pose.x + rx * side * dist,
-      0.55,
-      pose.z + rz * side * dist,
-    );
-    hedge.rotation.y = pose.heading;
-    hedge.castShadow = true;
-    hedge.receiveShadow = true;
-    scene.add(hedge);
-    if (i % 3 === 0) {
-      const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), flowerMat);
-      bloom.position.copy(hedge.position);
-      bloom.position.y = 1.2;
-      scene.add(bloom);
+function checkerMesh(start) {
+  const cols = 12;
+  const rows = 2;
+  const cw = start.width / cols;
+  const cd = start.depth / rows;
+  const [rx, rz] = right(start.heading);
+  const fx = Math.sin(start.heading);
+  const fz = Math.cos(start.heading);
+  const positions = [];
+  const indices = [];
+  const colors = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const dark = (row + col) % 2 === 0;
+      const cx = (col + 0.5 - cols / 2) * cw;
+      const cz = (row + 0.5 - rows / 2) * cd;
+      const ox = start.x + rx * cx + fx * cz;
+      const oz = start.z + rz * cx + fz * cz;
+      const base = positions.length / 3;
+      for (const [sx, sz] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+        positions.push(
+          ox + rx * sx * cw + fx * sz * cd,
+          0.11,
+          oz + rz * sx * cw + fz * sz * cd,
+        );
+        const tone = dark ? 0.08 : 0.95;
+        colors.push(tone, tone, tone);
+      }
+      indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   }
+  return meshFrom(positions, indices, lambert(0xffffff, { vertexColors: true }), colors);
 }
 
 function addTrack(scene) {
+  const vis = trackVisuals();
+  const reach = vis.grassRadius + 12;
   scene.background = new THREE.Color(0x7ec8f5);
-  scene.fog = new THREE.Fog(0x7ec8f5, 70, 160);
+  scene.fog = new THREE.Fog(0x7ec8f5, 90, reach * 2.4);
 
   const hemi = new THREE.HemisphereLight(0xfff2d4, 0x3a7a3a, 0.85);
   scene.add(hemi);
@@ -160,36 +193,77 @@ function addTrack(scene) {
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.near = 5;
-  sun.shadow.camera.far = 160;
-  sun.shadow.camera.left = -70;
-  sun.shadow.camera.right = 70;
-  sun.shadow.camera.top = 70;
-  sun.shadow.camera.bottom = -70;
+  sun.shadow.camera.far = reach * 3;
+  sun.shadow.camera.left = -reach;
+  sun.shadow.camera.right = reach;
+  sun.shadow.camera.top = reach;
+  sun.shadow.camera.bottom = -reach;
   scene.add(sun);
 
   const grass = new THREE.Mesh(
-    new THREE.CircleGeometry(95, 64),
+    new THREE.CircleGeometry(vis.grassRadius, 72),
     new THREE.MeshLambertMaterial({ color: 0x45b34f }),
   );
   grass.rotation.x = -Math.PI / 2;
   grass.receiveShadow = true;
   scene.add(grass);
 
-  scene.add(ribbon(START_HALF + 1.15, 0.02, 0xf0ebe0));
-  scene.add(ribbon(START_HALF + 0.35, 0.04, 0xe4d5b5));
-  scene.add(ribbon(START_HALF, 0.07, 0xd2b48c));
+  const sand = sandPositions(vis.sand, 0.03);
+  scene.add(meshFrom(sand.positions, sand.indices, lambert(0xd2b48c)));
 
-  const start = poseAt(0);
-  const checker = new THREE.Mesh(
-    new THREE.BoxGeometry(START_HALF * 2, 0.06, 1.1),
-    new THREE.MeshLambertMaterial({ color: 0xf7f7f7 }),
-  );
-  checker.position.set(start.x, 0.11, start.z);
-  checker.rotation.y = start.heading;
-  checker.receiveShadow = true;
-  scene.add(checker);
+  const asphalt = closedStrip(vis.road, (pose) => {
+    const [rx, rz] = right(pose.heading);
+    const y = 0.06;
+    return [
+      pose.x + rx * pose.halfWidth, y, pose.z + rz * pose.halfWidth,
+      pose.x - rx * pose.halfWidth, y, pose.z - rz * pose.halfWidth,
+    ];
+  });
+  scene.add(meshFrom(asphalt.positions, asphalt.indices, lambert(0x6d727a)));
 
-  addScenery(scene);
+  const outerCurb = closedStrip(vis.road, (pose) => {
+    const [rx, rz] = right(pose.heading);
+    const lip = pose.visualOuterY || 0;
+    const x0 = pose.x + rx * pose.halfWidth;
+    const z0 = pose.z + rz * pose.halfWidth;
+    return [
+      x0 + rx * 0.42, 0.08 + lip, z0 + rz * 0.42,
+      x0, 0.08, z0,
+    ];
+  });
+  scene.add(meshFrom(outerCurb.positions, outerCurb.indices, lambert(0xf4f4f4)));
+
+  const innerLine = closedStrip(vis.road, (pose) => {
+    const [rx, rz] = right(pose.heading);
+    const edge = -pose.halfWidth;
+    const y = 0.09;
+    return [
+      pose.x + rx * edge, y, pose.z + rz * edge,
+      pose.x + rx * (edge + 0.35), y, pose.z + rz * (edge + 0.35),
+    ];
+  });
+  scene.add(meshFrom(innerLine.positions, innerLine.indices, lambert(0xf4f4f4)));
+
+  const dashPositions = [];
+  const dashIndices = [];
+  for (const quad of vis.dashes) {
+    const base = dashPositions.length / 3;
+    for (const p of quad) dashPositions.push(p.x, 0.1, p.z);
+    dashIndices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  scene.add(meshFrom(dashPositions, dashIndices, lambert(0xf27a12)));
+
+  scene.add(checkerMesh(vis.startFinish));
+
+  const slotGeo = new THREE.BoxGeometry(1.05, 0.02, 1.55);
+  const slotMat = new THREE.MeshLambertMaterial({ color: 0xf7f7f7 });
+  for (const mark of vis.gridMarks) {
+    const slot = new THREE.Mesh(slotGeo, slotMat);
+    slot.position.set(mark.x, 0.1, mark.z);
+    slot.rotation.y = mark.heading;
+    slot.receiveShadow = true;
+    scene.add(slot);
+  }
 }
 
 function placeCamera(camera, kart, travel) {

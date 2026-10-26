@@ -32,13 +32,16 @@ No colored name-pill strip across the top of each pane. Pane borders are thin/da
 
 ## World / track contract (this project)
 
-Keep the existing oval loop geometry. Match MK8 *feel*, not Royal Raceway geometry.
+The course is Luigi Circuit from Mario Kart Wii, at arcade scale. Match that silhouette and its surfaces. Match MK8 feel for the HUD and camera, not Royal Raceway geometry.
 
-- Road: light sandy/tan asphalt (not dark gray).
-- Soft white/light curb outside the driveable ribbon.
-- Bright green infield/outfield grass; saturated sunny sky.
+- Road: gray asphalt with variable width, and white edges.
+- Tan sand inside the turns and across the shortcut fills.
+- Bright green grass disc. Saturated sunny sky.
+- Orange dash panels on the outside of the final turn.
+- Checkered start stripe and a painted starting grid.
+- No hedges, grandstands, pipes, or a statue.
 - Soft directional sun shadows when practical.
-- Kart: low body, visible wheels, seated driver with hat/skin colors from the roster. No floating name billboard over the kart during race.
+- Kart: low body, visible wheels, seated driver with hat/skin colors from the roster. The kart sits on y = 0. No floating name billboard over the kart during race.
 
 ## HUD data
 
@@ -51,7 +54,7 @@ Empty item slots still render the yellow rings. Coins may start at `0` until pic
 
 ## Verification
 
-Pixel-zero match to the Royal Raceway reference is out of scope (oval track). Parity is the layout and camera contracts above.
+Pixel-zero match to the Royal Raceway reference is out of scope. The course is Luigi Circuit. Parity is the layout and camera contracts above.
 
 1. Keep `mk8-reference-splitscreen.png` and this SPEC frozen. Do not edit them to make a check pass.
 2. Drive a 2-player race and screenshot into `current/race-2p-after.png`.

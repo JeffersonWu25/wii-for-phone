@@ -375,13 +375,25 @@ function buildVisuals(course) {
 
 function bandPoly(course, p0, p1, depth) {
   const span = forwardSpan(p0, p1);
-  const steps = Math.max(2, Math.ceil((span * course.perim) / 4));
+  const steps = Math.max(2, Math.ceil((span * course.perim) / 2));
   const roadSide = [];
   const deepSide = [];
+  let prev = null;
   for (let k = 0; k <= steps; k++) {
     const pose = course.poseAtSLocal(wrap01(p0 + span * (k / steps)) * course.perim);
-    roadSide.push(offset(pose, -pose.half));
-    deepSide.push(offset(pose, -pose.half - depth));
+    const edge = offset(pose, -pose.half);
+    roadSide.push(edge);
+    let deep = offset(pose, -pose.half - depth);
+    if (prev) {
+      const advance = (deep.x - prev.x) * pose.tx + (deep.z - prev.z) * pose.tz;
+      // The final bank's inset is longer than its radius, so a raw offset
+      // folds through the asphalt. Keep the inner edge moving forward.
+      if (advance < 0.2) {
+        deep = { x: prev.x + pose.tx * 0.2, z: prev.z + pose.tz * 0.2 };
+      }
+    }
+    deepSide.push(deep);
+    prev = deep;
   }
   return [...roadSide, ...deepSide.reverse()];
 }
