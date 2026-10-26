@@ -22,7 +22,7 @@ Preconditions:
 
 - `scripts/doctor.sh` prints `DOCTOR OK`.
 - Two phones have joined this session, in order: `Verify Player`, then `Second Player`.
-- The host has chosen `Bowling`. `Verify Player` shows `Hold and swing to bowl!`. `Second Player` shows `Waiting for your turn...` under the heading `Bowling`.
+- The host has chosen `Bowling`. `Verify Player` shows `Hold and swing to bowl!`. `Second Player` shows a waiting line under the heading `Bowling` that includes `Waiting for your turn...` (it may be prefixed with `Game started!`).
 - The host scoreboard lists both names and the first two frames of each are empty.
 
 - **Throw the current roll.** Find the phone tab whose snapshot contains the button `BOWL`. Run the polling `Runtime.evaluate` release from [Simulate a bowl](./simulate-bowl.md) on that tab only. Wait for its returned `heading`. Do not start the next throw until that heading has arrived.
@@ -37,6 +37,6 @@ Preconditions:
 - Do not assert an exact score. Power is `0.5` with no swing, so pin counts vary. Assert that each of the four frames is complete.
 - Each roll in this harness took about 5 seconds to settle. The next `BOWL` appears about 1500ms after the result heading. Throwing again before the heading arrives stacks a throw the host ignores.
 - Throw only on the phone that currently shows `BOWL`. A throw from the waiting phone is ignored by the host.
-- The waiting phone's heading is `Bowling` with `Waiting for your turn...`. After that player bowls, their screen stays on the result until their next turn. Do not look for `BOWL` on a phone that is showing a result.
+- The waiting phone's heading is `Bowling` with a line that includes `Waiting for your turn...` (sometimes `Game started! Waiting for your turn...`). After that player bowls, their screen stays on the result until their next turn. Do not look for `BOWL` on a phone that is showing a result.
 - Stop at 8 throws even if a frame looks incomplete, and report the scoreboard JSON. More than 8 throws means a roll was not recorded.
 - `← Games` abandons the scoreboard. Do not press it during this recipe.

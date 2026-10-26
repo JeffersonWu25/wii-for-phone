@@ -1,5 +1,8 @@
-# after Skip Turn, Verify Player frame 3 rolls are 0,0
-# Second Player has BOWL
-# CDP scoreboard: Verify Player frames [["9","0"],["6","0"],["0","0"]]
-- role: button
-  name: ← Games
+BODY TEXT:
+← Games
+SCORES
+Verify Player
+0
+0
+0
+Second Player

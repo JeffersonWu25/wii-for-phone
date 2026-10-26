@@ -1,0 +1,4 @@
+beforeMove=50%
+afterMove=59%
+afterAim=41%
+moveAfterAim=59%

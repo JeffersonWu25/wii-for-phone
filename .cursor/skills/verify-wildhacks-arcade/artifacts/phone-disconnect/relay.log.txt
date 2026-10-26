@@ -1,3 +1,2 @@
-[relay] Phone disconnected: Verify Player (4cf80bd7)
-[relay] Player reconnected: Verify Player (4cf80bd7)
-[relay] Phone disconnected: Verify Player (bb6527db)
+[relay] Phone disconnected: Verify Player (5db7f4e4)
+[relay] Player reconnected: Verify Player (5db7f4e4)
