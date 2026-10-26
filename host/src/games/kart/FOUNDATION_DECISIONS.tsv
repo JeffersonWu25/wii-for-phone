@@ -9,3 +9,7 @@ ts	phase	decision	why	evidence	result
 2026-10-26T20:54:47Z	track	bound items scene minimap to race.track	remove singleton leakage so multi-map is possible	foundation-check OK, 66 tests pass	VERIFIED
 2026-10-26T20:55:52Z	items	GUIDES registry for shell motion	extensible items without stepItems switch growth	items.js GUIDES, race tests green	VERIFIED
 2026-10-26T20:59:55Z	createTrack	extracted createTrack and luigiCircuit export	second map is plan plus TRACKS row	foundation-check OK, 79 tests pass, b5d7354	VERIFIED
+2026-10-26T21:01:09Z	verify	foundation-check OK and 79 unit tests pass	prove against real harness and node test runner	/opt/cursor/artifacts/kart-tests-final.log	VERIFIED
+2026-10-26T21:01:09Z	verify	verify instance doctor OK and host production build succeeds	launch scripts plus vite build as secondary proof	/opt/cursor/artifacts/verify-doctor.log,/opt/cursor/artifacts/host-build.log	VERIFIED
+2026-10-26T21:01:09Z	verify	manual browser drive skipped	computerUse subagent blocked by monthly spend limit	Task computerUse errors	INCONCLUSIVE UI
+2026-10-26T21:01:09Z	done	predicate met for maps characters items foundation	figure-it-out phase E	PR 21	hand back
