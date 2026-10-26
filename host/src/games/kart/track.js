@@ -85,6 +85,8 @@ const LUIGI_PLAN = {
 const COURSE = compile(LUIGI_PLAN);
 
 export const PERIM = COURSE.perim;
+/** Start-straight asphalt half-width. Items and older contain paths still read this. */
+export const HALF = poseAtS(0).half;
 
 export function poseAt(t) {
   const hit = poseAtS(wrap01(t) * PERIM);

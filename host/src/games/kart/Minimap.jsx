@@ -66,7 +66,7 @@ function courseMap() {
 
 const MAP = courseMap();
 
-export default function Minimap({ players }) {
+export default function Minimap({ players, track: _track }) {
   const markers = (players || []).map((player) => {
     const [cx, cy] = MAP.project(player.x, player.z);
     return { ...player, cx, cy };

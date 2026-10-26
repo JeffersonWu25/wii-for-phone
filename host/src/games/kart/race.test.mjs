@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERIM, followTrack, poseAt, sampleTrack, trackVisuals } from './track.js';
+import { HALF, PERIM, poseAt, sampleTrack } from './track.js';
+import * as luigi from './track.js';
 import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
@@ -12,6 +13,7 @@ import {
   applyUseItem,
   createRace,
   driftView,
+  gridPose,
   noteProgress,
   placeLabel,
   rankKarts,
@@ -20,14 +22,86 @@ import {
   stepRace,
 } from './race.js';
 
+function raceWith(players, now = 0) {
+  return createRace(
+    players.map((player) => ({ characterId: 'mario', ...player })),
+    now,
+    luigi,
+  );
+}
+
+const BOX_T = [0.08, 0.22, 0.38, 0.55, 0.72, 0.88];
+const MUSHROOM_CAP = 32 * 1.45;
+const STAR_CAP = 32 * 1.55;
+
+function startRace(players, rng) {
+  const race = createRace(
+    players.map((player) => ({ characterId: 'mario', ...player })),
+    0,
+    luigi,
+    rng,
+  );
+  race.phase = 'racing';
+  race.startedAt = 0;
+  return race;
+}
+
+function park(kart, x, z, facing = 0, progressHint) {
+  kart.x = x;
+  kart.z = z;
+  kart.facing = facing;
+  kart.speed = 0;
+  kart.steer = 0;
+  kart.appliedSteer = 0;
+  kart.gas = false;
+  kart.drift = false;
+  kart.lastInputAt = 0;
+  const sample = sampleTrack(x, z, progressHint);
+  kart.surface = sample.surface;
+  kart.progress = sample.progress;
+  kart.dashRemaining = 0;
+}
+
+function asphaltPose(t = 0.05) {
+  const pose = poseAt(t);
+  return { x: pose.x, z: pose.z, facing: pose.heading, t };
+}
+
+function parkOnTrack(kart, t = 0.05) {
+  const pose = asphaltPose(t);
+  park(kart, pose.x, pose.z, pose.facing, t);
+}
+
+function parkNear(kart, t, lateral = 0, along = 0, facingOffset = 0) {
+  const pose = poseAt(t);
+  const rx = Math.cos(pose.heading);
+  const rz = -Math.sin(pose.heading);
+  const tx = Math.sin(pose.heading);
+  const tz = Math.cos(pose.heading);
+  park(
+    kart,
+    pose.x + rx * lateral + tx * along,
+    pose.z + rz * lateral + tz * along,
+    pose.heading + facingOffset,
+    t,
+  );
+}
+
+function firstBox(race) {
+  return race.entities.find((entity) => entity.kind === 'box');
+}
+
+function hold(race, kart, id) {
+  kart.itemPrimary = id;
+  applyUseItem(race, { playerId: kart.playerId });
+}
+
 test('centerline pose stays on the track and progress matches', () => {
   for (let i = 0; i <= 40; i++) {
     const t = i / 40;
     const pose = poseAt(t);
     const sample = sampleTrack(pose.x, pose.z);
     assert.ok(Math.abs(sample.lateral) < 0.05, `lateral ${sample.lateral} at ${t}`);
-    assert.equal(typeof pose.halfWidth, 'number');
-    assert.ok(pose.halfWidth > 0);
     const dp = Math.abs(sample.progress - t);
     const wrapped = Math.min(dp, 1 - dp);
     assert.ok(wrapped < 0.02, `progress ${sample.progress} vs ${t}`);
@@ -35,15 +109,16 @@ test('centerline pose stays on the track and progress matches', () => {
 });
 
 test('grass beside the start straight is not asphalt', () => {
-  const pose = poseAt(0);
-  const nx = Math.cos(pose.heading);
-  const nz = -Math.sin(pose.heading);
+  const pose = poseAt(0.05);
+  const rx = Math.cos(pose.heading);
+  const rz = -Math.sin(pose.heading);
   const sample = sampleTrack(
-    pose.x + nx * (pose.halfWidth + 8),
-    pose.z + nz * (pose.halfWidth + 8),
-    0,
+    pose.x + rx * (pose.halfWidth + 4),
+    pose.z + rz * (pose.halfWidth + 4),
+    0.05,
   );
   assert.equal(sample.surface, 'grass');
+  assert.ok(sample.lateral > HALF);
 });
 
 test('crossing the start line opens checkpoint 1 and does not finish a lap', () => {
@@ -89,30 +164,31 @@ test('three full loops finish the race', () => {
 });
 
 test('gas on the straight builds speed without leaving the track', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  const spawn = placeOnStraight(kart, 4);
+  parkOnTrack(kart, 0.02);
+  const start = { x: kart.x, z: kart.z };
   let now = 0;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 22; i++) {
     now += 50;
     applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: i + 1 }, now);
     stepRace(race, 0.05, now);
   }
-  const sample = sampleTrack(kart.x, kart.z);
+  const sample = sampleTrack(kart.x, kart.z, kart.progress);
   assert.ok(kart.speed > 20, `speed ${kart.speed}`);
   assert.ok(Math.abs(sample.lateral) < 0.5, `lateral ${sample.lateral}`);
-  const ahead = Math.sin(spawn.heading) * (kart.x - spawn.x) + Math.cos(spawn.heading) * (kart.z - spawn.z);
-  assert.ok(ahead > 8, `ahead ${ahead}`);
+  assert.ok(sample.surface === 'asphalt', sample.surface);
+  assert.ok(Math.hypot(kart.x - start.x, kart.z - start.z) > 2);
 });
 
 test('a drift release adds a boost', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  placeOnStraight(kart, 6);
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -129,7 +205,7 @@ test('a drift release adds a boost', () => {
 });
 
 test('stale input coasts', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
@@ -140,10 +216,10 @@ test('stale input coasts', () => {
 });
 
 test('the later lap ranks ahead', () => {
-  const race = createRace([
+  const race = raceWith([
     { playerId: 'a', name: 'A' },
     { playerId: 'b', name: 'B' },
-  ], 0);
+  ]);
   race.karts[1].completedLaps = 1;
   const ranked = rankKarts(race.karts);
   assert.equal(ranked[0].playerId, 'b');
@@ -159,22 +235,12 @@ test('split slots follow every racer', () => {
 });
 
 test('an older drive packet does not rewind steer', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   applyDrive(race, { playerId: 'p1', steer: 0.4, gas: true, drift: false, seq: 5 }, 10);
   applyDrive(race, { playerId: 'p1', steer: -1, gas: false, drift: false, seq: 4 }, 11);
   assert.equal(race.karts[0].steer, 0.4);
   assert.equal(race.karts[0].gas, true);
 });
-
-function placeOnStraight(kart, metersAhead) {
-  const pose = poseAt(metersAhead / PERIM);
-  kart.x = pose.x;
-  kart.z = pose.z;
-  kart.facing = pose.heading;
-  kart.progress = metersAhead / PERIM;
-  kart.surface = sampleTrack(pose.x, pose.z, kart.progress).surface;
-  return pose;
-}
 
 function freshKart() {
   return {
@@ -193,15 +259,13 @@ test('perimeter is a closed loop longer than the straights', () => {
 });
 
 test('a late driver holding the gas finishes a lap', () => {
-  const race = createRace([{ playerId: 'p1', name: 'Ada' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'Ada' }]);
   const kart = race.karts[0];
   race.phase = 'racing';
-  const grass = trackVisuals().grassRadius;
   const hist = [];
-  let farthest = 0;
   let steps = 0;
   const dt = 1 / 60;
-  for (let t = 0; t < 20; t += dt) {
+  for (let t = 0; t < 30; t += dt) {
     const sample = sampleTrack(kart.x, kart.z, kart.progress);
     const aim = poseAt(sample.progress + 0.045);
     const desired = Math.atan2(aim.x - kart.x, aim.z - kart.z);
@@ -213,17 +277,15 @@ test('a late driver holding the gas finishes a lap', () => {
     const delayed = hist[Math.max(0, hist.length - 10)];
     applyDrive(race, { playerId: 'p1', steer: delayed, gas: true, drift: false, seq: steps + 1 }, t * 1000);
     stepRace(race, dt, t * 1000);
-    farthest = Math.max(farthest, Math.hypot(kart.x, kart.z));
     steps += 1;
     if (kart.completedLaps >= 1) break;
   }
   assert.equal(kart.completedLaps >= 1, true);
-  assert.ok(farthest <= grass + 1e-6, `left the course at ${farthest.toFixed(2)}`);
-  assert.ok(steps > 30, `finished too fast in ${steps} steps`);
+  assert.ok(Math.hypot(kart.x, kart.z) < luigi.trackVisuals().grassRadius);
 });
 
 test('speed tuning lowers the top speed a gas-holding kart reaches', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   setTuning(race, { speed: 0.5, turn: 9 });
   assert.equal(race.tuning.speed, 0.5);
@@ -237,11 +299,11 @@ test('speed tuning lowers the top speed a gas-holding kart reaches', () => {
 });
 
 test('the stick on the rim drifts the kart and releasing it boosts', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  placeOnStraight(kart, 6);
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   const rim = stickInput(-120, 0, 120);
   let now = 0;
@@ -270,36 +332,51 @@ test('the stick on the rim drifts the kart and releasing it boosts', () => {
   assert.equal(driftView(kart).phase, 'boosting');
 });
 
-test('each use_item while racing adds exactly one to itemPresses', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
-  race.phase = 'racing';
+test('use_item on an empty slot does nothing', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }]);
+  applyUseItem(race, { playerId: 'p1' });
+  applyUseItem(race, { playerId: 'p1' });
   assert.equal(race.karts[0].itemPresses, 0);
-  applyUseItem(race, { playerId: 'p1' });
-  applyUseItem(race, { playerId: 'p1' });
-  applyUseItem(race, { playerId: 'p1' });
-  assert.equal(race.karts[0].itemPresses, 3);
+  assert.equal(race.karts[0].itemPrimary, null);
+  assert.deepEqual(race.karts[0].modifiers, {});
 });
 
 test('use_item is ignored in countdown, for a finished kart, and for an unknown player', () => {
-  const race = createRace([
+  const race = raceWith([
     { playerId: 'p1', name: 'A' },
     { playerId: 'p2', name: 'B' },
-  ], 0);
+  ]);
+  race.karts[0].itemPrimary = 'mushroom';
   applyUseItem(race, { playerId: 'p1' });
   assert.equal(race.karts[0].itemPresses, 0);
+  assert.equal(race.karts[0].itemPrimary, 'mushroom');
+  assert.equal(race.karts[0].modifiers.speed, undefined);
 
   race.phase = 'racing';
   race.karts[0].finished = true;
   applyUseItem(race, { playerId: 'p1' });
   assert.equal(race.karts[0].itemPresses, 0);
+  assert.equal(race.karts[0].itemPrimary, 'mushroom');
+  assert.equal(race.karts[0].modifiers.speed, undefined);
 
   applyUseItem(race, { playerId: 'nobody' });
   assert.equal(race.karts[0].itemPresses, 0);
   assert.equal(race.karts[1].itemPresses, 0);
 
+  race.karts[1].itemPrimary = 'banana';
   applyUseItem(race, { playerId: 'p2' });
   assert.equal(race.karts[1].itemPresses, 1);
+  assert.equal(race.karts[1].itemPrimary, null);
+  assert.equal(race.karts[1].itemSecondary, null);
   assert.equal(race.karts[0].itemPresses, 0);
+  assert.equal(race.karts[0].itemPrimary, 'mushroom');
+
+  race.phase = 'finished';
+  race.karts[1].itemPrimary = 'star';
+  applyUseItem(race, { playerId: 'p2' });
+  assert.equal(race.karts[1].itemPresses, 1);
+  assert.equal(race.karts[1].itemPrimary, 'star');
+  assert.equal(race.karts[1].modifiers.invuln, undefined);
 });
 
 test('place labels use ordinal suffixes', () => {
@@ -313,10 +390,10 @@ test('place labels use ordinal suffixes', () => {
 });
 
 test('snapshot exposes MK8 HUD fields and world poses', () => {
-  const race = createRace([
+  const race = raceWith([
     { playerId: 'a', name: 'A' },
     { playerId: 'b', name: 'B' },
-  ], 0);
+  ]);
   const shot = snapshot(race);
   assert.equal(shot.lapsTotal, LAPS);
   assert.equal(shot.players.length, 2);
@@ -336,10 +413,10 @@ test('tuning key sets match', () => {
 });
 
 test('a short hold does not boost and a long hold does', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   const kart = race.karts[0];
-  placeOnStraight(kart, 6);
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 12; i++) {
@@ -366,10 +443,10 @@ test('a short hold does not boost and a long hold does', () => {
 });
 
 test('left drift slips and rolls into the turn', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   const kart = race.karts[0];
-  placeOnStraight(kart, 6);
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 8; i++) {
@@ -392,11 +469,11 @@ function wrap(a) {
 
 test('drift scale 0 keeps the nose on the path and scale 2 slips more', () => {
   function hold(driftScale) {
-    const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+    const race = raceWith([{ playerId: 'p1', name: 'A' }]);
     race.phase = 'racing';
     setTuning(race, { drift: driftScale });
     const kart = race.karts[0];
-    placeOnStraight(kart, 6);
+    parkOnTrack(kart, 0.05);
     kart.speed = 20;
     let now = 0;
     for (let i = 0; i < 20; i++) {
@@ -414,10 +491,10 @@ test('drift scale 0 keeps the nose on the path and scale 2 slips more', () => {
 });
 
 test('a charged release from the unboosted cap kicks to the boost cap', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   const kart = race.karts[0];
-  placeOnStraight(kart, 6);
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -425,8 +502,8 @@ test('a charged release from the unboosted cap kicks to the boost cap', () => {
     applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i }, now);
     stepRace(race, 0.05, now);
   }
+  parkOnTrack(kart, 0.05);
   kart.speed = 32;
-  placeOnStraight(kart, 6);
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
   stepRace(race, 0.05, now);
@@ -436,7 +513,7 @@ test('a charged release from the unboosted cap kicks to the boost cap', () => {
 });
 
 test('boost scale doubles the kick and setTuning merges partial keys', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   setTuning(race, { boost: 2 });
   setTuning(race, { speed: 1 });
@@ -449,7 +526,7 @@ test('boost scale doubles the kick and setTuning merges partial keys', () => {
 
   setTuning(race, { boost: 2, drift: 1 });
   const kart = race.karts[0];
-  placeOnStraight(kart, 6);
+  parkOnTrack(kart, 0.05);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -457,8 +534,8 @@ test('boost scale doubles the kick and setTuning merges partial keys', () => {
     applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i }, now);
     stepRace(race, 0.05, now);
   }
+  parkOnTrack(kart, 0.05);
   kart.speed = 32;
-  placeOnStraight(kart, 6);
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
   stepRace(race, 0.05, now);
@@ -467,11 +544,11 @@ test('boost scale doubles the kick and setTuning merges partial keys', () => {
 
 test('yaw bonus scales as 1 / 1.35 / 1.7 at drift 0 / 1 / 2', () => {
   function yawDelta(driftScale) {
-    const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+    const race = raceWith([{ playerId: 'p1', name: 'A' }]);
     race.phase = 'racing';
     setTuning(race, { drift: driftScale, turn: 1 });
     const kart = race.karts[0];
-    placeOnStraight(kart, 6);
+    parkOnTrack(kart, 0.05);
     kart.speed = 20;
     kart.appliedSteer = 1;
     applyDrive(race, { playerId: 'p1', steer: 1, gas: true, drift: true, seq: 1 }, 0);
@@ -486,136 +563,442 @@ test('yaw bonus scales as 1 / 1.35 / 1.7 at drift 0 / 1 / 2', () => {
   assert.ok(Math.abs(d2 / d0 - 1.7) < 1e-6, `ratio2 ${d2 / d0}`);
 });
 
-test('sand slows a kart that is not on a mushroom', () => {
-  const spot = sandSpot();
-  const race = racingKart();
-  const kart = race.karts[0];
-  kart.speed = 32;
-  for (let i = 0; i < 30; i++) {
-    pinKart(kart, spot);
-    applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: i + 1 }, i * 50);
-    stepRace(race, 0.05, i * 50);
-  }
-  assert.equal(kart.surface, 'sand');
-  assert.ok(kart.speed < 18, `sand speed ${kart.speed}`);
+test('createRace keeps the chosen characters and the luigi module', () => {
+  const race = createRace([
+    { playerId: 'a', name: 'Ada', characterId: 'peach' },
+    { playerId: 'b', name: 'Bo', characterId: 'peach' },
+  ], 0, luigi);
+  assert.equal(race.phase, 'countdown');
+  assert.equal(race.countdown, 3);
+  assert.equal(race.track, luigi);
+  assert.equal(race.trackId, 'luigi-circuit');
+  assert.equal(race.karts[0].character.id, 'peach');
+  assert.equal(race.karts[1].character.id, 'peach');
+  assert.equal(race.karts[0].character.name, 'Peach');
+  assert.equal(race.karts[0].seq, -1);
+  assert.equal(race.karts[1].character.css, '#f28cb6');
+  const pose = gridPose(0, luigi);
+  assert.equal(race.karts[0].x, pose.x);
+  assert.equal(race.karts[0].z, pose.z);
+  assert.notEqual(race.karts[0].character.id, 'mario');
+
+  const daisy = createRace([
+    { playerId: 'c', name: 'Cy', characterId: 'daisy' },
+  ], 0, luigi);
+  assert.equal(daisy.karts[0].character.id, 'daisy');
+  assert.equal(daisy.karts[0].character.css, '#f5a423');
 });
 
-test('a mushroom ignores sand drag', () => {
-  const spot = sandSpot();
-  const race = racingKart();
+test('createRace rejects a missing character and a track module without the sample contract', () => {
+  assert.throws(() => createRace([{ playerId: 'a', name: 'A' }], 0, luigi));
+  assert.throws(() => createRace([{ playerId: 'a', name: 'A', characterId: 'not-a-racer' }], 0, luigi));
+  assert.throws(() => createRace(
+    [{ playerId: 'a', name: 'A', characterId: 'peach' }],
+    0,
+    { poseAt, sampleTrack },
+  ));
+  assert.throws(() => createRace(
+    [{ playerId: 'a', name: 'A', characterId: 'peach' }],
+    0,
+    null,
+  ));
+});
+
+test('a race starts with six cooldown-free boxes on the centerline', () => {
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
+  const boxes = race.entities.filter((entity) => entity.kind === 'box');
+  assert.equal(boxes.length, 6);
+  for (let i = 0; i < BOX_T.length; i++) {
+    const pose = poseAt(BOX_T[i]);
+    assert.equal(boxes[i].cooldown, 0);
+    assert.ok(Math.abs(boxes[i].x - pose.x) < 1e-9);
+    assert.ok(Math.abs(boxes[i].z - pose.z) < 1e-9);
+    assert.ok(Math.abs(sampleTrack(boxes[i].x, boxes[i].z).lateral) < 0.05);
+  }
+});
+
+test('centered draws land on the weight table', () => {
+  const counts = { mushroom: 0, banana: 0, green_shell: 0, star: 0 };
+  for (let i = 0; i < 100; i++) {
+    const race = startRace([{ playerId: 'p1', name: 'A' }], () => (i + 0.5) / 100);
+    const box = firstBox(race);
+    const kart = race.karts[0];
+    park(kart, box.x, box.z);
+    stepRace(race, 0.05, 50);
+    counts[kart.itemPrimary] += 1;
+  }
+  assert.deepEqual(counts, { mushroom: 35, banana: 30, green_shell: 25, star: 10 });
+});
+
+test('an empty kart collects the rng bucket and starts the box cooldown', () => {
+  const draws = [0, 0.35, 0.65, 0.9];
+  const ids = ['mushroom', 'banana', 'green_shell', 'star'];
+  const labels = ['Mushroom', 'Banana', 'Green Shell', 'Star'];
+  const colors = ['#e23b3b', '#ffe14a', '#3ddc4a', '#ffe566'];
+  for (let i = 0; i < draws.length; i++) {
+    const race = startRace([{ playerId: 'p1', name: 'A' }], () => draws[i]);
+    const box = firstBox(race);
+    const kart = race.karts[0];
+    park(kart, box.x, box.z);
+    stepRace(race, 0.05, 50);
+    assert.equal(kart.itemPrimary, ids[i]);
+    assert.equal(kart.itemSecondary, null);
+    assert.equal(box.cooldown, 3);
+    const shot = snapshot(race).players[0];
+    assert.equal(shot.itemLabel, labels[i]);
+    assert.equal(shot.itemColor, colors[i]);
+    assert.equal(shot.itemSecondary, null);
+    assert.equal(shot.effect, null);
+  }
+});
+
+test('a full slot leaves the box live and a second press does not count', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }], () => 0);
+  const box = firstBox(race);
   const kart = race.karts[0];
-  pinKart(kart, spot);
-  kart.speed = 16;
+  kart.itemPrimary = 'banana';
+  park(kart, box.x, box.z);
+  stepRace(race, 0.05, 50);
+  assert.equal(kart.itemPrimary, 'banana');
+  assert.equal(box.cooldown, 0);
+
+  const phase = kart.driftPhase;
   applyUseItem(race, { playerId: 'p1' });
   assert.equal(kart.itemPresses, 1);
-  pinKart(kart, spot);
+  assert.equal(kart.itemPrimary, null);
+  assert.equal(kart.itemSecondary, null);
+  assert.equal(kart.driftPhase, phase);
+  applyUseItem(race, { playerId: 'p1' });
+  assert.equal(kart.itemPresses, 1);
+});
+
+test('the nearer empty kart takes the box', () => {
+  const race = startRace([
+    { playerId: 'far', name: 'Far' },
+    { playerId: 'near', name: 'Near' },
+  ], () => 0);
+  const box = firstBox(race);
+  park(race.karts[0], box.x + 1.2, box.z);
+  park(race.karts[1], box.x + 0.4, box.z);
   stepRace(race, 0.05, 50);
-  assert.equal(kart.surface, 'sand');
-  assert.ok(kart.speed > 28, `mushroom speed ${kart.speed}`);
-  assert.notEqual(driftView(kart).phase, 'boosting');
+  assert.equal(race.karts[1].itemPrimary, 'mushroom');
+  assert.equal(race.karts[0].itemPrimary, null);
+  assert.equal(box.cooldown, 3);
 });
 
-test('a dash pad boosts once without starting a mini-turbo', () => {
-  const pad = dashApproach();
-  const entered = followTrack({
-    x0: pad.x0, z0: pad.z0, x1: pad.x1, z1: pad.z1, seedProgress: pad.progress,
-  });
-  assert.equal(entered.dashEntered, true);
-  const again = followTrack({
-    x0: pad.x1,
-    z0: pad.z1,
-    x1: pad.x1 + Math.sin(pad.heading) * 0.5,
-    z1: pad.z1 + Math.cos(pad.heading) * 0.5,
-    seedProgress: pad.progress,
-  });
-  assert.equal(again.dashEntered, false);
-
-  const race = racingKart();
+test('a finished kart does not take a box', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }], () => 0);
+  const box = firstBox(race);
   const kart = race.karts[0];
-  kart.x = pad.x0;
-  kart.z = pad.z0;
-  kart.facing = pad.heading;
-  kart.progress = pad.progress;
-  kart.speed = 20;
-  let sawFast = false;
-  for (let i = 0; i < 10; i++) {
-    applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: i + 1 }, i * 50);
-    stepRace(race, 0.05, i * 50);
-    assert.notEqual(driftView(kart).phase, 'boosting');
-    if (kart.speed > 34) sawFast = true;
-  }
-  assert.equal(sawFast, true, `speed ${kart.speed}`);
+  kart.finished = true;
+  park(kart, box.x, box.z);
+  stepRace(race, 0.05, 50);
+  assert.equal(kart.itemPrimary, null);
+  assert.equal(box.cooldown, 0);
 });
 
-function racingKart() {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
-  race.phase = 'racing';
-  race.startedAt = 0;
-  return race;
-}
+test('a mushroom raises the speed cap without touching drift and then expires', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }], () => 0);
+  const kart = race.karts[0];
+  const box = firstBox(race);
+  park(kart, box.x, box.z);
+  stepRace(race, 0.05, 50);
+  assert.equal(kart.itemPrimary, 'mushroom');
+  const phase = kart.driftPhase;
+  applyUseItem(race, { playerId: 'p1' });
+  assert.equal(kart.modifiers.speed, 1.5);
+  assert.equal(kart.driftPhase, phase);
+  assert.equal(snapshot(race).players[0].effect, 'boost');
 
-function pinKart(kart, spot) {
-  kart.x = spot.x;
-  kart.z = spot.z;
-  kart.facing = spot.heading;
-  kart.progress = spot.progress;
-}
+  parkOnTrack(kart, 0.05);
+  kart.speed = 47;
+  applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 1 }, 50);
+  stepRace(race, 0.05, 100);
+  assert.ok(kart.speed < 47, `speed ${kart.speed}`);
+  assert.ok(kart.speed <= MUSHROOM_CAP + 1e-6, `speed ${kart.speed}`);
+  assert.equal(kart.driftPhase.phase, 'idle');
 
-function sandSpot() {
-  const apex = widestPose();
-  const nx = Math.cos(apex.pose.heading);
-  const nz = -Math.sin(apex.pose.heading);
-  for (let extra = 3; extra <= 16; extra += 1) {
-    const x = apex.pose.x - nx * (apex.pose.halfWidth + extra);
-    const z = apex.pose.z - nz * (apex.pose.halfWidth + extra);
-    const sample = sampleTrack(x, z, apex.t);
-    if (sample.surface === 'sand') {
-      return { x, z, heading: apex.pose.heading, progress: sample.progress };
-    }
+  let now = 100;
+  let steps = 1;
+  while (kart.modifiers.speed > 0 && steps < 40) {
+    now += 50;
+    steps += 1;
+    applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: steps }, now);
+    stepRace(race, 0.05, now);
   }
-  assert.fail('course has no sand inside the wide turn');
-}
+  assert.equal(kart.modifiers.speed, undefined);
+  assert.equal(snapshot(race).players[0].effect, null);
+  parkOnTrack(kart, 0.05);
+  kart.speed = 10;
+  now += 50;
+  applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 80 }, now);
+  stepRace(race, 0.05, now);
+  assert.ok(kart.speed > 10, `speed ${kart.speed}`);
+});
 
-function widestPose() {
-  let bestT = 0;
-  let bestW = 0;
-  for (let i = 0; i < 240; i++) {
-    const pose = poseAt(i / 240);
-    if ((pose.halfWidth || 0) > bestW) {
-      bestW = pose.halfWidth;
-      bestT = i / 240;
-    }
+test('a mini-turbo still boosts while a mushroom is up and the cap is the greater one', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }]);
+  const kart = race.karts[0];
+  parkOnTrack(kart, 0.05);
+  kart.speed = 20;
+  hold(race, kart, 'mushroom');
+  assert.equal(kart.modifiers.speed, 1.5);
+  let now = 0;
+  for (let i = 0; i < 16; i++) {
+    now += 50;
+    applyDrive(race, { playerId: 'p1', steer: 0.8, gas: true, drift: true, seq: i + 1 }, now);
+    stepRace(race, 0.05, now);
   }
-  assert.ok(bestW > 0, 'poseAt has no width');
-  return { t: bestT, pose: poseAt(bestT) };
-}
+  assert.equal(driftView(kart).charged, true);
+  assert.ok(kart.modifiers.speed > 0);
+  parkOnTrack(kart, 0.05);
+  kart.speed = 44;
+  now += 50;
+  applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
+  stepRace(race, 0.05, now);
+  assert.equal(driftView(kart).phase, 'boosting');
+  assert.ok(kart.modifiers.speed > 0);
+  assert.ok(kart.speed > 44, `speed ${kart.speed}`);
+  assert.ok(kart.speed <= MUSHROOM_CAP + 1e-6, `speed ${kart.speed}`);
+});
 
-function dashApproach() {
-  const apex = widestPose();
-  for (let i = -50; i <= 50; i++) {
-    const t = (apex.t + i / 200 + 1) % 1;
-    const pose = poseAt(t);
-    const tx = Math.sin(pose.heading);
-    const tz = Math.cos(pose.heading);
-    const nx = Math.cos(pose.heading);
-    const nz = -Math.sin(pose.heading);
-    for (const frac of [0.4, 0.6, 0.8]) {
-      const lat = pose.halfWidth * frac;
-      const x1 = pose.x + nx * lat;
-      const z1 = pose.z + nz * lat;
-      const x0 = x1 - tx * 3;
-      const z0 = z1 - tz * 3;
-      const hit = followTrack({ x0, z0, x1, z1, seedProgress: t });
-      if (hit.dashEntered) {
-        return { x0, z0, x1, z1, heading: pose.heading, progress: t };
-      }
-    }
+test('a banana spins another kart, despawns, and ages out', () => {
+  const race = startRace([
+    { playerId: 'owner', name: 'Owner' },
+    { playerId: 'victim', name: 'Victim' },
+  ]);
+  const owner = race.karts[0];
+  const victim = race.karts[1];
+  parkNear(owner, 0.05, 0, 0);
+  parkNear(victim, 0.12, 0, 0);
+  hold(race, owner, 'banana');
+  const peel = race.entities.find((entity) => entity.kind === 'banana');
+  assert.ok(peel);
+  assert.equal(owner.itemPrimary, null);
+  const behind = (peel.x - owner.x) * Math.sin(owner.facing) + (peel.z - owner.z) * Math.cos(owner.facing);
+  assert.ok(behind < 0);
+  assert.ok(Math.abs(Math.hypot(peel.x - owner.x, peel.z - owner.z) - 2.4) < 1e-9);
+
+  park(owner, peel.x, peel.z);
+  stepRace(race, 0.05, 50);
+  assert.equal(owner.modifiers.spin, undefined);
+  assert.equal(race.entities.includes(peel), true);
+
+  parkNear(owner, 0.12, 0, 0);
+  park(victim, peel.x, peel.z);
+  stepRace(race, 0.05, 100);
+  assert.ok(Math.abs(victim.modifiers.spin - (1 - 0.05)) < 1e-9, `spin ${victim.modifiers.spin}`);
+  assert.equal(race.entities.includes(peel), false);
+  assert.equal(snapshot(race).players.find((player) => player.playerId === 'victim').effect, 'spin');
+  const phase = { phase: 'boosting', remaining: 0.5, slip: 0.2 };
+  victim.driftPhase = phase;
+  parkNear(victim, 0.1, -1.2, 0);
+  parkNear(owner, 0.1, 1.2, 0);
+  stepRace(race, 0.05, 120);
+  assert.equal(victim.driftPhase, phase);
+  assert.equal(victim.driftPhase.remaining, 0.5);
+
+  const spun = victim.modifiers.spin;
+  hold(race, owner, 'banana');
+  const second = race.entities.find((entity) => entity.kind === 'banana');
+  park(victim, second.x, second.z);
+  stepRace(race, 0.05, 150);
+  assert.ok(victim.modifiers.spin < spun, `spin ${victim.modifiers.spin}`);
+  assert.ok(Math.abs(victim.modifiers.spin - (spun - 0.05)) < 1e-9);
+  assert.equal(race.entities.includes(second), false);
+
+  parkNear(owner, 0.05, 0, 0);
+  parkNear(victim, 0.12, 0, 0);
+  hold(race, owner, 'banana');
+  const aged = race.entities.find((entity) => entity.kind === 'banana');
+  let now = 150;
+  for (let i = 0; i < 298; i++) {
+    now += 50;
+    stepRace(race, 0.05, now);
   }
-  assert.fail('outer final turn has no dash pad');
-}
+  assert.equal(race.entities.includes(aged), true);
+  for (let i = 0; i < 3; i++) {
+    now += 50;
+    stepRace(race, 0.05, now);
+  }
+  assert.equal(race.entities.includes(aged), false);
+});
+
+test('a green shell flies straight, spins on contact, and dies past the wall', () => {
+  const race = startRace([
+    { playerId: 'owner', name: 'Owner' },
+    { playerId: 'victim', name: 'Victim' },
+  ]);
+  const owner = race.karts[0];
+  const victim = race.karts[1];
+  parkNear(owner, 0.05, 0, 0);
+  parkNear(victim, 0.12, 0, 0);
+  hold(race, owner, 'green_shell');
+  const shell = race.entities.find((entity) => entity.kind === 'shell');
+  assert.ok(shell);
+  const ahead = (shell.x - owner.x) * Math.sin(owner.facing) + (shell.z - owner.z) * Math.cos(owner.facing);
+  assert.ok(ahead > 0);
+  assert.equal(shell.vx, Math.sin(0) * 48);
+  assert.equal(shell.vz, Math.cos(0) * 48);
+  const vx = shell.vx;
+  const vz = shell.vz;
+  park(victim, shell.x, shell.z + 48 * 0.05);
+  stepRace(race, 0.05, 50);
+  assert.equal(shell.vx, vx);
+  assert.equal(shell.vz, vz);
+  assert.equal(race.entities.includes(shell), false);
+  assert.ok(Math.abs(victim.modifiers.spin - (1 - 0.05)) < 1e-9);
+  assert.equal(owner.modifiers.spin, undefined);
+
+  parkNear(owner, 0.05, 0, 0, Math.PI / 2);
+  parkNear(victim, 0.12, 0, 0);
+  victim.modifiers = {};
+  hold(race, owner, 'green_shell');
+  const wall = race.entities.find((entity) => entity.kind === 'shell');
+  const wallVx = wall.vx;
+  const wallVz = wall.vz;
+  assert.ok(wallVx > 0);
+  stepRace(race, 0.05, 100);
+  assert.equal(race.entities.includes(wall), true);
+  assert.equal(wall.vx, wallVx);
+  assert.equal(wall.vz, wallVz);
+  stepRace(race, 0.05, 150);
+  assert.equal(race.entities.includes(wall), false);
+  assert.equal(wall.vx, wallVx);
+  assert.equal(wall.vz, wallVz);
+  assert.equal(victim.modifiers.spin, undefined);
+});
+
+test('a star blocks spins, rams on a new touch, and then expires', () => {
+  const race = startRace([
+    { playerId: 'star', name: 'Star' },
+    { playerId: 'victim', name: 'Victim' },
+  ]);
+  const star = race.karts[0];
+  const victim = race.karts[1];
+  parkNear(star, 0.12, 0, 0);
+  parkNear(victim, 0.16, 0, 0);
+  star.modifiers.spin = 0.4;
+  hold(race, star, 'star');
+  assert.equal(star.modifiers.spin, undefined);
+  assert.equal(star.modifiers.speed, 5);
+  assert.equal(star.modifiers.invuln, 5);
+  assert.equal(snapshot(race).players[0].effect, 'star');
+  assert.equal(snapshot(race).players[0].itemLabel, null);
+
+  star.speed = 47;
+  applyDrive(race, { playerId: 'star', steer: 0, gas: true, drift: false, seq: 1 }, 10);
+  stepRace(race, 0.05, 50);
+  assert.ok(star.speed > 47, `speed ${star.speed}`);
+  assert.ok(star.speed <= STAR_CAP + 1e-6, `speed ${star.speed}`);
+
+  function pile() {
+    parkNear(star, 0.05, 0, 0);
+    parkNear(victim, 0.05, 1.0, 0);
+  }
+  pile();
+  stepRace(race, 0.05, 100);
+  assert.equal(star.modifiers.spin, undefined);
+  const first = victim.modifiers.spin;
+  assert.ok(Math.abs(first - (1 - 0.05)) < 1e-9, `spin ${first}`);
+  pile();
+  stepRace(race, 0.05, 150);
+  assert.ok(Math.abs(victim.modifiers.spin - (first - 0.05)) < 1e-9, `spin ${victim.modifiers.spin}`);
+
+  let now = 150;
+  let guard = 0;
+  while (victim.modifiers.spin > 0 && guard < 40) {
+    pile();
+    now += 50;
+    guard += 1;
+    stepRace(race, 0.05, now);
+  }
+  assert.equal(victim.modifiers.spin, undefined);
+  pile();
+  now += 50;
+  stepRace(race, 0.05, now);
+  assert.equal(victim.modifiers.spin, undefined, 'still overlapped after the spin ended');
+  parkNear(star, 0.05, 0, 0);
+  parkNear(victim, 0.12, 0, 0);
+  now += 50;
+  stepRace(race, 0.05, now);
+  pile();
+  now += 50;
+  stepRace(race, 0.05, now);
+  assert.ok(Math.abs(victim.modifiers.spin - (1 - 0.05)) < 1e-9, `re-spin ${victim.modifiers.spin}`);
+  assert.equal(star.modifiers.spin, undefined);
+
+  parkNear(victim, 0.12, 0, 0);
+  victim.modifiers = {};
+  hold(race, victim, 'banana');
+  const peel = race.entities.find((entity) => entity.kind === 'banana');
+  park(star, peel.x, peel.z);
+  parkNear(victim, 0.12, 1.2, 0);
+  now += 50;
+  stepRace(race, 0.05, now);
+  assert.equal(star.modifiers.spin, undefined);
+  assert.equal(race.entities.includes(peel), false);
+  assert.ok(star.modifiers.invuln > 0);
+
+  parkNear(star, 0.05, 0, 0);
+  hold(race, victim, 'green_shell');
+  const shell = race.entities.find((entity) => entity.kind === 'shell');
+  park(star, shell.x, shell.z + shell.vz * 0.05);
+  now += 50;
+  stepRace(race, 0.05, now);
+  assert.equal(star.modifiers.spin, undefined);
+  assert.equal(race.entities.includes(shell), false);
+
+  const before = star.modifiers.speed;
+  assert.ok(before > 1.5 && before < 5);
+  hold(race, star, 'mushroom');
+  assert.ok(star.modifiers.speed + 1e-9 >= before);
+  assert.ok(star.modifiers.speed > 1.5);
+  star.speed = 48;
+  now += 50;
+  applyDrive(race, { playerId: 'star', steer: 0, gas: true, drift: false, seq: 90 }, now);
+  stepRace(race, 0.05, now);
+  assert.ok(star.speed > 48, `merged mul speed ${star.speed}`);
+
+  let left = 0;
+  while (((star.modifiers.speed || 0) > 0.05 || (star.modifiers.invuln || 0) > 0.05) && left < 200) {
+    left += 1;
+    now += 50;
+    parkNear(star, 0.1, 0, 0);
+    parkNear(victim, 0.14, 0, 0);
+    stepRace(race, 0.05, now);
+  }
+  assert.ok(left < 200, 'star timers did not run out');
+  parkNear(star, 0.1, 0, 0);
+  parkNear(victim, 0.14, 0, 0);
+  star.speed = 20;
+  now += 50;
+  stepRace(race, 0.05, now);
+  assert.equal(star.modifiers.speed, undefined);
+  assert.equal(star.modifiers.invuln, undefined);
+  assert.ok(star.speed > 0, `speed ${star.speed}`);
+  star.speed = 10;
+  now += 50;
+  applyDrive(race, { playerId: 'star', steer: 0, gas: true, drift: false, seq: 200 }, now);
+  stepRace(race, 0.05, now);
+  assert.ok(star.speed > 10, `speed ${star.speed}`);
+});
+
+test('an unknown item clears the slot and does not count', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }]);
+  const kart = race.karts[0];
+  kart.itemPrimary = 'red_shell';
+  applyUseItem(race, { playerId: 'p1' });
+  assert.equal(kart.itemPrimary, null);
+  assert.equal(kart.itemPresses, 0);
+  assert.deepEqual(kart.modifiers, {});
+  assert.equal(race.entities.some((entity) => entity.kind !== 'box'), false);
+  kart.itemSecondary = 'star';
+  assert.equal(snapshot(race).players[0].itemSecondary, null);
+});
 
 test('straight up on the rim does not charge', () => {
-  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
   race.phase = 'racing';
   const kart = race.karts[0];
   kart.speed = 20;

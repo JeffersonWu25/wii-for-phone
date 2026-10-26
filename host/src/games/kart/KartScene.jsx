@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { trackVisuals } from './track.js';
 import { viewports } from './layout.js';
-import { driftView } from './race.js';
+import { driftView, effectView } from './race.js';
 
 const CAM_DIST = 6.8;
 const CAM_HEIGHT = 2.95;
@@ -283,21 +283,70 @@ function placeCamera(camera, kart, travel) {
   camera.fov = FOV;
 }
 
-function placeRacer(mesh, kart) {
+function placeRacer(mesh, kart, now) {
   const view = driftView(kart);
+  const fx = effectView(kart);
   const body = mesh.userData.body;
   const sparks = mesh.userData.sparks;
   const glow = mesh.userData.glow;
   mesh.position.set(kart.x, 0, kart.z);
   mesh.rotation.set(0, view.facing, 0);
   body.position.y = PIVOT_Y + Math.abs(view.roll) * TRACK_HALF;
-  body.rotation.set(0, 0, view.roll);
+  body.rotation.set(0, 0, fx === 'spin' ? Math.sin(now / 80) * 0.4 : view.roll);
   sparks.material.opacity = view.charge;
   sparks.material.color.set(view.charged ? 0xff8a2a : 0x9ecbff);
-  glow.visible = view.phase === 'boosting';
+  glow.visible = view.phase === 'boosting' || fx === 'boost' || fx === 'star';
+  glow.material.color.set(fx === 'star' ? 0xffe566 : 0xffb15a);
 }
 
-export default function KartScene({ raceRef }) {
+function makeEntity(kind) {
+  let geo;
+  let y = 0.4;
+  if (kind === 'box') {
+    geo = new THREE.BoxGeometry(1.25, 1.25, 1.25);
+    y = 1.15;
+  } else if (kind === 'banana') {
+    geo = new THREE.TorusGeometry(0.55, 0.18, 8, 10, Math.PI);
+    y = 0.28;
+  } else if (kind === 'shell') {
+    geo = new THREE.SphereGeometry(0.42, 12, 10);
+    y = 0.42;
+  } else {
+    throw new Error(`unknown entity kind ${kind}`);
+  }
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial());
+  mesh.castShadow = true;
+  mesh.userData.y = y;
+  mesh.userData.kind = kind;
+  if (kind === 'banana') mesh.rotation.x = -Math.PI / 2;
+  return mesh;
+}
+
+function syncEntities(scene, pool, entities, now) {
+  const live = new Set();
+  for (const entity of entities || []) {
+    live.add(entity.id);
+    let mesh = pool.get(entity.id);
+    if (!mesh) {
+      mesh = makeEntity(entity.kind);
+      pool.set(entity.id, mesh);
+      scene.add(mesh);
+    }
+    mesh.position.set(entity.x, mesh.userData.y, entity.z);
+    mesh.visible = entity.kind !== 'box' || entity.cooldown <= 0;
+    mesh.material.color.set(entity.color);
+    if (entity.kind === 'box') mesh.rotation.y = now / 700;
+  }
+  for (const [id, mesh] of pool) {
+    if (live.has(id)) continue;
+    scene.remove(mesh);
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+    pool.delete(id);
+  }
+}
+
+export default function KartScene({ raceRef, track: _track }) {
   const wrapRef = useRef(null);
 
   useEffect(() => {
@@ -313,6 +362,7 @@ export default function KartScene({ raceRef }) {
     addTrack(scene);
 
     const racers = [];
+    const entityPool = new Map();
     function ensureRacers(race) {
       if (racers.length === race.karts.length) return;
       for (const mesh of racers) scene.remove(mesh);
@@ -355,8 +405,9 @@ export default function KartScene({ raceRef }) {
       race.karts.forEach((kart, i) => {
         const mesh = racers[i];
         if (!mesh) return;
-        placeRacer(mesh, kart);
+        placeRacer(mesh, kart, now);
       });
+      syncEntities(scene, entityPool, race.entities, now);
 
       const w = wrap.clientWidth || 1;
       const h = wrap.clientHeight || 1;

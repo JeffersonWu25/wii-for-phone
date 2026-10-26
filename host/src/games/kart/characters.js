@@ -16,6 +16,18 @@ export const CHARACTERS = [
   { id: 'koopa', name: 'Koopa Troopa', body: 0xf0c419, hat: 0x2f7a32, skin: 0xf0c419, css: '#2f7a32' },
 ];
 
-export function characterFor(index) {
-  return CHARACTERS[index % CHARACTERS.length];
+export const PLAYABLE_IDS = ['mario', 'luigi', 'peach', 'daisy'];
+
+export function characterById(id) {
+  return CHARACTERS.find((character) => character.id === id) || null;
 }
+
+export function playableCharacters() {
+  return PLAYABLE_IDS.map((id) => {
+    const character = characterById(id);
+    if (!character) throw new Error(`missing playable character ${id}`);
+    return character;
+  });
+}
+
+playableCharacters();
