@@ -1,11 +1,6 @@
-BODY TEXT:
-00
-1 / 3
-1st
-3
-Back
-Tuning
+Back to games
+Mario Kart
 
-ROLES:
-        button: Back
-        button: Tuning
+Phones pick the racers. This screen picks the course.
+
+Race
