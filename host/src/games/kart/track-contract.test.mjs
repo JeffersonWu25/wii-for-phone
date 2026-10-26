@@ -85,9 +85,9 @@ function rectanglePlan() {
   return {
     waypoints: [
       { id: 'a', seg: 'start', x: 0, z: -20, halfWidth: 5 },
-      { id: 'b', seg: 'start', x: 0, z: 20, halfWidth: 5 },
-      { id: 'c', seg: 'start', x: 40, z: 20, halfWidth: 5 },
-      { id: 'd', seg: 'start', x: 40, z: -20, halfWidth: 5 },
+      { id: 'b', seg: 'loop', x: 0, z: 20, halfWidth: 5 },
+      { id: 'c', seg: 'loop', x: 40, z: 20, halfWidth: 5 },
+      { id: 'd', seg: 'loop', x: 40, z: -20, halfWidth: 5 },
     ],
     sandBands: [],
     dashes: [],
@@ -99,15 +99,13 @@ function rectanglePlan() {
       columns: 2,
     },
     grassMargin: 6,
+    itemBoxProgress: [0.25, 0.75],
   };
 }
 
 test('createTrack compiles a short rectangle and a race can step it', () => {
   const luigiAt = poseAt(0.1);
-  const track = createTrack(rectanglePlan(), {
-    id: 'rect',
-    itemBoxProgress: [0.25, 0.75],
-  });
+  const track = createTrack(rectanglePlan(), { id: 'rect' });
 
   assert.equal(Object.isFrozen(track), true);
   assert.equal(track.id, 'rect');
@@ -128,11 +126,12 @@ test('createTrack compiles a short rectangle and a race can step it', () => {
   assert.equal(luigiNs.luigiCircuit.poseAt, poseAt);
 
   assert.throws(
-    () => createTrack(rectanglePlan(), {
-      perimRange: [190, 245],
-      itemBoxProgress: [0.5],
-    }),
+    () => createTrack(rectanglePlan(), { perimRange: [190, 245] }),
     /PERIM 160/,
+  );
+  assert.throws(
+    () => createTrack(rectanglePlan(), { requireStartGrid: true }),
+    /start straight/,
   );
 
   const race = createRace(

@@ -7,7 +7,11 @@ const MAX_STEP_M = 6;
 export function createTrack(plan, opts = {}) {
   const course = compile(plan, opts);
   const grid = plan.grid;
-  const itemBoxProgress = Object.freeze([...(opts.itemBoxProgress ?? [])]);
+  const boxes = opts.itemBoxProgress ?? plan.itemBoxProgress;
+  if (!Array.isArray(boxes)) {
+    throw new Error('createTrack needs itemBoxProgress on opts or plan');
+  }
+  const itemBoxProgress = Object.freeze([...boxes]);
 
   function poseAt(t) {
     return poseOn(course, t);
@@ -225,7 +229,9 @@ function compile(plan, opts = {}) {
 
   const back = plan.grid.frontMeters + 5 * plan.grid.rowMeters;
   const gridFrame = poseAtSLocal(wrap01(-back / perim) * perim);
-  if (gridFrame.seg !== 'start') throw new Error('grid row 5 leaves the start straight');
+  if (opts.requireStartGrid && gridFrame.seg !== 'start') {
+    throw new Error('grid row 5 leaves the start straight');
+  }
   if (opts.perimRange) {
     const [lo, hi] = opts.perimRange;
     if (!(perim > lo && perim < hi)) throw new Error(`PERIM ${perim}`);
@@ -581,8 +587,8 @@ function clamp(v, min, max) {
 
 export const luigiCircuit = createTrack(LUIGI_PLAN, {
   id: 'luigi-circuit',
-  itemBoxProgress: [0.08, 0.22, 0.38, 0.55, 0.72, 0.88],
   perimRange: [190, 245],
+  requireStartGrid: true,
 });
 
 export const PERIM = luigiCircuit.PERIM;
