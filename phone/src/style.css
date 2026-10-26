@@ -366,12 +366,32 @@ button:active {
   border-radius: 50%;
   background: #f5d90a;
   color: #1a1206;
+  font-size: 0.9rem;
   font-weight: 900;
+  line-height: 1.05;
+  padding: 12px;
   touch-action: none;
 }
 
 .kart-item.is-held {
   transform: translateY(3px) scale(0.97);
+}
+
+.kart-item.is-armed {
+  box-shadow: 0 0 0 4px #fff6, 0 8px 0 rgba(0, 0, 0, 0.18);
+}
+
+.kart-item.is-star {
+  background: #ffe566;
+  box-shadow: 0 0 18px #ffe566;
+}
+
+.kart-item.is-spinning {
+  animation: kart-item-spin 0.18s linear infinite;
+}
+
+@keyframes kart-item-spin {
+  50% { transform: rotate(8deg); }
 }
 
 .kart-stick {
