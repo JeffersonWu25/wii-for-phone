@@ -76,7 +76,9 @@ function CoinLap({ coins, lap, lapsTotal }) {
   );
 }
 
-export default function KartApp({ wsRef, send, players, onAbandon }) {
+export default function KartApp({ wsRef, send, setup, onAbandon }) {
+  const setupRef = useRef(setup);
+  const startedRef = useRef(false);
   const raceRef = useRef(null);
   const sendRef = useRef(send);
   sendRef.current = send;
@@ -84,17 +86,21 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
   const [knobs, setKnobs] = useState({ ...DEFAULT_TUNING });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const rosterRef = useRef(players);
-
   useEffect(() => {
-    const race = createRace(rosterRef.current, performance.now());
+    if (startedRef.current) return;
+    startedRef.current = true;
+    // setup is frozen at Start Race. A later join must not build a second race.
+    const race = createRace(setupRef.current.players, performance.now(), setupRef.current.track);
     raceRef.current = race;
     setView(snapshot(race));
+  }, []);
 
+  useEffect(() => {
     const ws = wsRef.current;
     function onMessage(event) {
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
+      if (!raceRef.current) return;
       if (msg.type === 'drive') applyDrive(raceRef.current, msg, performance.now());
       else if (msg.type === 'use_item') applyUseItem(raceRef.current, msg);
     }
@@ -125,13 +131,13 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
     if (raceRef.current) setTuning(raceRef.current, { [key]: value });
   }
 
-  const count = view?.players.length || players.length || 1;
+  const count = view?.players.length || setup.players.length || 1;
   const panes = viewports(count, 100, 100);
   const lapsTotal = view?.lapsTotal || LAPS;
 
   return (
     <div className="kart-layout">
-      <KartScene raceRef={raceRef} />
+      <KartScene raceRef={raceRef} track={setup.track} />
       <div className="kart-hud">
         {view?.players.map((player, i) => (
           <div key={player.playerId} className="kart-pane" style={panes[i].css}>
@@ -140,7 +146,7 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
             <PlaceBadge place={player.place} placeText={player.placeText} />
           </div>
         ))}
-        {view?.players?.length ? <Minimap players={view.players} /> : null}
+        {view?.players?.length ? <Minimap players={view.players} track={setup.track} /> : null}
         {view?.phase === 'countdown' && view.countdown > 0 && (
           <div className="kart-countdown">{view.countdown}</div>
         )}

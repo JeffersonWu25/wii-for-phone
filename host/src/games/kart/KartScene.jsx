@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { HALF, poseAt } from './track.js';
 import { viewports } from './layout.js';
 import { driftView } from './race.js';
 
@@ -12,12 +11,12 @@ const FOV = 58;
 const PIVOT_Y = 0.42;
 const TRACK_HALF = 0.58;
 
-function ribbon(halfWidth, y, color) {
+function ribbon(track, halfWidth, y, color) {
   const n = 180;
   const positions = [];
   const indices = [];
   for (let i = 0; i <= n; i++) {
-    const pose = poseAt(i / n);
+    const pose = track.poseAt(i / n);
     const rx = Math.cos(pose.heading);
     const rz = -Math.sin(pose.heading);
     positions.push(
@@ -119,15 +118,15 @@ function makeRacer(character) {
   return group;
 }
 
-function addScenery(scene) {
+function addScenery(scene, track) {
   const hedgeMat = new THREE.MeshLambertMaterial({ color: 0x2f8f3a });
   const flowerMat = new THREE.MeshLambertMaterial({ color: 0xd94b4b });
   for (let i = 0; i < 18; i++) {
-    const pose = poseAt((i + 0.12) / 18);
+    const pose = track.poseAt((i + 0.12) / 18);
     const rx = Math.cos(pose.heading);
     const rz = -Math.sin(pose.heading);
     const side = i % 2 === 0 ? 1 : -1;
-    const dist = HALF + 2.4 + (i % 3) * 0.35;
+    const dist = track.HALF + 2.4 + (i % 3) * 0.35;
     const hedge = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 0.7), hedgeMat);
     hedge.position.set(
       pose.x + rx * side * dist,
@@ -147,7 +146,7 @@ function addScenery(scene) {
   }
 }
 
-function addTrack(scene) {
+function addTrack(scene, track) {
   scene.background = new THREE.Color(0x7ec8f5);
   scene.fog = new THREE.Fog(0x7ec8f5, 70, 160);
 
@@ -174,13 +173,13 @@ function addTrack(scene) {
   grass.receiveShadow = true;
   scene.add(grass);
 
-  scene.add(ribbon(HALF + 1.15, 0.02, 0xf0ebe0));
-  scene.add(ribbon(HALF + 0.35, 0.04, 0xe4d5b5));
-  scene.add(ribbon(HALF, 0.07, 0xd2b48c));
+  scene.add(ribbon(track, track.HALF + 1.15, 0.02, 0xf0ebe0));
+  scene.add(ribbon(track, track.HALF + 0.35, 0.04, 0xe4d5b5));
+  scene.add(ribbon(track, track.HALF, 0.07, 0xd2b48c));
 
-  const start = poseAt(0);
+  const start = track.poseAt(0);
   const checker = new THREE.Mesh(
-    new THREE.BoxGeometry(HALF * 2, 0.06, 1.1),
+    new THREE.BoxGeometry(track.HALF * 2, 0.06, 1.1),
     new THREE.MeshLambertMaterial({ color: 0xf7f7f7 }),
   );
   checker.position.set(start.x, 0.11, start.z);
@@ -188,7 +187,7 @@ function addTrack(scene) {
   checker.receiveShadow = true;
   scene.add(checker);
 
-  addScenery(scene);
+  addScenery(scene, track);
 }
 
 function placeCamera(camera, kart, travel) {
@@ -222,7 +221,7 @@ function placeRacer(mesh, kart) {
   glow.visible = view.phase === 'boosting';
 }
 
-export default function KartScene({ raceRef }) {
+export default function KartScene({ raceRef, track }) {
   const wrapRef = useRef(null);
 
   useEffect(() => {
@@ -235,7 +234,7 @@ export default function KartScene({ raceRef }) {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     wrap.appendChild(renderer.domElement);
-    addTrack(scene);
+    addTrack(scene, track);
 
     const racers = [];
     function ensureRacers(race) {
@@ -333,7 +332,7 @@ export default function KartScene({ raceRef }) {
       renderer.dispose();
       if (renderer.domElement.parentNode === wrap) wrap.removeChild(renderer.domElement);
     };
-  }, [raceRef]);
+  }, [raceRef, track]);
 
   return <div className="kart-canvas" ref={wrapRef} />;
 }
