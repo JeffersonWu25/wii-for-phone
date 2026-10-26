@@ -1,7 +1,3 @@
-// Luigi Circuit. Progress 0 is the checkered stripe on the start straight.
-// Heading 0 faces +z. Travel is (sin heading, cos heading).
-// Positive lateral is the right-hand normal, outside this counterclockwise loop.
-
 export const PROGRESS_CONTINUITY = 0.10;
 
 const MAX_STEP_M = 6;
@@ -386,8 +382,6 @@ function bandPoly(course, p0, p1, depth) {
     let deep = offset(pose, -pose.half - depth);
     if (prev) {
       const advance = (deep.x - prev.x) * pose.tx + (deep.z - prev.z) * pose.tz;
-      // The final bank's inset is longer than its radius, so a raw offset
-      // folds through the asphalt. Keep the inner edge moving forward.
       if (advance < 0.2) {
         deep = { x: prev.x + pose.tx * 0.2, z: prev.z + pose.tz * 0.2 };
       }

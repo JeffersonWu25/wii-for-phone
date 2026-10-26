@@ -123,7 +123,6 @@ function speedCap(phase, scales, kart) {
   const shroom = kart?.mushroomRemaining > 0 ? MUSHROOM_CAP * scales.speed : 0;
   const want = Math.max(asphalt, turbo, dash, shroom);
   const surface = kart?.surface || 'asphalt';
-  // A mushroom is the sand-cut button, so it ignores surface drag.
   const mul = kart?.mushroomRemaining > 0 ? 1 : SURFACE_MUL[surface];
   if (mul == null) throw new Error(`unknown surface ${surface}`);
   return want * mul;
