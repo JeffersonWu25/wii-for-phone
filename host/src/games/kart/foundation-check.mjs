@@ -23,22 +23,21 @@ function ban(file, pattern, why) {
   if (pattern.test(src)) failures.push(`${file}: ${why}`);
 }
 
-// Consumers must not import geometry from the Luigi module path.
-ban(
-  'items.js',
-  /from\s+['"]\.\/track\.js['"]/,
-  'items must use race.track, not import ./track.js',
-);
-ban(
-  'KartScene.jsx',
-  /from\s+['"]\.\/track\.js['"]/,
-  'KartScene must use the track prop / race.track.trackVisuals, not import ./track.js',
-);
-ban(
-  'Minimap.jsx',
-  /from\s+['"]\.\/track\.js['"]/,
-  'Minimap must use the track prop, not import ./track.js',
-);
+// Consumers must not import geometry from the track module path.
+for (const file of ['items.js', 'KartScene.jsx', 'Minimap.jsx', 'race.js']) {
+  ban(
+    file,
+    /from\s+['"]\.\/track\.js['"]/,
+    `${file} must not import ./track.js (use race.track / TRACKS / the track prop)`,
+  );
+}
+
+const planPath = join(root, 'tracks', 'luigi-circuit-plan.js');
+try {
+  readFileSync(planPath, 'utf8');
+} catch {
+  failures.push('tracks/luigi-circuit-plan.js: Luigi plan must live as its own file');
+}
 
 // Character records must expose stats used by race physics.
 const { CHARACTERS, characterById } = await import(pathToFileURL(join(root, 'characters.js')).href);

@@ -14,12 +14,13 @@ test('every roster character carries positive speed turn drift boost stats', () 
 });
 
 test('heavier stats reach a higher asphalt top speed under identical host tuning', () => {
-  function topSpeed(characterId) {
+  function topSpeed(characterId, hostSpeed = 1) {
     const race = createRace(
       [{ playerId: 'p', name: 'P', characterId }],
       0,
       luigi,
     );
+    race.tuning.speed = hostSpeed;
     race.phase = 'racing';
     race.startedAt = 0;
     const kart = race.karts[0];
@@ -36,4 +37,8 @@ test('heavier stats reach a higher asphalt top speed under identical host tuning
   const toad = topSpeed('toad');
   assert.ok(bowser > toad + 1, `bowser ${bowser} should beat toad ${toad}`);
   assert.equal(characterById('bowser').stats.speed > characterById('toad').stats.speed, true);
+
+  const hotBowser = topSpeed('bowser', 1.55);
+  const hotToad = topSpeed('toad', 1.55);
+  assert.ok(hotBowser > hotToad + 1, `at host 1.55 bowser ${hotBowser} should beat toad ${hotToad}`);
 });

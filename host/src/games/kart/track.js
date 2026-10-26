@@ -1,95 +1,17 @@
+import { LUIGI_PLAN } from './tracks/luigi-circuit-plan.js';
+
 export const PROGRESS_CONTINUITY = 0.10;
 
 const MAX_STEP_M = 6;
-const GRID = Object.freeze({
-  frontMeters: 2.3,
-  rowMeters: 3.0,
-  colOffset: 1.6,
-  columns: 2,
-});
-
-const LUIGI_PLAN = {
-  waypoints: [
-    { id: 'sf', seg: 'start', x: 34, z: -6, halfWidth: 6 },
-    { id: 's1', seg: 'start', x: 34, z: 10, halfWidth: 6 },
-    { id: 's2', seg: 'start', x: 34, z: 24, halfWidth: 6.1 },
-    { id: 't18', seg: 'turn1', x: 33.12, z: 29.56, halfWidth: 6.32 },
-    { id: 't36', seg: 'turn1', x: 30.56, z: 34.58, halfWidth: 6.44 },
-    { id: 't54', seg: 'turn1', x: 26.58, z: 38.56, halfWidth: 6.52 },
-    { id: 't72', seg: 'turn1', x: 21.56, z: 41.12, halfWidth: 6.58 },
-    { id: 't90', seg: 'turn1', x: 16, z: 42, halfWidth: 6.6 },
-    { id: 't110', seg: 'turn1', x: 9.84, z: 40.91, halfWidth: 6.55 },
-    { id: 't130', seg: 'turn1', x: 4.43, z: 37.79, halfWidth: 6.5 },
-    { id: 'tA', seg: 'turn1', x: 3.2, z: 32.5, halfWidth: 6.45 },
-    { id: 'tB', seg: 'turn1', x: -8, z: 29.5, halfWidth: 6.35 },
-    { id: 'tC', seg: 'turn1', x: -18, z: 23, halfWidth: 6.2 },
-    { id: 'k1', seg: 'kink', x: -22.19, z: 16.15, halfWidth: 6.05 },
-    { id: 'k2', seg: 'kink', x: -23.83, z: 9.43, halfWidth: 6 },
-    { id: 'k3', seg: 'kink', x: -22.51, z: 2.5, halfWidth: 5.95 },
-    { id: 'b0', seg: 'back', x: -16, z: -6, halfWidth: 5.9 },
-    { id: 'b1', seg: 'back', x: -9, z: -14, halfWidth: 6 },
-    { id: 'b2', seg: 'back', x: -4, z: -21, halfWidth: 6.2 },
-    { id: 'b3', seg: 'back', x: -2.64, z: -24.86, halfWidth: 6.4 },
-    { id: 'u0', seg: 'bank', x: -2, z: -28, halfWidth: 6.6, visualOuterY: 0.15 },
-    { id: 'u210', seg: 'bank', x: 0.41, z: -37, halfWidth: 7.9, visualOuterY: 0.45 },
-    { id: 'u240', seg: 'bank', x: 7, z: -43.59, halfWidth: 8.78, visualOuterY: 0.75 },
-    { id: 'u270', seg: 'bank', x: 16, z: -46, halfWidth: 9.1, visualOuterY: 0.9 },
-    { id: 'u300', seg: 'bank', x: 25, z: -43.59, halfWidth: 8.78, visualOuterY: 0.75 },
-    { id: 'u330', seg: 'bank', x: 31.59, z: -37, halfWidth: 7.9, visualOuterY: 0.4 },
-    { id: 'link', seg: 'start', x: 34, z: -28, halfWidth: 6.2 },
-  ],
-  sandBands: [
-    { from: 't36', u0: 0, to: 'k2', u1: 0.5, depth: 10 },
-    { from: 'b2', u0: 0, to: 'u330', u1: 1, depth: 18 },
-  ],
-  dashes: [
-    { from: 'u210', u0: 0.05, to: 'u330', u1: 0.85, latFrac0: 0.18, latFrac1: 0.94 },
-  ],
-  corridors: [
-    {
-      id: 'rampCut',
-      from: 'b1',
-      u0: 0.15,
-      to: 'u210',
-      u1: 0.35,
-      reach: 7,
-      spine: [
-        { at: 'b1', u: 0.15, lateral: 'inner' },
-        { at: 'b2', u: 0.45, lateral: -12 },
-        { at: 'b3', u: 0.6, lateral: -13 },
-        { at: 'u0', u: 0.45, lateral: -12 },
-        { at: 'u210', u: 0.35, lateral: 'inner' },
-      ],
-    },
-    {
-      id: 'uCut',
-      from: 'u0',
-      u0: 0.15,
-      to: 'u330',
-      u1: 0.8,
-      reach: 8,
-      spine: [
-        { at: 'u0', u: 0.15, lateral: 'inner' },
-        { at: 'u210', u: 0.45, lateral: -15 },
-        { at: 'u240', u: 0.5, lateral: -17 },
-        { at: 'u270', u: 0.5, lateral: -18 },
-        { at: 'u300', u: 0.5, lateral: -17 },
-        { at: 'u330', u: 0.8, lateral: 'inner' },
-      ],
-    },
-  ],
-  grid: GRID,
-  grassMargin: 12,
-};
-
-const DEFAULT_ITEM_BOX_PROGRESS = Object.freeze([0.08, 0.22, 0.38, 0.55, 0.72, 0.88]);
 
 export function createTrack(plan, opts = {}) {
   const course = compile(plan, opts);
   const grid = plan.grid;
-  const itemBoxProgress = Object.freeze([
-    ...(opts.itemBoxProgress ?? DEFAULT_ITEM_BOX_PROGRESS),
-  ]);
+  const boxes = opts.itemBoxProgress ?? plan.itemBoxProgress;
+  if (!Array.isArray(boxes)) {
+    throw new Error('createTrack needs itemBoxProgress on opts or plan');
+  }
+  const itemBoxProgress = Object.freeze([...boxes]);
 
   function poseAt(t) {
     return poseOn(course, t);
@@ -307,10 +229,12 @@ function compile(plan, opts = {}) {
 
   const back = plan.grid.frontMeters + 5 * plan.grid.rowMeters;
   const gridFrame = poseAtSLocal(wrap01(-back / perim) * perim);
-  if (gridFrame.seg !== 'start') throw new Error('grid row 5 leaves the start straight');
-  if (opts.assertPerim) {
-    const { min, max } = opts.assertPerim;
-    if (!(perim > min && perim < max)) throw new Error(`PERIM ${perim}`);
+  if (opts.requireStartGrid && gridFrame.seg !== 'start') {
+    throw new Error('grid row 5 leaves the start straight');
+  }
+  if (opts.perimRange) {
+    const [lo, hi] = opts.perimRange;
+    if (!(perim > lo && perim < hi)) throw new Error(`PERIM ${perim}`);
   }
 
   const visuals = buildVisuals({
@@ -661,11 +585,10 @@ function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
-/** Compiled Luigi Circuit. Prefer this over the module namespace for race setup. */
 export const luigiCircuit = createTrack(LUIGI_PLAN, {
   id: 'luigi-circuit',
-  itemBoxProgress: DEFAULT_ITEM_BOX_PROGRESS,
-  assertPerim: { min: 190, max: 245 },
+  perimRange: [190, 245],
+  requireStartGrid: true,
 });
 
 export const PERIM = luigiCircuit.PERIM;

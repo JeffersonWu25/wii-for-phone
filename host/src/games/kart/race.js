@@ -87,9 +87,12 @@ function tuningScales(raceTuning, kart) {
   const scales = {};
   for (const key of Object.keys(TUNING_LIMITS)) {
     const { min, max } = TUNING_LIMITS[key];
-    const host = Number.isFinite(raceTuning?.[key]) ? raceTuning[key] : DEFAULT_TUNING[key];
+    const raw = Number.isFinite(raceTuning?.[key]) ? raceTuning[key] : DEFAULT_TUNING[key];
+    const host = clamp(raw, min, max);
     const base = Number.isFinite(stats?.[key]) ? stats[key] : 1;
-    scales[key] = clamp(base * host, min, max);
+    // Host knobs stay in TUNING_LIMITS. Character weight class scales on top so
+    // relative roster differences survive high host values.
+    scales[key] = host * base;
   }
   return scales;
 }
