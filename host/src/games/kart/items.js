@@ -14,6 +14,13 @@ const MODIFIERS = Object.freeze({
   }),
 });
 
+const GUIDES = Object.freeze({
+  straight(entity, dt) {
+    entity.x += entity.vx * dt;
+    entity.z += entity.vz * dt;
+  },
+});
+
 const ITEMS = Object.freeze({
   mushroom: Object.freeze({
     id: 'mushroom',
@@ -78,6 +85,7 @@ const ITEM_LIST = Object.freeze(Object.values(ITEMS));
       throw new Error(`bad spawn kind ${def.kind}`);
     }
     if (def.kind != null && !(def.life > 0)) throw new Error(`${def.id} missing life`);
+    if (def.guide != null && !GUIDES[def.guide]) throw new Error(`unknown guide ${def.guide} on ${def.id}`);
   }
 }
 
@@ -255,10 +263,10 @@ export function stepItems(race, dt, kartRadius) {
 
   for (const entity of race.entities) {
     if (entity.kind !== 'shell' || retired.has(entity.id)) continue;
-    const guide = ITEMS[entity.itemId].guide;
-    if (guide !== 'straight') throw new Error(`not implemented: guide ${guide}`);
-    entity.x += entity.vx * dt;
-    entity.z += entity.vz * dt;
+    const guideId = ITEMS[entity.itemId].guide;
+    const guide = GUIDES[guideId];
+    if (!guide) throw new Error(`unknown guide ${guideId}`);
+    guide(entity, dt);
     const track = race.track;
     if (Math.abs(track.sampleTrack(entity.x, entity.z).lateral) > track.HALF) {
       retired.add(entity.id);
