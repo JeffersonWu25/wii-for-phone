@@ -14,6 +14,7 @@ import {
   takeBroadcast,
 } from './race.js';
 import { viewports } from './layout.js';
+import GameSettings from '../../shared/GameSettings.jsx';
 
 const KNOB_COPY = {
   speed: {
@@ -42,14 +43,20 @@ const KNOB_COPY = {
   },
 };
 
-function ItemSlots({ primary, secondary }) {
+function ItemSlots({ primary, secondary, color, effect }) {
+  const fx = effect ? ` kart-fx-${effect}` : '';
   return (
-    <div className="kart-items">
+    <div className={`kart-items${fx}`}>
       <div className={`kart-item kart-item-secondary${secondary ? ' is-filled' : ''}`}>
         {secondary ? <span className={`kart-item-icon item-${secondary}`} /> : null}
       </div>
       <div className={`kart-item kart-item-primary${primary ? ' is-filled' : ''}`}>
-        {primary ? <span className={`kart-item-icon item-${primary}`} /> : null}
+        {primary ? (
+          <span
+            className={`kart-item-icon item-${primary}`}
+            style={color ? { '--item': color } : undefined}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -141,7 +148,12 @@ export default function KartApp({ wsRef, send, setup, onAbandon }) {
       <div className="kart-hud">
         {view?.players.map((player, i) => (
           <div key={player.playerId} className="kart-pane" style={panes[i].css}>
-            <ItemSlots primary={player.itemPrimary} secondary={player.itemSecondary} />
+            <ItemSlots
+              primary={player.itemPrimary}
+              secondary={player.itemSecondary}
+              color={player.itemColor}
+              effect={player.effect}
+            />
             <CoinLap coins={player.coins} lap={player.lap} lapsTotal={lapsTotal} />
             <PlaceBadge place={player.place} placeText={player.placeText} />
           </div>
@@ -167,41 +179,36 @@ export default function KartApp({ wsRef, send, setup, onAbandon }) {
         )}
       </div>
       {view?.phase !== 'finished' && (
-        <div className="kart-chrome">
-          <button type="button" className="kart-back" onClick={onAbandon}>Back</button>
-          <button
-            type="button"
-            className="kart-settings-toggle"
-            aria-expanded={settingsOpen}
-            onClick={() => setSettingsOpen((open) => !open)}
-          >
-            Tuning
+        <button type="button" className="btn-abandon" onClick={onAbandon}>← Games</button>
+      )}
+      {view?.phase !== 'finished' && (
+        <GameSettings open={settingsOpen} onToggle={() => setSettingsOpen((open) => !open)}>
+          <form className="game-settings-form" onSubmit={(event) => event.preventDefault()}>
+            {Object.keys(TUNING_LIMITS).map((key) => {
+              const copy = KNOB_COPY[key];
+              if (!copy) throw new Error(`missing tuning label for ${key}`);
+              const limit = TUNING_LIMITS[key];
+              return (
+                <label key={key} title={copy.title}>
+                  {copy.label}
+                  <input
+                    type="range"
+                    min={limit.min}
+                    max={limit.max}
+                    step={limit.step}
+                    value={knobs[key]}
+                    aria-valuetext={copy.aria(knobs[key])}
+                    onChange={(event) => slide(key, event.target.value)}
+                  />
+                  <span>{copy.text(knobs[key])}</span>
+                </label>
+              );
+            })}
+          </form>
+          <button type="button" className="game-settings-action" onClick={onAbandon}>
+            Back to games
           </button>
-          {settingsOpen && (
-            <form className="kart-settings" onSubmit={(event) => event.preventDefault()}>
-              {Object.keys(TUNING_LIMITS).map((key) => {
-                const copy = KNOB_COPY[key];
-                if (!copy) throw new Error(`missing tuning label for ${key}`);
-                const limit = TUNING_LIMITS[key];
-                return (
-                  <label key={key} title={copy.title}>
-                    {copy.label}
-                    <input
-                      type="range"
-                      min={limit.min}
-                      max={limit.max}
-                      step={limit.step}
-                      value={knobs[key]}
-                      aria-valuetext={copy.aria(knobs[key])}
-                      onChange={(event) => slide(key, event.target.value)}
-                    />
-                    <span>{copy.text(knobs[key])}</span>
-                  </label>
-                );
-              })}
-            </form>
-          )}
-        </div>
+        </GameSettings>
       )}
     </div>
   );

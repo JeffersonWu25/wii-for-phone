@@ -18,6 +18,29 @@ html, body, #root {
   z-index: 40;
 }
 
+.game-canvas-wrap .feel-settings {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  z-index: 12;
+}
+
+.game-canvas-wrap .feel-settings-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.game-canvas-wrap .feel-panel {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  margin-top: 0;
+}
+
 .feel-settings-btn {
   width: auto;
   padding: 8px 14px;
@@ -242,6 +265,7 @@ html, body, #root {
 /* ── Game layout ─────────────────────────────────────────────── */
 
 .game-layout {
+  position: relative;
   display: flex;
   width: 100%;
   height: 100%;
@@ -726,7 +750,28 @@ html, body, #root {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff8, transparent 45%), #f0c419;
+  background: radial-gradient(circle at 35% 30%, #fff8, transparent 45%), var(--item, #f0c419);
+}
+
+.kart-fx-star .kart-item-primary {
+  box-shadow: 0 0 18px #ffe566;
+  animation: kart-item-pulse 0.7s ease-in-out infinite;
+}
+
+.kart-fx-boost .kart-item-primary {
+  box-shadow: 0 0 14px #ffb15a;
+}
+
+.kart-fx-spin .kart-item-primary {
+  animation: kart-item-spin 0.18s linear infinite;
+}
+
+@keyframes kart-item-pulse {
+  50% { transform: scale(1.08); }
+}
+
+@keyframes kart-item-spin {
+  to { transform: rotate(18deg); }
 }
 
 .kart-place {
@@ -876,41 +921,51 @@ html, body, #root {
   padding: 12px 18px;
 }
 
-.kart-chrome {
+.game-settings {
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  pointer-events: none;
+  z-index: 12;
+  width: 0;
+  height: 0;
+  overflow: visible;
 }
 
-.kart-back,
-.kart-settings-toggle {
-  pointer-events: auto;
+.game-settings-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
   padding: 8px 14px;
-}
-
-.kart-settings-toggle {
+  border: none;
+  border-radius: 999px;
   background: rgba(20, 28, 48, 0.82);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.kart-settings {
-  pointer-events: auto;
+.game-settings-panel {
+  position: absolute;
+  top: 44px;
+  right: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 220px;
+  gap: 10px;
+  min-width: 240px;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(20, 28, 48, 0.9);
+  background: rgba(20, 28, 48, 0.92);
   color: #fff;
 }
 
-.kart-settings label {
+.game-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-settings-form label {
   display: grid;
   grid-template-columns: 72px 1fr 42px;
   align-items: center;
@@ -919,7 +974,7 @@ html, body, #root {
   font-size: 0.95rem;
 }
 
-.kart-settings input[type="range"] {
+.game-settings-form input[type="range"] {
   width: 100%;
 }
 
@@ -1129,4 +1184,14 @@ html, body, #root {
   background: rgba(255, 255, 255, 0.82);
   border-radius: 999px;
   padding: 6px 14px;
+}
+
+.game-settings-action {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #e52521;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
 }

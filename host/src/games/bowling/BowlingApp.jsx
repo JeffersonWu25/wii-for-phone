@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Scene from './Scene.jsx';
 import { BowlingGame } from './BowlingGame.js';
+import FeelSettings from '../../shared/FeelSettings.jsx';
 import { launchFromMessage, parseThrow, rollReadout } from './launch.js';
 
 const RESET_DELAY_MS = 1500;
@@ -12,7 +13,7 @@ const RESET_DELAY_MS = 1500;
 //   players    — [{ playerId, name }] from lobby
 //   onGameOver — called when game ends (returns to hub)
 //   onAbandon  — called when host quits mid-game (returns to game-select)
-export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon }) {
+export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon, status }) {
   const [scores, setScores] = useState([]);
   const [currentPlayerId, setCurrentPlayerId] = useState(null);
   const [frameResultLabel, setFrameResultLabel] = useState(null);
@@ -240,6 +241,7 @@ export default function BowlingApp({ wsRef, send, players, disconnectedPlayerIds
         {frameResultLabel && (
           <div className="frame-result-overlay">{frameResultLabel}</div>
         )}
+        <FeelSettings send={send} status={status} />
         {waitingForReconnect && (
           <div className="reconnect-overlay">
             <p>Waiting for <strong>{waitingForReconnect.name}</strong> to reconnect…</p>
