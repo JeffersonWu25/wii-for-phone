@@ -1,21 +1,5 @@
 import { HALF, poseAt, sampleTrack } from './track.js';
 
-/**
- * @typedef {'mushroom' | 'banana' | 'green_shell' | 'star'} ItemId
- * @typedef {'speed' | 'invuln' | 'spin'} ModifierId
- * @typedef {Partial<Record<ModifierId, number>>} Modifiers
- * @typedef {'star' | 'spin' | 'boost' | null} EffectToken
- */
-
-/**
- * @typedef {Object} Control
- * @property {number} speedMul
- * @property {boolean} locked
- * @property {number} yawRate
- * @property {boolean} blocksHarm
- * @property {number} spinSpeedScale
- */
-
 const BOX_T = Object.freeze([0.08, 0.22, 0.38, 0.55, 0.72, 0.88]);
 const BOX_COOLDOWN = 3;
 const BOX_RADIUS = 1.7;
@@ -148,7 +132,6 @@ function grant(kart, id, duration, speedMul) {
   }
   if (spec.blocksHarm) delete mods.spin;
   if (id === 'speed') {
-    // Duration stays a number of seconds. The merged multiplier sits beside it.
     mods.speed = Math.max(mods.speed || 0, duration);
     kart.speedMul = Math.max(kart.speedMul || 1, speedMul);
     return true;
@@ -277,7 +260,6 @@ export function stepItems(race, dt, kartRadius) {
     if (Math.abs(sampleTrack(entity.x, entity.z).lateral) > HALF) retired.add(entity.id);
   }
 
-  // Hits resolve against the modifiers stepKart already used. Grants decay below.
   collide(race, kartRadius, retired);
 
   for (const kart of race.karts) {
@@ -326,7 +308,6 @@ function collide(race, kartRadius, retired) {
       if (dist(a, b) >= reach) continue;
       const key = pairKey(a, b);
       nextPairs.add(key);
-      // A pair that is still overlapped when the spin ends does not spin again.
       if (race._touchPairs.has(key)) continue;
       const aSafe = controlOf(a).blocksHarm;
       const bSafe = controlOf(b).blocksHarm;

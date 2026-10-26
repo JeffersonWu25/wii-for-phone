@@ -385,7 +385,6 @@ function stepKart(kart, input, dt, tuning) {
   const scales = tuningScales(tuning);
   const ctrl = controlOf(kart);
   if (ctrl.locked) {
-    // Once per spin. The lock lasts many ticks, and repeating the scale would stop the kart.
     if (!kart.spinScaleApplied) {
       kart.speed *= ctrl.spinSpeedScale;
       kart.spinScaleApplied = true;
