@@ -403,6 +403,51 @@ button:active {
   pointer-events: none;
 }
 
+#screen-result {
+  width: 100%;
+  cursor: pointer;
+}
+
+.result-dismiss {
+  font-weight: 700;
+  opacity: 1;
+}
+
+.throw-readout {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.throw-readout-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  grid-template-rows: auto 8px;
+  column-gap: 12px;
+  align-items: center;
+  font-weight: 800;
+}
+
+.throw-readout-value {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.throw-readout-bar {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.throw-readout-bar span {
+  display: block;
+  height: 100%;
+}
+
 .kart-banner {
   position: absolute;
   inset: 0;

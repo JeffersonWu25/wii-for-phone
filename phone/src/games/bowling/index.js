@@ -21,6 +21,9 @@ export function mount(app, sendMsg, myPlayerId) {
   let aimAngle = 0;
   let aimMode = 'move';
   let tuning = loadTuning();
+  let lastThrow = null;
+  let resultOpen = false;
+  let afterResult = null;
   let pressLean = null;
   const tilt = createTiltSensor();
 
@@ -107,13 +110,69 @@ export function mount(app, sendMsg, myPlayerId) {
     let label = `${pinsKnocked} pin${pinsKnocked !== 1 ? 's' : ''} knocked down`;
     if (frameScore === 'strike') label = 'STRIKE!';
     if (frameScore === 'spare')  label = 'SPARE!';
+    resultOpen = true;
     app.innerHTML = `
       <div class="screen" id="screen-result">
         <h1>${label}</h1>
         <p>Score: ${totalScore}</p>
-        <p id="result-sub">Waiting for your next turn...</p>
+        ${readoutMarkup(lastThrow)}
+        <p class="result-dismiss">Tap anywhere to dismiss</p>
       </div>
     `;
+    document.getElementById('screen-result').addEventListener('click', dismissResult);
+  }
+
+  function dismissResult() {
+    if (!resultOpen) return;
+    resultOpen = false;
+    const next = afterResult;
+    afterResult = null;
+    if (next) next();
+    else showWaitingScreen('Waiting for your next turn...');
+  }
+
+  function showWhenClear(next) {
+    if (resultOpen) afterResult = next;
+    else next();
+  }
+
+  function readoutMarkup(thrown) {
+    if (!thrown) return '';
+    const rows = [
+      { name: 'Speed', text: `${Math.round(thrown.power * 100)}%`, amount: thrown.power },
+      {
+        name: 'Curve',
+        text: sideText(thrown.tilt.hookM, `${Math.abs(thrown.tilt.hookM).toFixed(2)} m`),
+        amount: Math.min(1, Math.abs(thrown.tilt.hookM) / 1.2),
+      },
+      {
+        name: 'Tilt',
+        text: sideText(thrown.tilt.angle, `${Math.round(Math.abs(thrown.tilt.angle) * 100)}%`),
+        amount: Math.abs(thrown.tilt.angle),
+      },
+    ];
+    const body = rows.map((row) => {
+      const color = heatColor(row.amount);
+      const width = Math.round(Math.min(1, row.amount) * 100);
+      return `
+        <div class="throw-readout-row">
+          <span>${row.name}</span>
+          <span class="throw-readout-value" style="color:${color}">${row.text}</span>
+          <span class="throw-readout-bar"><span style="width:${width}%;background:${color}"></span></span>
+        </div>
+      `;
+    }).join('');
+    return `<div class="throw-readout">${body}</div>`;
+  }
+
+  function sideText(value, unit) {
+    if (Math.abs(value) < 0.02) return 'Straight';
+    return `${value > 0 ? 'Right' : 'Left'} ${unit}`;
+  }
+
+  function heatColor(amount) {
+    const t = Math.max(0, Math.min(1, amount));
+    return `hsl(${120 - t * 120} 80% 48%)`;
   }
 
   // ── D-pad ───────────────────────────────────────────────────────────────────
@@ -244,6 +303,7 @@ export function mount(app, sendMsg, myPlayerId) {
     motionBuffer = [];
     holdStart = null;
 
+    lastThrow = throwMsg;
     sendMsg(throwMsg);
     if (navigator.vibrate) navigator.vibrate(100);
   }
@@ -281,11 +341,10 @@ export function mount(app, sendMsg, myPlayerId) {
     onMessage(msg) {
       switch (msg.type) {
         case 'your_turn':
-          if (msg.playerId === myPlayerId) {
-            showBowlScreen();
-          } else {
-            updateWaitingLabel('Waiting for your turn...');
-          }
+          showWhenClear(() => {
+            if (msg.playerId === myPlayerId) showBowlScreen();
+            else showWaitingScreen('Waiting for your turn...');
+          });
           break;
         case 'throw_result':
           if (msg.playerId === myPlayerId) showResultScreen(msg);

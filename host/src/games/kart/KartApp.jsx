@@ -3,6 +3,7 @@ import KartScene from './KartScene.jsx';
 import Minimap from './Minimap.jsx';
 import { LAPS, createRace, applyDrive, applyUseItem, setTuning, snapshot, stepRace, takeBroadcast } from './race.js';
 import { viewports } from './layout.js';
+import GameSettings from '../../shared/GameSettings.jsx';
 
 function ItemSlots({ primary, secondary }) {
   return (
@@ -118,55 +119,50 @@ export default function KartApp({ wsRef, send, players, onAbandon }) {
         )}
       </div>
       {view?.phase !== 'finished' && (
-        <div className="kart-chrome">
-          <button type="button" className="kart-back" onClick={onAbandon}>Back</button>
-          <button
-            type="button"
-            className="kart-settings-toggle"
-            aria-expanded={settingsOpen}
-            onClick={() => setSettingsOpen((open) => !open)}
-          >
-            Tuning
+        <button type="button" className="btn-abandon" onClick={onAbandon}>← Games</button>
+      )}
+      {view?.phase !== 'finished' && (
+        <GameSettings open={settingsOpen} onToggle={() => setSettingsOpen((open) => !open)}>
+          <form className="game-settings-form" onSubmit={(event) => event.preventDefault()}>
+            <label>
+              Speed
+              <input
+                type="range"
+                min="0.5"
+                max="1.8"
+                step="0.05"
+                value={speed}
+                aria-valuetext={`${Math.round(speed * 32)} meters per second`}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setSpeed(next);
+                  if (raceRef.current) setTuning(raceRef.current, { speed: next, turn });
+                }}
+              />
+              <span>{Math.round(speed * 32)}</span>
+            </label>
+            <label>
+              Turning
+              <input
+                type="range"
+                min="0.4"
+                max="2.2"
+                step="0.05"
+                value={turn}
+                aria-valuetext={`${Math.round(turn * 100)} percent`}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setTurn(next);
+                  if (raceRef.current) setTuning(raceRef.current, { speed, turn: next });
+                }}
+              />
+              <span>{Math.round(turn * 100)}%</span>
+            </label>
+          </form>
+          <button type="button" className="game-settings-action" onClick={onAbandon}>
+            Back to games
           </button>
-          {settingsOpen && (
-            <form className="kart-settings" onSubmit={(event) => event.preventDefault()}>
-              <label>
-                Speed
-                <input
-                  type="range"
-                  min="0.5"
-                  max="1.8"
-                  step="0.05"
-                  value={speed}
-                  aria-valuetext={`${Math.round(speed * 32)} meters per second`}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    setSpeed(next);
-                    if (raceRef.current) setTuning(raceRef.current, { speed: next, turn });
-                  }}
-                />
-                <span>{Math.round(speed * 32)}</span>
-              </label>
-              <label>
-                Turning
-                <input
-                  type="range"
-                  min="0.4"
-                  max="2.2"
-                  step="0.05"
-                  value={turn}
-                  aria-valuetext={`${Math.round(turn * 100)} percent`}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    setTurn(next);
-                    if (raceRef.current) setTuning(raceRef.current, { speed, turn: next });
-                  }}
-                />
-                <span>{Math.round(turn * 100)}%</span>
-              </label>
-            </form>
-          )}
-        </div>
+        </GameSettings>
       )}
     </div>
   );
