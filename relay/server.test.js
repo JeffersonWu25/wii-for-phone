@@ -285,6 +285,33 @@ test('each use_item is forwarded once with the player id', async () => {
   await Promise.all([closeAndWait(host), closeAndWait(phone)]);
 });
 
+test('kart_pick and kart_ready reach the host with the relay player id', async () => {
+  const { host, sessionId } = await createSession();
+  const { phone, msg } = await joinPhone(sessionId, 'Peach');
+  assert.equal(msg.type, 'joined');
+  await nextMsg(host);
+
+  phone.send(JSON.stringify({ type: 'kart_pick', characterId: 'peach', playerId: 'spoof' }));
+  const pick = await nextMsg(host);
+  assert.equal(pick.type, 'kart_pick');
+  assert.equal(pick.characterId, 'peach');
+  assert.equal(pick.playerId, msg.playerId);
+
+  phone.send(JSON.stringify({ type: 'kart_ready', ready: true, playerId: 'spoof' }));
+  const ready = await nextMsg(host);
+  assert.equal(ready.type, 'kart_ready');
+  assert.equal(ready.ready, true);
+  assert.equal(ready.playerId, msg.playerId);
+
+  phone.send(JSON.stringify({ type: 'kart_lobby', phase: 'menu' }));
+  phone.send(JSON.stringify({ type: 'use_item' }));
+  const next = await nextMsg(host);
+  assert.equal(next.type, 'use_item');
+  assert.equal(next.playerId, msg.playerId);
+
+  await Promise.all([closeAndWait(host), closeAndWait(phone)]);
+});
+
 test('an unlisted phone message type is not forwarded', async () => {
   const { host, sessionId } = await createSession();
   const { phone, msg } = await joinPhone(sessionId, 'Peach');

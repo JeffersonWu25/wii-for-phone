@@ -1,6 +1,6 @@
-import { characterFor } from './characters.js';
+import { characterById } from './characters.js';
+import { TRACKS } from './tracks.js';
 import { attachItems, activateItem, controlOf, effectView, presentation, stepItems } from './items.js';
-import { HALF, poseAt, sampleTrack } from './track.js';
 
 export { effectView };
 
@@ -207,10 +207,10 @@ function stepDrift(phase, input, speed, dt, scales) {
   return { phase: next, yawScale: 1, boostKick: 0 };
 }
 
-export function gridPose(index) {
+export function gridPose(index, track) {
   const row = Math.floor(index / 2);
   const col = index % 2;
-  const pose = poseAt(1 - 0.012 - row * 0.016);
+  const pose = track.poseAt(1 - 0.012 - row * 0.016);
   const side = (col === 0 ? -1 : 1) * 1.6;
   const rx = Math.cos(pose.heading);
   const rz = -Math.sin(pose.heading);
@@ -221,14 +221,28 @@ export function gridPose(index) {
   };
 }
 
-export function createRace(players, now, rng = Math.random) {
+function assertTrack(track) {
+  if (
+    !track
+    || typeof track.poseAt !== 'function'
+    || typeof track.sampleTrack !== 'function'
+    || typeof track.HALF !== 'number'
+  ) {
+    throw new Error('createRace requires a track module with poseAt, sampleTrack, and HALF');
+  }
+}
+
+export function createRace(players, now, track, rng = Math.random) {
+  assertTrack(track);
   const karts = players.map((player, index) => {
-    const pose = gridPose(index);
-    const sample = sampleTrack(pose.x, pose.z);
+    const character = characterById(player.characterId);
+    if (!character) throw new Error(`createRace missing character for ${player.playerId}`);
+    const pose = gridPose(index, track);
+    const sample = track.sampleTrack(pose.x, pose.z);
     return {
       playerId: player.playerId,
       name: player.name,
-      character: characterFor(index),
+      character,
       x: pose.x,
       z: pose.z,
       facing: pose.facing,
@@ -254,6 +268,7 @@ export function createRace(players, now, rng = Math.random) {
       speedMul: 1,
     };
   });
+  const listed = TRACKS.find((row) => row.track === track);
   const race = {
     phase: 'countdown',
     countdown: 3,
@@ -269,6 +284,8 @@ export function createRace(players, now, rng = Math.random) {
     _sentFinish: false,
     _createdAt: now,
     tuning: { ...DEFAULT_TUNING },
+    track,
+    trackId: listed ? listed.id : null,
     rng,
   };
   attachItems(race);
@@ -336,9 +353,9 @@ export function noteProgress(kart, progress, onTrack, timeMs) {
   }
 }
 
-function contain(kart, sample) {
-  if (Math.abs(sample.lateral) <= HALF) return sample;
-  const overflow = Math.abs(sample.lateral) - HALF + 0.05;
+function contain(kart, sample, track) {
+  if (Math.abs(sample.lateral) <= track.HALF) return sample;
+  const overflow = Math.abs(sample.lateral) - track.HALF + 0.05;
   kart.x -= sample.dirX * overflow;
   kart.z -= sample.dirZ * overflow;
   const slip = kart.driftPhase?.slip || 0;
@@ -354,7 +371,7 @@ function contain(kart, sample) {
     kart.facing += wrapPi(target - travel) * 0.8;
     kart.speed *= 0.94;
   }
-  return sampleTrack(kart.x, kart.z);
+  return track.sampleTrack(kart.x, kart.z);
 }
 
 function separate(karts) {
@@ -523,9 +540,10 @@ export function stepRace(race, dt, now) {
       continue;
     }
     stepKart(kart, liveInput(kart, now), step, race.tuning);
-    let sample = sampleTrack(kart.x, kart.z);
-    sample = contain(kart, sample);
-    const onTrack = sample.lateral > -HALF - 0.8 && sample.lateral < HALF + 1.6;
+    let sample = race.track.sampleTrack(kart.x, kart.z);
+    sample = contain(kart, sample, race.track);
+    const half = race.track.HALF;
+    const onTrack = sample.lateral > -half - 0.8 && sample.lateral < half + 1.6;
     noteProgress(kart, sample.progress, onTrack, race.timeMs);
     kart.progress = sample.progress;
     if (kart.finished && race.firstFinishAt == null) race.firstFinishAt = now;
