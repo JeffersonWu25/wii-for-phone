@@ -5,6 +5,13 @@ export const S = 22;
 export const RC = 16;
 export const HALF = 5.6;
 
+// Largest |delta progress| a seeded query will return. Gate spacing is 1/8.
+export const PROGRESS_CONTINUITY = 0.10;
+
+export function followTrack() {
+  throw new Error('followTrack is not implemented');
+}
+
 const STRAIGHT = 2 * S;
 const CAP = Math.PI * RC;
 export const PERIM = 2 * STRAIGHT + 2 * CAP;

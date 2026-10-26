@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HALF, PERIM, poseAt, sampleTrack } from './track.js';
+import { PERIM, followTrack, poseAt, sampleTrack } from './track.js';
 import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
@@ -26,20 +26,25 @@ test('centerline pose stays on the track and progress matches', () => {
     const pose = poseAt(t);
     const sample = sampleTrack(pose.x, pose.z);
     assert.ok(Math.abs(sample.lateral) < 0.05, `lateral ${sample.lateral} at ${t}`);
+    assert.equal(typeof pose.halfWidth, 'number');
+    assert.ok(pose.halfWidth > 0);
     const dp = Math.abs(sample.progress - t);
     const wrapped = Math.min(dp, 1 - dp);
     assert.ok(wrapped < 0.02, `progress ${sample.progress} vs ${t}`);
   }
 });
 
-test('a point outside the right straight is past the wall', () => {
-  const sample = sampleTrack(RC_OUT(), 0);
-  assert.ok(sample.lateral > HALF);
+test('grass beside the start straight is not asphalt', () => {
+  const pose = poseAt(0);
+  const nx = Math.cos(pose.heading);
+  const nz = -Math.sin(pose.heading);
+  const sample = sampleTrack(
+    pose.x + nx * (pose.halfWidth + 8),
+    pose.z + nz * (pose.halfWidth + 8),
+    0,
+  );
+  assert.equal(sample.surface, 'grass');
 });
-
-function RC_OUT() {
-  return 16 + HALF + 3;
-}
 
 test('crossing the start line opens checkpoint 1 and does not finish a lap', () => {
   const kart = freshKart();
@@ -88,9 +93,7 @@ test('gas on the straight builds speed without leaving the track', () => {
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -10;
-  kart.facing = 0;
+  const spawn = placeOnStraight(kart, 12);
   let now = 0;
   for (let i = 0; i < 30; i++) {
     now += 50;
@@ -100,7 +103,8 @@ test('gas on the straight builds speed without leaving the track', () => {
   const sample = sampleTrack(kart.x, kart.z);
   assert.ok(kart.speed > 20, `speed ${kart.speed}`);
   assert.ok(Math.abs(sample.lateral) < 0.5, `lateral ${sample.lateral}`);
-  assert.ok(kart.z > -10);
+  const ahead = Math.sin(spawn.heading) * (kart.x - spawn.x) + Math.cos(spawn.heading) * (kart.z - spawn.z);
+  assert.ok(ahead > 8, `ahead ${ahead}`);
 });
 
 test('a drift release adds a boost', () => {
@@ -108,9 +112,7 @@ test('a drift release adds a boost', () => {
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  placeOnStraight(kart, 6);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -164,6 +166,15 @@ test('an older drive packet does not rewind steer', () => {
   assert.equal(race.karts[0].gas, true);
 });
 
+function placeOnStraight(kart, metersAhead) {
+  const pose = poseAt(metersAhead / PERIM);
+  kart.x = pose.x;
+  kart.z = pose.z;
+  kart.facing = pose.heading;
+  kart.progress = metersAhead / PERIM;
+  return pose;
+}
+
 function freshKart() {
   return {
     nextCheckpoint: 0,
@@ -200,7 +211,8 @@ test('a late driver holding the gas finishes a lap inside the walls', () => {
     const delayed = hist[Math.max(0, hist.length - 10)];
     applyDrive(race, { playerId: 'p1', steer: delayed, gas: true, drift: false, seq: steps + 1 }, t * 1000);
     stepRace(race, dt, t * 1000);
-    if (Math.abs(sampleTrack(kart.x, kart.z).lateral) > HALF * 0.98) off += 1;
+    const live = sampleTrack(kart.x, kart.z);
+    if (typeof live.halfWidth === 'number' && Math.abs(live.lateral) > live.halfWidth * 1.15) off += 1;
     steps += 1;
     if (kart.completedLaps >= 1) break;
   }
@@ -227,9 +239,7 @@ test('the stick on the rim drifts the kart and releasing it boosts', () => {
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  placeOnStraight(kart, 6);
   kart.speed = 20;
   const rim = stickInput(-120, 0, 120);
   let now = 0;
@@ -327,9 +337,7 @@ test('a short hold does not boost and a long hold does', () => {
   const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
   race.phase = 'racing';
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  placeOnStraight(kart, 6);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 12; i++) {
@@ -359,9 +367,7 @@ test('left drift slips and rolls into the turn', () => {
   const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
   race.phase = 'racing';
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  placeOnStraight(kart, 6);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 8; i++) {
@@ -388,9 +394,7 @@ test('drift scale 0 keeps the nose on the path and scale 2 slips more', () => {
     race.phase = 'racing';
     setTuning(race, { drift: driftScale });
     const kart = race.karts[0];
-    kart.x = 16;
-    kart.z = -18;
-    kart.facing = 0;
+    placeOnStraight(kart, 6);
     kart.speed = 20;
     let now = 0;
     for (let i = 0; i < 20; i++) {
@@ -411,9 +415,7 @@ test('a charged release from the unboosted cap kicks to the boost cap', () => {
   const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
   race.phase = 'racing';
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  placeOnStraight(kart, 6);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -422,9 +424,7 @@ test('a charged release from the unboosted cap kicks to the boost cap', () => {
     stepRace(race, 0.05, now);
   }
   kart.speed = 32;
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  placeOnStraight(kart, 6);
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
   stepRace(race, 0.05, now);
@@ -447,9 +447,7 @@ test('boost scale doubles the kick and setTuning merges partial keys', () => {
 
   setTuning(race, { boost: 2, drift: 1 });
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -18;
-  kart.facing = 0;
+  placeOnStraight(kart, 6);
   kart.speed = 20;
   let now = 0;
   for (let i = 0; i < 40; i++) {
@@ -458,8 +456,7 @@ test('boost scale doubles the kick and setTuning merges partial keys', () => {
     stepRace(race, 0.05, now);
   }
   kart.speed = 32;
-  kart.x = 16;
-  kart.z = -18;
+  placeOnStraight(kart, 6);
   now += 50;
   applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: 100 }, now);
   stepRace(race, 0.05, now);
@@ -472,9 +469,7 @@ test('yaw bonus scales as 1 / 1.35 / 1.7 at drift 0 / 1 / 2', () => {
     race.phase = 'racing';
     setTuning(race, { drift: driftScale, turn: 1 });
     const kart = race.karts[0];
-    kart.x = 16;
-    kart.z = -18;
-    kart.facing = 0;
+    placeOnStraight(kart, 6);
     kart.speed = 20;
     kart.appliedSteer = 1;
     applyDrive(race, { playerId: 'p1', steer: 1, gas: true, drift: true, seq: 1 }, 0);
@@ -488,6 +483,134 @@ test('yaw bonus scales as 1 / 1.35 / 1.7 at drift 0 / 1 / 2', () => {
   assert.ok(Math.abs(d1 / d0 - 1.35) < 1e-6, `ratio1 ${d1 / d0}`);
   assert.ok(Math.abs(d2 / d0 - 1.7) < 1e-6, `ratio2 ${d2 / d0}`);
 });
+
+test('sand slows a kart that is not on a mushroom', () => {
+  const spot = sandSpot();
+  const race = racingKart();
+  const kart = race.karts[0];
+  kart.speed = 32;
+  for (let i = 0; i < 30; i++) {
+    pinKart(kart, spot);
+    applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: i + 1 }, i * 50);
+    stepRace(race, 0.05, i * 50);
+  }
+  assert.equal(kart.surface, 'sand');
+  assert.ok(kart.speed < 18, `sand speed ${kart.speed}`);
+});
+
+test('a mushroom ignores sand drag', () => {
+  const spot = sandSpot();
+  const race = racingKart();
+  const kart = race.karts[0];
+  pinKart(kart, spot);
+  kart.speed = 16;
+  applyUseItem(race, { playerId: 'p1' });
+  assert.equal(kart.itemPresses, 1);
+  pinKart(kart, spot);
+  stepRace(race, 0.05, 50);
+  assert.equal(kart.surface, 'sand');
+  assert.ok(kart.speed > 28, `mushroom speed ${kart.speed}`);
+  assert.notEqual(driftView(kart).phase, 'boosting');
+});
+
+test('a dash pad boosts once without starting a mini-turbo', () => {
+  const pad = dashApproach();
+  const entered = followTrack({
+    x0: pad.x0, z0: pad.z0, x1: pad.x1, z1: pad.z1, seedProgress: pad.progress,
+  });
+  assert.equal(entered.dashEntered, true);
+  const again = followTrack({
+    x0: pad.x1,
+    z0: pad.z1,
+    x1: pad.x1 + Math.sin(pad.heading) * 0.5,
+    z1: pad.z1 + Math.cos(pad.heading) * 0.5,
+    seedProgress: pad.progress,
+  });
+  assert.equal(again.dashEntered, false);
+
+  const race = racingKart();
+  const kart = race.karts[0];
+  kart.x = pad.x0;
+  kart.z = pad.z0;
+  kart.facing = pad.heading;
+  kart.progress = pad.progress;
+  kart.speed = 20;
+  let sawFast = false;
+  for (let i = 0; i < 10; i++) {
+    applyDrive(race, { playerId: 'p1', steer: 0, gas: true, drift: false, seq: i + 1 }, i * 50);
+    stepRace(race, 0.05, i * 50);
+    assert.notEqual(driftView(kart).phase, 'boosting');
+    if (kart.speed > 34) sawFast = true;
+  }
+  assert.equal(sawFast, true, `speed ${kart.speed}`);
+});
+
+function racingKart() {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  race.startedAt = 0;
+  return race;
+}
+
+function pinKart(kart, spot) {
+  kart.x = spot.x;
+  kart.z = spot.z;
+  kart.facing = spot.heading;
+  kart.progress = spot.progress;
+}
+
+function sandSpot() {
+  const apex = widestPose();
+  const nx = Math.cos(apex.pose.heading);
+  const nz = -Math.sin(apex.pose.heading);
+  for (let extra = 3; extra <= 16; extra += 1) {
+    const x = apex.pose.x - nx * (apex.pose.halfWidth + extra);
+    const z = apex.pose.z - nz * (apex.pose.halfWidth + extra);
+    const sample = sampleTrack(x, z, apex.t);
+    if (sample.surface === 'sand') {
+      return { x, z, heading: apex.pose.heading, progress: sample.progress };
+    }
+  }
+  assert.fail('course has no sand inside the wide turn');
+}
+
+function widestPose() {
+  let bestT = 0;
+  let bestW = 0;
+  for (let i = 0; i < 240; i++) {
+    const pose = poseAt(i / 240);
+    if ((pose.halfWidth || 0) > bestW) {
+      bestW = pose.halfWidth;
+      bestT = i / 240;
+    }
+  }
+  assert.ok(bestW > 0, 'poseAt has no width');
+  return { t: bestT, pose: poseAt(bestT) };
+}
+
+function dashApproach() {
+  const apex = widestPose();
+  for (let i = -50; i <= 50; i++) {
+    const t = (apex.t + i / 200 + 1) % 1;
+    const pose = poseAt(t);
+    const tx = Math.sin(pose.heading);
+    const tz = Math.cos(pose.heading);
+    const nx = Math.cos(pose.heading);
+    const nz = -Math.sin(pose.heading);
+    for (const frac of [0.4, 0.6, 0.8]) {
+      const lat = pose.halfWidth * frac;
+      const x1 = pose.x + nx * lat;
+      const z1 = pose.z + nz * lat;
+      const x0 = x1 - tx * 3;
+      const z0 = z1 - tz * 3;
+      const hit = followTrack({ x0, z0, x1, z1, seedProgress: t });
+      if (hit.dashEntered) {
+        return { x0, z0, x1, z1, heading: pose.heading, progress: t };
+      }
+    }
+  }
+  assert.fail('outer final turn has no dash pad');
+}
 
 test('straight up on the rim does not charge', () => {
   const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
