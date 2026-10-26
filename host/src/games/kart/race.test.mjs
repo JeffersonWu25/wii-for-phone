@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HALF, PERIM, poseAt, sampleTrack } from './track.js';
-import * as luigi from './track.js';
+import { HALF, PERIM, poseAt, sampleTrack, luigiCircuit as luigi } from './track.js';
 import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {

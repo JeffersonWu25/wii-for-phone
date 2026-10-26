@@ -1,75 +1,61 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRace, stepRace, applyDrive } from './race.js';
+import { createTrack, poseAt, PERIM } from './track.js';
+import { applyDrive, createRace, stepRace } from './race.js';
 
-/** Minimal second track that only satisfies the race/items/scene contract. */
-function ovalTrack() {
-  const half = 5;
-  const radius = 20;
+const STUB_GRID = Object.freeze({
+  frontMeters: 2.3,
+  rowMeters: 3,
+  colOffset: 1.6,
+  columns: 2,
+});
+
+function stubPlan() {
   return {
-    HALF: half,
-    itemBoxProgress: Object.freeze([0.25, 0.75]),
-    poseAt(t) {
-      const a = t * Math.PI * 2;
-      return {
-        x: Math.sin(a) * radius,
-        z: Math.cos(a) * radius,
-        heading: a + Math.PI / 2,
-        halfWidth: half,
-        visualOuterY: 0,
-      };
-    },
-    sampleTrack(x, z) {
-      const progress = (Math.atan2(x, z) / (Math.PI * 2) + 1) % 1;
-      const r = Math.hypot(x, z);
-      return {
-        progress,
-        lateral: r - radius,
-        surface: Math.abs(r - radius) <= half ? 'asphalt' : 'grass',
-        dirX: x / (r || 1),
-        dirZ: z / (r || 1),
-        tx: Math.cos(Math.atan2(x, z)),
-        tz: -Math.sin(Math.atan2(x, z)),
-        cx: Math.sin(Math.atan2(x, z)) * radius,
-        cz: Math.cos(Math.atan2(x, z)) * radius,
-        halfWidth: half,
-        onDash: false,
-      };
-    },
-    trackVisuals() {
-      const road = [];
-      for (let i = 0; i < 32; i++) {
-        const pose = this.poseAt(i / 32);
-        road.push({
-          x: pose.x,
-          z: pose.z,
-          heading: pose.heading,
-          halfWidth: half,
-          visualOuterY: 0,
-        });
-      }
-      return {
-        grassRadius: radius + half + 8,
-        road,
-        edges: { inner: road.map((p) => ({ x: p.x, z: p.z })), outer: road.map((p) => ({ x: p.x, z: p.z })) },
-        sand: [],
-        dashes: [],
-        startFinish: { x: 0, z: radius, heading: Math.PI / 2, width: half * 2, depth: 1 },
-        gridMarks: [],
-      };
-    },
+    waypoints: [
+      { id: 'a', seg: 'start', x: 0, z: -20, halfWidth: 5 },
+      { id: 'b', seg: 'start', x: 0, z: 20, halfWidth: 5 },
+      { id: 'c', seg: 'start', x: 40, z: 20, halfWidth: 5 },
+      { id: 'd', seg: 'start', x: 40, z: -20, halfWidth: 5 },
+    ],
+    sandBands: [],
+    dashes: [],
+    corridors: [],
+    grid: STUB_GRID,
+    grassMargin: 6,
   };
 }
 
-test('createRace accepts a non-Luigi track and steps without throwing', () => {
-  const track = ovalTrack();
+test('createTrack builds a second course a race can step', () => {
+  const luigiPose = poseAt(0.1);
+  const track = createTrack(stubPlan(), {
+    id: 'stub-loop',
+    itemBoxProgress: [0.25, 0.75],
+  });
+  const other = createTrack(stubPlan(), { id: 'stub-plain' });
+
+  assert.equal(track.id, 'stub-loop');
+  assert.ok(track.PERIM > 0 && track.PERIM < 190, `stub perim ${track.PERIM}`);
+  assert.notEqual(track.PERIM, PERIM);
+  assert.deepEqual([...track.itemBoxProgress], [0.25, 0.75]);
+  assert.ok(Object.isFrozen(track.itemBoxProgress));
+  assert.deepEqual([...other.itemBoxProgress], [0.08, 0.22, 0.38, 0.55, 0.72, 0.88]);
+  assert.deepEqual(poseAt(0.1), luigiPose);
+
   const race = createRace(
     [{ playerId: 'a', name: 'Ada', characterId: 'mario' }],
     0,
     track,
   );
   assert.equal(race.track, track);
-  assert.equal(race.entities.filter((e) => e.kind === 'box').length, 2);
+  const boxes = race.entities.filter((entity) => entity.kind === 'box');
+  assert.equal(boxes.length, track.itemBoxProgress.length);
+  for (let i = 0; i < boxes.length; i++) {
+    const pose = track.poseAt(track.itemBoxProgress[i]);
+    assert.ok(Math.abs(boxes[i].x - pose.x) < 1e-9);
+    assert.ok(Math.abs(boxes[i].z - pose.z) < 1e-9);
+  }
+
   race.phase = 'racing';
   race.startedAt = 0;
   applyDrive(race, { playerId: 'a', steer: 0.2, gas: true, drift: false, seq: 1 }, 10);
@@ -77,4 +63,5 @@ test('createRace accepts a non-Luigi track and steps without throwing', () => {
   assert.ok(Number.isFinite(race.karts[0].x));
   assert.ok(Number.isFinite(race.karts[0].speed));
   assert.equal(typeof track.trackVisuals().grassRadius, 'number');
+  assert.equal(typeof other.poseAt(0).halfWidth, 'number');
 });

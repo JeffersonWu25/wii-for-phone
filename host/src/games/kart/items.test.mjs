@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as luigi from './track.js';
+import { luigiCircuit as luigi } from './track.js';
 import { createRace, stepRace, applyUseItem } from './race.js';
 import { presentation } from './items.js';
 
