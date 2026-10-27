@@ -31,6 +31,13 @@ for (const file of ['items.js', 'KartScene.jsx', 'Minimap.jsx', 'race.js']) {
     `${file} must not import ./track.js (use race.track / TRACKS / the track prop)`,
   );
 }
+for (const file of ['KartScene.jsx', 'Minimap.jsx']) {
+  ban(
+    file,
+    /from\s+['"]\.\/track-loft\.js['"]/,
+    `${file} must not import ./track-loft.js (use track-view / trackVisuals)`,
+  );
+}
 
 const planPath = join(root, 'tracks', 'luigi-circuit-plan.js');
 try {

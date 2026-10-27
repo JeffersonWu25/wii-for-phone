@@ -1,4 +1,5 @@
 import { LUIGI_PLAN } from './tracks/luigi-circuit-plan.js';
+import { loftCourse } from './track-loft.js';
 
 export const PROGRESS_CONTINUITY = 0.10;
 
@@ -141,13 +142,13 @@ function compile(plan, opts = {}) {
   function poseAtSLocal(s) {
     let arc = s % perim;
     if (arc < 0) arc += perim;
+    if (arc >= perim - 1e-9) arc = 0;
     for (const edge of edges) {
-      if (arc >= edge.s0 && arc < edge.s0 + edge.length - 1e-8) {
+      if (arc >= edge.s0 && arc < edge.s0 + edge.length) {
         return frameOnEdge(edge, (arc - edge.s0) / edge.length);
       }
     }
-    const edge = edges[edges.length - 1];
-    return frameOnEdge(edge, 1);
+    return frameOnEdge(edges[0], 0);
   }
 
   function progressOf(id, u) {
@@ -237,14 +238,13 @@ function compile(plan, opts = {}) {
     if (!(perim > lo && perim < hi)) throw new Error(`PERIM ${perim}`);
   }
 
-  const visuals = buildVisuals({
+  const visuals = loftCourse({
     perim,
-    poseAtSLocal,
-    sand,
-    dashes,
-    corridors,
-    worldRadius,
     edges,
+    sandBands: sand,
+    dashQuads: structuredClone(dashes),
+    corridors: structuredClone(corridors),
+    worldRadius,
     grid: plan.grid,
   });
 
@@ -257,92 +257,6 @@ function compile(plan, opts = {}) {
     worldRadius,
     poseAtSLocal,
     visuals,
-  };
-}
-
-function buildVisuals(course) {
-  const road = [];
-  const inner = [];
-  const outer = [];
-  const step = 2;
-  for (let s = 0; s < course.perim; s += step) {
-    const pose = course.poseAtSLocal(s);
-    road.push({
-      x: pose.x,
-      z: pose.z,
-      heading: pose.heading,
-      halfWidth: pose.half,
-      visualOuterY: pose.visualOuterY,
-    });
-    inner.push(offset(pose, -pose.half));
-    outer.push({
-      x: pose.x + pose.nx * pose.half,
-      z: pose.z + pose.nz * pose.half,
-      y: pose.visualOuterY,
-    });
-  }
-  const sand = [];
-  for (const band of course.sand) {
-    sand.push(bandPoly(course, band.p0, band.p1, band.depth));
-  }
-  for (const corridor of course.corridors) sand.push(corridor.poly);
-  const stripe = course.poseAtSLocal(0);
-  const gridMarks = [];
-  for (let i = 0; i < 12; i++) {
-    gridMarks.push(gridMark(i, course.perim, course.poseAtSLocal, course.grid));
-  }
-  return {
-    grassRadius: course.worldRadius,
-    road,
-    edges: { inner, outer },
-    sand,
-    dashes: course.dashes,
-    startFinish: {
-      x: stripe.x,
-      z: stripe.z,
-      heading: stripe.heading,
-      width: stripe.half * 2,
-      depth: 1.2,
-    },
-    gridMarks,
-  };
-}
-
-function bandPoly(course, p0, p1, depth) {
-  const span = forwardSpan(p0, p1);
-  const steps = Math.max(2, Math.ceil((span * course.perim) / 2));
-  const roadSide = [];
-  const deepSide = [];
-  let prev = null;
-  for (let k = 0; k <= steps; k++) {
-    const pose = course.poseAtSLocal(wrap01(p0 + span * (k / steps)) * course.perim);
-    const edge = offset(pose, -pose.half);
-    roadSide.push(edge);
-    let deep = offset(pose, -pose.half - depth);
-    if (prev) {
-      const advance = (deep.x - prev.x) * pose.tx + (deep.z - prev.z) * pose.tz;
-      if (advance < 0.2) {
-        deep = { x: prev.x + pose.tx * 0.2, z: prev.z + pose.tz * 0.2 };
-      }
-    }
-    deepSide.push(deep);
-    prev = deep;
-  }
-  return [...roadSide, ...deepSide.reverse()];
-}
-
-function gridMark(index, perim, poseAtSLocal, grid) {
-  const row = Math.floor(index / 2);
-  const col = index % 2;
-  const back = (grid.frontMeters + row * grid.rowMeters) / perim;
-  const pose = poseAtSLocal(wrap01(-back) * perim);
-  const side = (col === 0 ? -1 : 1) * grid.colOffset;
-  const rx = Math.cos(pose.heading);
-  const rz = -Math.sin(pose.heading);
-  return {
-    x: pose.x + rx * side,
-    z: pose.z + rz * side,
-    heading: pose.heading,
   };
 }
 

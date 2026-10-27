@@ -39,25 +39,34 @@ function ovalTrack() {
       };
     },
     trackVisuals() {
-      const road = [];
+      const outer = [];
+      const inner = [];
       for (let i = 0; i < 32; i++) {
         const pose = this.poseAt(i / 32);
-        road.push({
-          x: pose.x,
-          z: pose.z,
-          heading: pose.heading,
-          halfWidth: half,
-          visualOuterY: 0,
-        });
+        const nx = Math.cos(pose.heading);
+        const nz = -Math.sin(pose.heading);
+        outer.push({ x: pose.x + nx * half, z: pose.z + nz * half });
+        inner.push({ x: pose.x - nx * half, z: pose.z - nz * half });
       }
       return {
         grassRadius: radius + half + 8,
-        road,
-        edges: { inner: road.map((p) => ({ x: p.x, z: p.z })), outer: road.map((p) => ({ x: p.x, z: p.z })) },
-        sand: [],
-        dashes: [],
-        startFinish: { x: 0, z: radius, heading: Math.PI / 2, width: half * 2, depth: 1 },
-        gridMarks: [],
+        mesh: {
+          positions: new Float32Array(0),
+          normals: new Float32Array(0),
+          uvs: new Float32Array(0),
+          indices: new Uint32Array(0),
+          groups: [],
+        },
+        atlas: { width: 1, height: 1, rgba: new Uint8ClampedArray([0, 0, 0, 0]) },
+        curbInnerAtlas: { width: 1, height: 1, rgba: new Uint8ClampedArray([0, 0, 0, 0]) },
+        curbOuterAtlas: { width: 1, height: 1, rgba: new Uint8ClampedArray([0, 0, 0, 0]) },
+        outline: {
+          inner,
+          outer,
+          sand: [],
+          dashes: [],
+          stripe: { x: 0, z: radius, heading: Math.PI / 2, width: half * 2, depth: 1 },
+        },
       };
     },
   };
