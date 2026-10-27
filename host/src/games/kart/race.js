@@ -103,7 +103,7 @@ function travelOf(facing, slip) {
   return wrapPi(facing - slip);
 }
 
-// Positive roadRoll lifts the +lateral tire. Positive pitch raises the nose.
+// Positive roadRoll lifts the +lateral tire. Positive pitch is Three.js +RX (nose down).
 export function contactFrame(normal, heading) {
   const ny = normal?.y;
   const nx = normal?.x;

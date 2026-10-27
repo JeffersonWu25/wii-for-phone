@@ -1098,7 +1098,7 @@ test('a stopped kart does not yaw on a bank, and a moving kart does', () => {
   assert.ok(kart.facing < before, `facing ${kart.facing} vs ${before}`);
 });
 
-test('the bank lifts the outer tire and an uphill nose pitches up', () => {
+test('the bank lifts the outer tire and an uphill sample pitches nose-up in Three.js', () => {
   let bestT = 0;
   let best = poseAt(0);
   for (let i = 0; i <= 360; i++) {
