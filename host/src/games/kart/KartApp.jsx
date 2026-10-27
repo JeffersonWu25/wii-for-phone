@@ -15,6 +15,7 @@ import {
 } from './race.js';
 import { viewports } from './layout.js';
 import GameSettings from '../../shared/GameSettings.jsx';
+import ItemSlots from './ItemSlots.jsx';
 
 const KNOB_COPY = {
   speed: {
@@ -42,25 +43,6 @@ const KNOB_COPY = {
     aria: (v) => `${Math.round(v * 100)} percent boost`,
   },
 };
-
-function ItemSlots({ primary, secondary, color, effect }) {
-  const fx = effect ? ` kart-fx-${effect}` : '';
-  return (
-    <div className={`kart-items${fx}`}>
-      <div className={`kart-item kart-item-secondary${secondary ? ' is-filled' : ''}`}>
-        {secondary ? <span className={`kart-item-icon item-${secondary}`} /> : null}
-      </div>
-      <div className={`kart-item kart-item-primary${primary ? ' is-filled' : ''}`}>
-        {primary ? (
-          <span
-            className={`kart-item-icon item-${primary}`}
-            style={color ? { '--item': color } : undefined}
-          />
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
 function PlaceBadge({ place, placeText }) {
   const tone = place === 1 ? 'first' : place <= 3 ? 'podium' : 'field';
@@ -152,6 +134,9 @@ export default function KartApp({ wsRef, send, setup, onAbandon }) {
               primary={player.itemPrimary}
               secondary={player.itemSecondary}
               color={player.itemColor}
+              secondaryColor={player.secondaryColor}
+              primaryFace={player.primaryFace}
+              secondaryFace={player.secondaryFace}
               effect={player.effect}
             />
             <CoinLap coins={player.coins} lap={player.lap} lapsTotal={lapsTotal} />

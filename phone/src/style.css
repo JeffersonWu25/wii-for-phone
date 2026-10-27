@@ -400,8 +400,57 @@ button:active {
   animation: kart-item-spin 0.18s linear infinite;
 }
 
+.kart-item.is-rolling {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #f5d90a;
+  background: #14181f;
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+@property --reel {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.kart-item.is-rolling::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: conic-gradient(
+    from var(--reel),
+    transparent 0deg,
+    rgba(255, 255, 255, 0.35) 40deg,
+    rgba(245, 217, 10, 0.95) 80deg,
+    transparent 120deg,
+    transparent 200deg,
+    rgba(255, 255, 255, 0.8) 240deg,
+    transparent 290deg,
+    rgba(245, 217, 10, 0.55) 330deg,
+    transparent 360deg
+  );
+  -webkit-mask-image: radial-gradient(circle, transparent 0 46%, #000 54%);
+  mask-image: radial-gradient(circle, transparent 0 46%, #000 54%);
+  animation: kart-item-roulette 0.28s linear infinite;
+  pointer-events: none;
+}
+
 @keyframes kart-item-spin {
   50% { transform: rotate(8deg); }
+}
+
+@keyframes kart-item-roulette {
+  to { --reel: 360deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kart-item.is-rolling::after {
+    animation: none;
+  }
 }
 
 .kart-stick {

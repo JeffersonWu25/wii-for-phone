@@ -3,6 +3,15 @@ import { STICK, stickInput } from './steer.js';
 const STREAM_HZ = 20;
 const CENTER = stickInput(0, 0, 1);
 
+export function paintItemButton(itemEl, me) {
+  const rolling = me.primaryFace === 'roll';
+  itemEl.textContent = rolling ? '…' : (me.itemLabel || 'Use item');
+  itemEl.classList.toggle('is-armed', me.primaryFace === 'held');
+  itemEl.classList.toggle('is-rolling', rolling);
+  itemEl.classList.toggle('is-spinning', me.effect === 'spin');
+  itemEl.classList.toggle('is-star', me.effect === 'star');
+}
+
 export function mount(app, sendMsg, myPlayerId) {
   let input = CENTER;
   let stickPointer = null;
@@ -254,10 +263,7 @@ export function mount(app, sendMsg, myPlayerId) {
       placeEl.textContent = `P${me.place}`;
       lapEl.textContent = `Lap ${me.lap} / ${msg.lapsTotal}`;
       if (msg.phase === 'racing') subEl.textContent = me.name;
-      itemEl.textContent = me.itemLabel || 'Use item';
-      itemEl.classList.toggle('is-armed', me.itemPrimary != null);
-      itemEl.classList.toggle('is-spinning', me.effect === 'spin');
-      itemEl.classList.toggle('is-star', me.effect === 'star');
+      paintItemButton(itemEl, me);
     } else if (msg.type === 'race_finished') {
       const row = msg.results?.find((player) => player.playerId === myPlayerId);
       showBanner(row ? `P${row.place}` : 'Finish');
