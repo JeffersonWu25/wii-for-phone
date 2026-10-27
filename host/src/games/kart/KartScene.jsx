@@ -92,21 +92,6 @@ function makeRacer(character) {
   return group;
 }
 
-function checkerMesh(start) {
-  const cols = 12;
-  const rows = 2;
-  const cw = start.width / cols;
-  const cd = start.depth / rows;
-  const [rx, rz] = right(start.heading);
-  const fx = Math.sin(start.heading);
-  const fz = Math.cos(start.heading);
-  const positions = [];
-  const indices = [];
-  const colors = [];
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const dark = (row + col) % 2 === 0;
-
 function placeCamera(camera, kart, travel) {
   const backX = Math.sin(travel);
   const backZ = Math.cos(travel);
