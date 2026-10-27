@@ -1,6 +1,6 @@
 ---
 name: verify-wildhacks-arcade
-description: Drive the WildHacks Arcade host and phone web apps (on-screen title Wii Playground) against a local relay to prove lobby join, game selection (bowling and Mario Kart), bowling controls, a simulated bowl, two frames with two players, disconnect, and session end. Use when verifying UI behavior, after changes to host, phone, or relay, or when asked to prove a user-facing flow.
+description: Drive the WildHacks Arcade host and phone web apps (on-screen title Wii Playground) against a local relay to prove lobby join, game selection (bowling and Mario Kart), a Mario Kart lap, every Mario Kart item use, bowling controls, a simulated bowl, two frames with two players, disconnect, and session end. Use when verifying UI behavior, after changes to host, phone, or relay, or when asked to prove a user-facing flow.
 ---
 
 # Verify WildHacks Arcade
@@ -96,3 +96,5 @@ All three scripts are executable and live next to the Vite configs they launch.
 | Kill the recorded PIDs and delete `run/` | `.cursor/skills/verify-wildhacks-arcade/scripts/cleanup.sh` |
 
 `scripts/host.vite.config.js` and `scripts/phone.vite.config.js` are verification scaffolding. `launch.sh` copies them to `host/vite.verify.config.js` and `phone/vite.verify.config.js` because Vite resolves packages from the config file's directory. `cleanup.sh` deletes the copies. Do not point `npm run dev` at them, and do not pass the `scripts/` paths to Vite.
+
+Mario Kart CDP expressions live under `scripts/cdp/`. Read the file, take the `expression` string (replace `__STEER__` or `__ITEM_ID__` when the file says so), and pass it to `browser_cdp` `Runtime.evaluate` with `returnByValue` true. They are harness helpers for `complete-lap` and `use-kart-items`, not a second way to start the apps.
