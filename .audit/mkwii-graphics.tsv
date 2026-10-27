@@ -1,0 +1,14 @@
+ts	phase	decision	why	evidence	result
+2026-10-27T15:51:07Z	start	figure-it-out graphics upgrade to MKWii look	operator granted full autonomy and grok-only delegates	agent-run	open
+2026-10-27T15:51:34Z	frame	done = screenshots show detailed karts textured Luigi Circuit outdoor light chase cam VFX; tests green; no Nintendo binaries	prove-it-works + experience-first: MKWii look not max complexity	.audit/mkwii-graphics-plan.md	framed
+2026-10-27T15:51:34Z	frame	stay vanilla Three + loft pipeline; no R3F; procedural/canvas textures only	laziness + license fence; mario-kart-js is technique reference only	KartScene.jsx track-view.js /tmp/mario-kart-js	settled
+2026-10-27T15:51:34Z	frame	skip full architect/arena	design already concrete under constraints; second arena would be over-engineering	principle-laziness-protocol	skipped
+2026-10-27T15:51:34Z	frame	operator override: all delegates use grok only	user said only use grok	user_query	constraint
+2026-10-27T15:53:06Z	U0	fresh before screenshot via full onboard snapshot-race.mjs	old race-2p-after.png was stale vs lofted track	visual-baseline/current/race-2p-before.png	baseline captured
+2026-10-27T16:01:20Z	U1-U6	shipped procedural karts textured course outdoor light chase cam tone mapping FX hooks props	experience-first + laziness stay vanilla Three	artifacts/race-2p-before.png artifacts/race-2p-after.png	visual improved vs baseline; still short of asset-rich MKWii
+2026-10-27T16:07:19Z	fix	dispose course props; align SPEC with visual-only trees/pipe	audit trail flagged leak and SPEC contradiction	track-view.js SPEC.md	fixed
+2026-10-27T16:07:19Z	U7	re-ran foundation-check + full kart unit suite after polish	prove-it-works; prior log was partial	artifacts/foundation-check.log artifacts/unit-tests-full.log	green
+2026-10-27T16:09:17Z	no-comments	killed narrating comments; renamed collapseOffsetSelfCrossings + isCollapsedSandLip	Comment Sicko findings on graphics files	bc-6dbcb320-754d-5fba-ab02-49cbcac32cd4	applied
+2026-10-27T16:09:17Z	U1-U2	landed richer procedural kart-mesh and track-view rewrite from delegates	experience-first materials over cone trees	kart-mesh.js track-view.js track-loft.js	merged
+2026-10-27T16:12:17Z	U1	landed kart-mesh glass tweak + sand shade polish from delegate	agent finished after prior merge	bc-7e354abc-a6c6-5bb0-a333-b31828f50df1 artifacts/kart-mesh-views.png	committed
+2026-10-27T16:18:53Z	U2	landed track-view sky grass sand tuning from materials delegate	chase-cam sky ramp and warmer sand	bc-651238f1-52f0-55f6-9b4f-25def07b5dba artifacts/luigi-start.png	committed

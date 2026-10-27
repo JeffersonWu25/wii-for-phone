@@ -1,5 +1,3 @@
-/** Pure Luigi Circuit loft. No Three. Physics arrays must be cloned before entry. */
-
 export const STATION_STEP_M = 0.5;
 export const CURB_WIDTH_M = 0.4;
 export const CURB_HEIGHT_M = 0.09;
@@ -37,8 +35,8 @@ export function loftCourse(input) {
   const mesh = triangulate(stations, rings, sandDeep, worldRadius);
   const markings = planMarkings(stations, perim, dashQuads, grid);
   const atlas = rasterizeMarkings(markings);
-  const curbInnerAtlas = stripeAtlas(0x2f9e44, 0xf4f4f4);
-  const curbOuterAtlas = stripeAtlas(0xf4f4f4, 0x2f9e44);
+  const curbInnerAtlas = stripeAtlas(0x00a63c, 0xffffff);
+  const curbOuterAtlas = stripeAtlas(0xffffff, 0x00a63c);
 
   const sandOutline = sandRingsFrom(stations, rings, sandDeep);
   const outline = {
@@ -115,10 +113,8 @@ function strokeVariableWidth(stations) {
       z: cur.z + cur.nz * cur.half,
     });
   }
-  // A sharp corner's inside offset loops back on itself. Clip that short chain
-  // onto the crossing instead of shrinking the whole road.
-  clipOffsetLoops(inner);
-  clipOffsetLoops(outer);
+  collapseOffsetSelfCrossings(inner);
+  collapseOffsetSelfCrossings(outer);
 
   return { inner, outer, nx: nxArr, nz: nzArr };
 }
@@ -210,11 +206,9 @@ function triangulate(stations, rings, sandDeep, worldRadius) {
     const b = rings.inner[j];
     const c = sandDeep[j];
     const d = sandDeep[i];
-    // A band edge has depth 0, so its deep sample sits on the inner lip.
-    // Dropping that lip to y=0 stands the last quad on a vertical edge.
     const spanI = Math.hypot(a.x - d.x, a.z - d.z);
     const spanJ = Math.hypot(b.x - c.x, b.z - c.z);
-    if (spanI < 0.05 && spanJ < 0.05) continue;
+    if (isCollapsedSandLip(spanI, spanJ)) continue;
     const i0 = addVertex(a.x, a.y, a.z, 0, 1, 0, stations[i].progress, 0);
     const i1 = addVertex(b.x, b.y, b.z, 0, 1, 0, stations[j].progress, 0);
     const i2 = addVertex(c.x, b.y, c.z, 0, 1, 0, stations[j].progress, 1);
@@ -315,13 +309,19 @@ function rasterizeMarkings(markings) {
   const width = ATLAS_WIDTH;
   const height = ATLAS_HEIGHT;
   const rgba = new Uint8ClampedArray(width * height * 4);
+  const coarseCells = 64;
+  const fineCells = 256;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
-      const grain = ((x * 17 + y * 31) % 13) - 6;
-      rgba[i] = 109 + grain;
-      rgba[i + 1] = 114 + grain;
-      rgba[i + 2] = 122 + grain;
+      const u = x / width;
+      const v = y / height;
+      const coarse = tiledNoise(u, v, coarseCells, Math.round((coarseCells * height) / width));
+      const fine = tiledNoise(u, v, fineCells, Math.round((fineCells * height) / width));
+      const grain = (coarse - 0.5) * 18 + (fine - 0.5) * 8;
+      rgba[i] = 100 + grain;
+      rgba[i + 1] = 104 + grain;
+      rgba[i + 2] = 110 + grain;
       rgba[i + 3] = 255;
     }
   }
@@ -345,8 +345,8 @@ function rasterizeMarkings(markings) {
     }
   }
 
-  fillRect(0, 0, width, 4, 244, 244, 244);
-  fillRect(0, height - 4, width, height, 244, 244, 244);
+  fillRect(0, 0, width, 5, 255, 255, 255);
+  fillRect(0, height - 6, width, height - 1, 255, 255, 255);
 
   for (const mark of markings) {
     if (mark.kind === 'checker') {
@@ -394,15 +394,49 @@ function rasterizeMarkings(markings) {
           const mid = (y0 + y1) / 2;
           const half = Math.abs(y1 - y0) / 2;
           const x0 = Math.max(xa, x + t);
-          const x1 = Math.min(xb, x + t + 3);
+          const x1 = Math.min(xb, x + t + 4);
           if (x1 <= x0) continue;
-          fillRect(x0, mid - half + t, x1, mid + half - t, 242, 122, 18);
+          const hot = t >= 4 && t <= 10;
+          fillRect(
+            x0,
+            mid - half + t,
+            x1,
+            mid + half - t,
+            hot ? 255 : 236,
+            hot ? 162 : 92,
+            hot ? 26 : 4,
+          );
         }
       }
     }
   }
 
   return { width, height, rgba };
+}
+
+function fadeNoise(t) {
+  return t * t * (3 - 2 * t);
+}
+
+function tiledNoise(u, v, periodU, periodV) {
+  const x = u * periodU;
+  const y = v * periodV;
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const tx = fadeNoise(x - x0);
+  const ty = fadeNoise(y - y0);
+  const sample = (ix, iy) => {
+    const wx = ((ix % periodU) + periodU) % periodU;
+    const wy = ((iy % periodV) + periodV) % periodV;
+    let n = Math.imul(wx, 374761393) + Math.imul(wy, 668265263);
+    n = (n ^ (n >>> 13)) >>> 0;
+    return (n % 997) / 997;
+  };
+  const a = sample(x0, y0);
+  const b = sample(x0 + 1, y0);
+  const c = sample(x0, y0 + 1);
+  const d = sample(x0 + 1, y0 + 1);
+  return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
 }
 
 function dashSpan(stations, quad) {
@@ -484,7 +518,7 @@ function sandRingsFrom(stations, rings, sandDeep) {
     if ((!active || i === n - 1) && run) {
       if (run.ptsInner.length >= 2) {
         const poly = [...run.ptsInner, ...[...run.ptsDeep].reverse()];
-        clipOffsetLoops(poly);
+        collapseOffsetSelfCrossings(poly);
         ringsOut.push(poly);
       }
       run = null;
@@ -494,7 +528,11 @@ function sandRingsFrom(stations, rings, sandDeep) {
 }
 
 
-function clipOffsetLoops(ring) {
+function isCollapsedSandLip(spanI, spanJ) {
+  return spanI < 0.05 && spanJ < 0.05;
+}
+
+function collapseOffsetSelfCrossings(ring) {
   const n = ring.length;
   let previous = Infinity;
   for (let pass = 0; pass < n; pass++) {

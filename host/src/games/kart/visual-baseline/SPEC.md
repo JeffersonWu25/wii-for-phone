@@ -39,9 +39,10 @@ The course is Luigi Circuit from Mario Kart Wii, at arcade scale. Match that sil
 - Bright green grass disc. Saturated sunny sky.
 - Orange dash panels on the outside of the final turn.
 - Checkered start stripe and a painted starting grid.
-- No hedges, grandstands, pipes, or a statue.
+- No hedges or grandstands. A few low-poly trees or one pipe are allowed as visual-only props.
 - Soft directional sun shadows when practical.
 - Kart: low body, visible wheels, seated driver with hat/skin colors from the roster. The kart sits on y = 0. No floating name billboard over the kart during race.
+- Target art direction is Mario Kart Wii Luigi Circuit. Prefer textured surfaces and readable outdoor light over flat prototype colors. Modest course props are allowed when they improve recognition; do not ship Nintendo ripped binaries.
 
 ## HUD data
 
