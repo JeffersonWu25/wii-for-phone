@@ -6,3 +6,5 @@ ts	phase	decision	why	evidence	result
 2026-10-27T15:51:34Z	frame	operator override: all delegates use grok only	user said only use grok	user_query	constraint
 2026-10-27T15:53:06Z	U0	fresh before screenshot via full onboard snapshot-race.mjs	old race-2p-after.png was stale vs lofted track	visual-baseline/current/race-2p-before.png	baseline captured
 2026-10-27T16:01:20Z	U1-U6	shipped procedural karts textured course outdoor light chase cam tone mapping FX hooks props	experience-first + laziness stay vanilla Three	artifacts/race-2p-before.png artifacts/race-2p-after.png	visual improved vs baseline; still short of asset-rich MKWii
+2026-10-27T16:07:19Z	fix	dispose course props; align SPEC with visual-only trees/pipe	audit trail flagged leak and SPEC contradiction	track-view.js SPEC.md	fixed
+2026-10-27T16:07:19Z	U7	re-ran foundation-check + full kart unit suite after polish	prove-it-works; prior log was partial	artifacts/foundation-check.log artifacts/unit-tests-full.log	green

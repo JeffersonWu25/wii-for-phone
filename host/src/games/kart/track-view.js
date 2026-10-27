@@ -130,7 +130,7 @@ export function attachCourse(scene, visuals) {
     meshes.push(mesh);
   }
 
-  addCourseProps(group, visuals.grassRadius);
+  const propDisposables = addCourseProps(group, visuals.grassRadius);
 
   scene.add(group);
 
@@ -149,6 +149,8 @@ export function attachCourse(scene, visuals) {
       for (const map of extraMaps) {
         if (!seen.has(map)) map.dispose();
       }
+      for (const geo of propDisposables.geometries) geo.dispose();
+      for (const mat of propDisposables.materials) mat.dispose();
     },
   };
 }
@@ -158,6 +160,8 @@ function addCourseProps(group, grassRadius) {
   const trunk = new THREE.MeshLambertMaterial({ color: 0x6b3f22 });
   const leaf = new THREE.MeshLambertMaterial({ color: 0x2f9e44 });
   const pipe = new THREE.MeshLambertMaterial({ color: 0x3caa2a });
+  const geometries = [];
+  const materials = [trunk, leaf, pipe];
   const positions = [
     [grassRadius * 0.55, grassRadius * 0.15],
     [-grassRadius * 0.4, grassRadius * 0.45],
@@ -167,11 +171,14 @@ function addCourseProps(group, grassRadius) {
   ];
   for (const [x, z] of positions) {
     const tree = new THREE.Group();
-    const bole = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 2.2, 8), trunk);
+    const boleGeo = new THREE.CylinderGeometry(0.35, 0.45, 2.2, 8);
+    const crownGeo = new THREE.ConeGeometry(1.6, 2.8, 8);
+    geometries.push(boleGeo, crownGeo);
+    const bole = new THREE.Mesh(boleGeo, trunk);
     bole.position.y = 1.1;
     bole.castShadow = true;
     tree.add(bole);
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2.8, 8), leaf);
+    const crown = new THREE.Mesh(crownGeo, leaf);
     crown.position.y = 3.1;
     crown.castShadow = true;
     tree.add(crown);
@@ -179,11 +186,14 @@ function addCourseProps(group, grassRadius) {
     group.add(tree);
   }
 
-  const pipeMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 1.6, 16), pipe);
+  const pipeGeo = new THREE.CylinderGeometry(1.1, 1.1, 1.6, 16);
+  geometries.push(pipeGeo);
+  const pipeMesh = new THREE.Mesh(pipeGeo, pipe);
   pipeMesh.position.set(-grassRadius * 0.15, 0.8, grassRadius * 0.52);
   pipeMesh.castShadow = true;
   pipeMesh.receiveShadow = true;
   group.add(pipeMesh);
+  return { geometries, materials };
 }
 
 function proceduralGroundTexture({ width, height, base, variance, speck }) {
