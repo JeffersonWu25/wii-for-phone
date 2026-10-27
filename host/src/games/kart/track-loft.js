@@ -1,8 +1,6 @@
 /** Pure Luigi Circuit loft. No Three. Physics arrays must be cloned before entry. */
 
 export const STATION_STEP_M = 0.5;
-export const MITER_LIMIT = 1.5;
-const BEVEL_ANGLE = Math.PI / 9; // ~20° — sharper turns get a bevel, not a miter
 export const CURB_WIDTH_M = 0.4;
 export const CURB_HEIGHT_M = 0.09;
 export const ATLAS_WIDTH = 2048;
@@ -23,28 +21,16 @@ export function loftCourse(input) {
   if (!(perim > 0) || !edges?.length) throw new Error('loftCourse needs edges and perim');
 
   const stations = sampleStations(edges, perim, sandBands);
-  let rings = strokeVariableWidth(stations);
-  enforceForwardRings(stations, rings);
-  for (let iter = 0; iter < 12; iter++) {
-    if (!firstIntersection(rings.inner) && !firstIntersection(rings.outer)) break;
-    for (const st of stations) st.half *= 0.92;
-    rings = strokeVariableWidth(stations);
-    enforceForwardRings(stations, rings);
-  }
-  rings.selfCrossings = {
-    inner: countIntersections(rings.inner),
-    outer: countIntersections(rings.outer),
-  };
+  const rings = strokeVariableWidth(stations);
 
   const sandDeep = stations.map((st, i) => {
-    const scale = rings.miterScale[i];
     const nx = rings.nx[i];
     const nz = rings.nz[i];
     const lat = st.half + st.sandDepth;
     return {
-      x: st.x - nx * lat * scale,
+      x: st.x - nx * lat,
       y: 0,
-      z: st.z - nz * lat * scale,
+      z: st.z - nz * lat,
     };
   });
 
@@ -110,94 +96,31 @@ function sampleStations(edges, perim, sandBands) {
 }
 
 function strokeVariableWidth(stations) {
-  const n = stations.length;
   const inner = [];
   const outer = [];
-  const miterScale = [];
   const nxArr = [];
   const nzArr = [];
 
-  for (let i = 0; i < n; i++) {
-    const prev = stations[(i - 1 + n) % n];
-    const cur = stations[i];
-    const next = stations[(i + 1) % n];
-
-    let inX = cur.x - prev.x;
-    let inZ = cur.z - prev.z;
-    let outX = next.x - cur.x;
-    let outZ = next.z - cur.z;
-    const inLen = Math.hypot(inX, inZ) || 1;
-    const outLen = Math.hypot(outX, outZ) || 1;
-    inX /= inLen;
-    inZ /= inLen;
-    outX /= outLen;
-    outZ /= outLen;
-
-    const inNx = inZ;
-    const inNz = -inX;
-    const outNx = outZ;
-    const outNz = -outX;
-
-    const turn = Math.acos(clamp(inX * outX + inZ * outZ, -1, 1));
-    let mx;
-    let mz;
-    let scale;
-    if (turn > BEVEL_ANGLE) {
-      // Bevel: use the bisector without lengthening past the half-width.
-      mx = inNx + outNx;
-      mz = inNz + outNz;
-      const mLen = Math.hypot(mx, mz) || 1;
-      mx /= mLen;
-      mz /= mLen;
-      scale = 1;
-    } else {
-      mx = inNx + outNx;
-      mz = inNz + outNz;
-      const mLen = Math.hypot(mx, mz);
-      if (mLen < 1e-6) {
-        mx = outNx;
-        mz = outNz;
-      } else {
-        mx /= mLen;
-        mz /= mLen;
-      }
-      const denom = Math.max(mx * outNx + mz * outNz, 1 / MITER_LIMIT);
-      scale = 1 / denom;
-    }
-
-    // If the inner point would travel backward, collapse to the outgoing normal.
-    const trialInX = cur.x - mx * cur.half * scale;
-    const trialInZ = cur.z - mz * cur.half * scale;
-    if (inner.length) {
-      const px = trialInX - inner[inner.length - 1].x;
-      const pz = trialInZ - inner[inner.length - 1].z;
-      if (px * outX + pz * outZ < 0) {
-        mx = outNx;
-        mz = outNz;
-        scale = 1;
-      }
-    }
-
-    miterScale.push(scale);
-    nxArr.push(mx);
-    nzArr.push(mz);
+  for (const cur of stations) {
+    nxArr.push(cur.nx);
+    nzArr.push(cur.nz);
     inner.push({
-      x: cur.x - mx * cur.half * scale,
+      x: cur.x - cur.nx * cur.half,
       y: ASPHALT_Y,
-      z: cur.z - mz * cur.half * scale,
+      z: cur.z - cur.nz * cur.half,
     });
     outer.push({
-      x: cur.x + mx * cur.half * scale,
+      x: cur.x + cur.nx * cur.half,
       y: ASPHALT_Y + cur.bankY,
-      z: cur.z + mz * cur.half * scale,
+      z: cur.z + cur.nz * cur.half,
     });
   }
+  // A sharp corner's inside offset loops back on itself. Clip that short chain
+  // onto the crossing instead of shrinking the whole road.
+  clipOffsetLoops(inner);
+  clipOffsetLoops(outer);
 
-  return { inner, outer, miterScale, nx: nxArr, nz: nzArr };
-}
-
-function clamp(v, lo, hi) {
-  return Math.max(lo, Math.min(hi, v));
+  return { inner, outer, nx: nxArr, nz: nzArr };
 }
 
 function triangulate(stations, rings, sandDeep, worldRadius) {
@@ -218,9 +141,42 @@ function triangulate(stations, rings, sandDeep, worldRadius) {
     if (count > 0) groups.push({ material, start, count });
   }
 
+  function triCross(ia, ib, ic) {
+    const ax = positions[ia * 3];
+    const ay = positions[ia * 3 + 1];
+    const az = positions[ia * 3 + 2];
+    const bx = positions[ib * 3];
+    const by = positions[ib * 3 + 1];
+    const bz = positions[ib * 3 + 2];
+    const cx = positions[ic * 3];
+    const cy = positions[ic * 3 + 1];
+    const cz = positions[ic * 3 + 2];
+    const ux = bx - ax;
+    const uy = by - ay;
+    const uz = bz - az;
+    const vx = cx - ax;
+    const vy = cy - ay;
+    const vz = cz - az;
+    return {
+      x: uy * vz - uz * vy,
+      y: uz * vx - ux * vz,
+      z: ux * vy - uy * vx,
+    };
+  }
+
+  function pushTriFacing(ia, ib, ic, nx, ny, nz) {
+    const cross = triCross(ia, ib, ic);
+    if (cross.x * nx + cross.y * ny + cross.z * nz >= 0) indices.push(ia, ib, ic);
+    else indices.push(ia, ic, ib);
+  }
+
+  function pushQuadFacing(i0, i1, i2, i3, nx, ny, nz) {
+    pushTriFacing(i0, i1, i2, nx, ny, nz);
+    pushTriFacing(i0, i2, i3, nx, ny, nz);
+  }
+
   const n = stations.length;
 
-  // Grass disc (fan) under everything — separate footprint from road via lower y and no shared tris.
   const grassStart = indices.length;
   const grassY = 0;
   const center = addVertex(0, grassY, 0, 0, 1, 0, 0.5, 0.5);
@@ -242,11 +198,10 @@ function triangulate(stations, rings, sandDeep, worldRadius) {
     );
   }
   for (let i = 0; i < discN; i++) {
-    indices.push(center, discVerts[i], discVerts[(i + 1) % discN]);
+    pushTriFacing(center, discVerts[i], discVerts[(i + 1) % discN], 0, 1, 0);
   }
   pushGroup('grass', grassStart, indices.length - grassStart);
 
-  // Sand strips where depth > 0 (abut asphalt inner; no corridor double-fill).
   const sandStart = indices.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
@@ -255,15 +210,19 @@ function triangulate(stations, rings, sandDeep, worldRadius) {
     const b = rings.inner[j];
     const c = sandDeep[j];
     const d = sandDeep[i];
+    // A band edge has depth 0, so its deep sample sits on the inner lip.
+    // Dropping that lip to y=0 stands the last quad on a vertical edge.
+    const spanI = Math.hypot(a.x - d.x, a.z - d.z);
+    const spanJ = Math.hypot(b.x - c.x, b.z - c.z);
+    if (spanI < 0.05 && spanJ < 0.05) continue;
     const i0 = addVertex(a.x, a.y, a.z, 0, 1, 0, stations[i].progress, 0);
     const i1 = addVertex(b.x, b.y, b.z, 0, 1, 0, stations[j].progress, 0);
-    const i2 = addVertex(c.x, 0, c.z, 0, 1, 0, stations[j].progress, 1);
-    const i3 = addVertex(d.x, 0, d.z, 0, 1, 0, stations[i].progress, 1);
-    indices.push(i0, i3, i1, i1, i3, i2);
+    const i2 = addVertex(c.x, b.y, c.z, 0, 1, 0, stations[j].progress, 1);
+    const i3 = addVertex(d.x, a.y, d.z, 0, 1, 0, stations[i].progress, 1);
+    pushQuadFacing(i0, i1, i2, i3, 0, 1, 0);
   }
   pushGroup('sand', sandStart, indices.length - sandStart);
 
-  // Asphalt strip with progress/lateral UVs for the atlas.
   const asphaltStart = indices.length;
   const asphaltInner = [];
   const asphaltOuter = [];
@@ -275,25 +234,16 @@ function triangulate(stations, rings, sandDeep, worldRadius) {
   }
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    indices.push(
-      asphaltInner[i],
-      asphaltOuter[i],
-      asphaltInner[j],
-      asphaltInner[j],
-      asphaltOuter[i],
-      asphaltOuter[j],
-    );
+    pushQuadFacing(asphaltInner[i], asphaltOuter[i], asphaltOuter[j], asphaltInner[j], 0, 1, 0);
   }
   pushGroup('asphalt', asphaltStart, indices.length - asphaltStart);
 
-  // Inner curb shell (vertical + cap toward infield).
   const curbInStart = indices.length;
-  emitCurb(rings.inner, rings.nx, rings.nz, -1, stations, addVertex, indices);
+  emitCurb(rings.inner, rings.nx, rings.nz, -1, stations, addVertex, pushQuadFacing);
   pushGroup('curbInner', curbInStart, indices.length - curbInStart);
 
-  // Outer curb shell (vertical + cap toward outside).
   const curbOutStart = indices.length;
-  emitCurb(rings.outer, rings.nx, rings.nz, 1, stations, addVertex, indices);
+  emitCurb(rings.outer, rings.nx, rings.nz, 1, stations, addVertex, pushQuadFacing);
   pushGroup('curbOuter', curbOutStart, indices.length - curbOutStart);
 
   return {
@@ -305,7 +255,7 @@ function triangulate(stations, rings, sandDeep, worldRadius) {
   };
 }
 
-function emitCurb(roadRing, nxArr, nzArr, side, stations, addVertex, indices) {
+function emitCurb(roadRing, nxArr, nzArr, side, stations, addVertex, pushQuadFacing) {
   const n = roadRing.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
@@ -322,19 +272,19 @@ function emitCurb(roadRing, nxArr, nzArr, side, stations, addVertex, indices) {
     const u0 = stations[i].progress;
     const u1 = stations[j].progress;
 
-    // Vertical face.
+    const nx = (nxArr[i] + nxArr[j]) * 0.5 * side;
+    const nz = (nzArr[i] + nzArr[j]) * 0.5 * side;
     const v0 = addVertex(a.x, y0a, a.z, nxArr[i] * side, 0, nzArr[i] * side, u0, 0);
     const v1 = addVertex(b.x, y0b, b.z, nxArr[j] * side, 0, nzArr[j] * side, u1, 0);
     const v2 = addVertex(b.x, y1b, b.z, nxArr[j] * side, 0, nzArr[j] * side, u1, 0.5);
     const v3 = addVertex(a.x, y1a, a.z, nxArr[i] * side, 0, nzArr[i] * side, u0, 0.5);
-    indices.push(v0, v1, v2, v0, v2, v3);
+    pushQuadFacing(v0, v1, v2, v3, nx, 0, nz);
 
-    // Cap.
     const c0 = addVertex(a.x, y1a, a.z, 0, 1, 0, u0, 0.5);
     const c1 = addVertex(b.x, y1b, b.z, 0, 1, 0, u1, 0.5);
     const c2 = addVertex(bx, y1b, bz, 0, 1, 0, u1, 1);
     const c3 = addVertex(ax, y1a, az, 0, 1, 0, u0, 1);
-    indices.push(c0, c1, c2, c0, c2, c3);
+    pushQuadFacing(c0, c1, c2, c3, 0, 1, 0);
   }
 }
 
@@ -354,7 +304,8 @@ function planMarkings(stations, perim, dashQuads, grid) {
     }
   }
   for (const quad of dashQuads || []) {
-    marks.push({ kind: 'boost', quad });
+    const span = dashSpan(stations, quad);
+    if (span) marks.push({ kind: 'boost', ...span });
   }
   marks.push({ kind: 'edgeLine' });
   return marks;
@@ -364,7 +315,6 @@ function rasterizeMarkings(markings) {
   const width = ATLAS_WIDTH;
   const height = ATLAS_HEIGHT;
   const rgba = new Uint8ClampedArray(width * height * 4);
-  // Base asphalt grey with grain.
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
@@ -395,7 +345,6 @@ function rasterizeMarkings(markings) {
     }
   }
 
-  // Edge lines (white) near v=0 and v=1.
   fillRect(0, 0, width, 4, 244, 244, 244);
   fillRect(0, height - 4, width, height, 244, 244, 244);
 
@@ -423,25 +372,82 @@ function rasterizeMarkings(markings) {
       fillRect(cx - 6, cy - 10, cx + 6, cy + 10, 247, 247, 247);
     }
     if (mark.kind === 'boost') {
-      // Approximate: paint orange chevron bands across outer lateral half for each dash span.
-      // Without exact progress, stamp repeating chevrons on outer third.
+      paintBoost(mark);
     }
   }
 
-  // Boost chevrons along outer lateral (atlas v high) — repeating pattern.
-  for (let x = 0; x < width; x += 28) {
-    for (let t = 0; t < 14; t++) {
-      const yy0 = height * 0.55;
-      const yy1 = height * 0.95;
-      const mid = (yy0 + yy1) / 2;
-      const half = (yy1 - yy0) / 2;
-      const x0 = x + t;
-      const x1 = x + t + 3;
-      fillRect(x0, mid - half + t, x1, mid + half - t, 242, 122, 18);
+  function paintBoost(mark) {
+    const windows = [];
+    const xStart = wrap01(mark.progress) * width;
+    const xLen = mark.span * width;
+    if (xStart + xLen <= width) windows.push([xStart, xStart + xLen]);
+    else {
+      windows.push([xStart, width]);
+      windows.push([0, xStart + xLen - width]);
+    }
+    const y0 = ((mark.lat0 + 1) / 2) * height;
+    const y1 = ((mark.lat1 + 1) / 2) * height;
+    for (const [xa, xb] of windows) {
+      const start = Math.floor(xa / 28) * 28;
+      for (let x = start; x < xb; x += 28) {
+        for (let t = 0; t < 14; t++) {
+          const mid = (y0 + y1) / 2;
+          const half = Math.abs(y1 - y0) / 2;
+          const x0 = Math.max(xa, x + t);
+          const x1 = Math.min(xb, x + t + 3);
+          if (x1 <= x0) continue;
+          fillRect(x0, mid - half + t, x1, mid + half - t, 242, 122, 18);
+        }
+      }
     }
   }
 
   return { width, height, rgba };
+}
+
+function dashSpan(stations, quad) {
+  const samples = [];
+  for (const p of quad) samples.push(projectStation(stations, p.x, p.z));
+  if (!samples.length) return null;
+  const origin = samples[0].progress;
+  let minP = 0;
+  let maxP = 0;
+  let lat0 = Infinity;
+  let lat1 = -Infinity;
+  for (const sample of samples) {
+    let delta = sample.progress - origin;
+    if (delta > 0.5) delta -= 1;
+    if (delta < -0.5) delta += 1;
+    if (delta < minP) minP = delta;
+    if (delta > maxP) maxP = delta;
+    if (sample.lat < lat0) lat0 = sample.lat;
+    if (sample.lat > lat1) lat1 = sample.lat;
+  }
+  if (!(maxP > minP)) return null;
+  return {
+    progress: wrap01(origin + minP),
+    span: maxP - minP,
+    lat0,
+    lat1,
+  };
+}
+
+function projectStation(stations, x, z) {
+  let best = Infinity;
+  let hit = null;
+  for (const station of stations) {
+    const dx = x - station.x;
+    const dz = z - station.z;
+    const dist2 = dx * dx + dz * dz;
+    if (dist2 < best) {
+      best = dist2;
+      hit = {
+        progress: station.progress,
+        lat: (dx * station.nx + dz * station.nz) / (station.half || 1),
+      };
+    }
+  }
+  return hit;
 }
 
 function stripeAtlas(a, b) {
@@ -477,7 +483,9 @@ function sandRingsFrom(stations, rings, sandDeep) {
     }
     if ((!active || i === n - 1) && run) {
       if (run.ptsInner.length >= 2) {
-        ringsOut.push([...run.ptsInner, ...[...run.ptsDeep].reverse()]);
+        const poly = [...run.ptsInner, ...[...run.ptsDeep].reverse()];
+        clipOffsetLoops(poly);
+        ringsOut.push(poly);
       }
       run = null;
     }
@@ -486,33 +494,66 @@ function sandRingsFrom(stations, rings, sandDeep) {
 }
 
 
-function enforceForwardRings(stations, rings) {
-  const n = stations.length;
-  for (const key of ['inner', 'outer']) {
-    const ring = rings[key];
-    for (let pass = 0; pass < 3; pass++) {
-      for (let i = 0; i < n; i++) {
-        const prev = ring[(i - 1 + n) % n];
-        const cur = stations[i];
-        const next = stations[(i + 1) % n];
-        let tx = next.x - prev.x;
-        let tz = next.z - prev.z;
-        const len = Math.hypot(tx, tz) || 1;
-        tx /= len; tz /= len;
-        const dx = ring[i].x - prev.x;
-        const dz = ring[i].z - prev.z;
-        if (dx * tx + dz * tz < 0.05) {
-          const latx = ring[i].x - cur.x;
-          const latz = ring[i].z - cur.z;
-          ring[i] = {
-            x: prev.x + tx * 0.05 + latx * 0.15,
-            y: ring[i].y,
-            z: prev.z + tz * 0.05 + latz * 0.15,
-          };
-        }
-      }
+function clipOffsetLoops(ring) {
+  const n = ring.length;
+  let previous = Infinity;
+  for (let pass = 0; pass < n; pass++) {
+    const hit = firstIntersection(ring);
+    if (!hit) return;
+    const left = countIntersections(ring);
+    if (left >= previous) return;
+    previous = left;
+    const a = ring[hit.i];
+    const b = ring[(hit.i + 1) % n];
+    const c = ring[hit.j];
+    const d = ring[(hit.j + 1) % n];
+    const pt = segmentIntersection(a, b, c, d);
+    if (!pt) return;
+    const forward = hit.j - hit.i;
+    const backward = hit.i + n - hit.j;
+    const fromEdge = forward <= backward ? hit.i : hit.j;
+    const toEdge = forward <= backward ? hit.j : hit.i;
+    const verts = [];
+    let k = (fromEdge + 1) % n;
+    const stop = (toEdge + 1) % n;
+    while (k !== stop && verts.length < n) {
+      verts.push(k);
+      k = (k + 1) % n;
+    }
+    const tail = ring[stop];
+    let dx = tail.x - pt.x;
+    let dz = tail.z - pt.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-8) {
+      dx = 1;
+      dz = 0;
+    } else {
+      dx /= len;
+      dz /= len;
+    }
+    for (let t = 0; t < verts.length; t++) {
+      const along = ((t + 1) / (verts.length + 1)) * 0.02;
+      const idx = verts[t];
+      ring[idx] = {
+        x: pt.x + dx * along,
+        y: pt.y,
+        z: pt.z + dz * along,
+      };
     }
   }
+}
+
+function segmentIntersection(a, b, c, d) {
+  const rx = b.x - a.x;
+  const rz = b.z - a.z;
+  const sx = d.x - c.x;
+  const sz = d.z - c.z;
+  const den = rx * sz - rz * sx;
+  if (Math.abs(den) < 1e-14) return null;
+  const t = ((c.x - a.x) * sz - (c.z - a.z) * sx) / den;
+  const y0 = a.y ?? 0;
+  const y1 = b.y ?? y0;
+  return { x: a.x + t * rx, y: y0 + t * (y1 - y0), z: a.z + t * rz };
 }
 
 function firstIntersection(ring) {
@@ -562,7 +603,6 @@ export function assertSimple(ring, label = 'ring') {
       if (j === (i + 1) % n) continue;
       const c = ring[j];
       const d = ring[(j + 1) % n];
-      // Skip adjacent edges sharing a vertex.
       if ((j + 1) % n === i || (i + 1) % n === j) continue;
       if (segmentsCross(a, b, c, d)) {
         throw new Error(`${label} self-intersects at edges ${i} and ${j}`);

@@ -26,6 +26,30 @@ test('lofted outline rings are simple polygons', () => {
   assertSimple(vis.outline.outer, 'outer');
 });
 
+test('the U-turn asphalt banks and sand stays off the finish line', () => {
+  const mesh = luigiCircuit.trackVisuals().mesh;
+  const asphalt = mesh.groups.find((group) => group.material === 'asphalt');
+  let maxY = 0;
+  let minY = Infinity;
+  const seen = new Set();
+  for (let k = asphalt.start; k < asphalt.start + asphalt.count; k++) {
+    const vi = mesh.indices[k];
+    if (seen.has(vi)) continue;
+    seen.add(vi);
+    const y = mesh.positions[vi * 3 + 1];
+    if (y > maxY) maxY = y;
+    if (y < minY) minY = y;
+  }
+  assert.ok(maxY > 0.9, `outer bank ${maxY}`);
+  assert.ok(minY < 0.05, `inner lip ${minY}`);
+  const start = luigiCircuit.poseAt(0);
+  for (const poly of luigiCircuit.trackVisuals().outline.sand) {
+    for (const p of poly) {
+      assert.ok(Math.hypot(p.x - start.x, p.z - start.z) > 4, `${p.x},${p.z}`);
+    }
+  }
+});
+
 test('up-facing course triangles wind toward +Y and curb walls face their stored normal', () => {
   const { positions, normals, indices, groups } = luigiCircuit.trackVisuals().mesh;
   const grass = groups.find((g) => g.material === 'grass');
@@ -40,8 +64,14 @@ test('up-facing course triangles wind toward +Y and curb walls face their stored
       const geom = triGeom(positions, indices, k);
       if (geom.area < 1e-6) continue;
       const s = indices[k] * 3;
-      const dot = geom.nx * normals[s] + geom.ny * normals[s + 1] + geom.nz * normals[s + 2];
-      assert.ok(dot > 0.5, `${group.material} tri ${k} faces against its stored normal (${dot.toFixed(3)})`);
+      const storedY = normals[s + 1];
+      if (storedY > 0.5) {
+        if (Math.abs(geom.ny) < 0.2) continue;
+        assert.ok(geom.ny > 0.5, `${group.material} tri ${k} normal.y ${geom.ny.toFixed(3)}`);
+      } else {
+        const dot = geom.nx * normals[s] + geom.ny * storedY + geom.nz * normals[s + 2];
+        assert.ok(dot > 0, `${group.material} tri ${k} faces against its stored normal (${dot.toFixed(3)})`);
+      }
     }
   }
 });
