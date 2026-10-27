@@ -13,7 +13,6 @@ function readHeight(wp, key) {
   return wp[key];
 }
 
-// A tall bank widens the berm so the face stays at or under 18° instead of turning into a wall.
 function shoulderWidth(bankOuterY) {
   return Math.max(SHOULDER_MIN_M, Math.abs(2 * bankOuterY) / SHOULDER_SLOPE);
 }
@@ -388,7 +387,6 @@ function compile(plan, opts = {}) {
 
 function locate(course, x, z, seed) {
   const windowed = seed == null ? null : nearestEdge(course, x, z, seed);
-  // The shortcut polygon overlaps the inner asphalt. That strip stays on the road.
   if (windowed && Math.abs(windowed.lateral) <= windowed.half + 1e-4) {
     return describePoint(course, windowed, x, z, 'asphalt');
   }
@@ -640,7 +638,6 @@ function bakeMeadow(course, stations) {
   }
   const hub = contactRail(course, cx, cz);
   for (let i = 0; i < prev.length; i++) {
-    // The fan is stored as quads. The repeated hub makes the second triangle empty.
     quads.push([prev[i], prev[(i + 1) % prev.length], hub, hub]);
   }
   return quads;

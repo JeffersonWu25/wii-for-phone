@@ -164,8 +164,6 @@ test('a seeded point on the asphalt stays on the asphalt', () => {
       const hit = sampleTrack(x, z, t);
       if (Math.abs(hit.lateral) > hit.halfWidth + 1e-3) continue;
       assert.equal(hit.surface, 'asphalt', `t ${t} frac ${frac} lateral ${hit.lateral}`);
-      // A point exactly at the lip can land on the next chord. The ruled check
-      // stays on samples that share this edge.
       if (!sameProgress(left.progress, hit.progress) || !sameProgress(right.progress, hit.progress)) {
         continue;
       }

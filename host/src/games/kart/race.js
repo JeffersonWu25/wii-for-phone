@@ -103,7 +103,6 @@ function travelOf(facing, slip) {
   return wrapPi(facing - slip);
 }
 
-// Positive roadRoll lifts the +lateral tire. Positive pitch is Three.js +RX (nose down).
 export function contactFrame(normal, heading) {
   const ny = normal?.y;
   const nx = normal?.x;
@@ -489,7 +488,6 @@ function stepKart(kart, input, dt, tuning) {
   if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * scales.speed * dt);
   else kart.speed = Math.max(target, kart.speed - COAST * dt);
 
-  // A stopped kart has no travel direction, so the bank does not yaw it.
   if (kart.speed > 0) kart.facing += (slope.side / Math.max(kart.speed, 4)) * dt;
 
   const pace = clamp(kart.speed / Math.max(preCap, 1e-6), 0, 1);
