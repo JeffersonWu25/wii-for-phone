@@ -7,19 +7,21 @@ export function attachCourse(scene, visuals) {
   }
 
   const reach = visuals.grassRadius + 12;
-  scene.background = new THREE.Color(0x7ec8f5);
-  scene.fog = new THREE.Fog(0x7ec8f5, 90, reach * 2.4);
+  scene.background = new THREE.Color(0x87c8f8);
+  scene.fog = new THREE.Fog(0x9ad0f5, 70, reach * 2.2);
 
   const group = new THREE.Group();
   group.name = 'luigi-course';
 
-  const hemi = new THREE.HemisphereLight(0xfff2d4, 0x3a7a3a, 0.85);
+  const hemi = new THREE.HemisphereLight(0xfff6e0, 0x3f8a3f, 1.05);
   group.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xfff1c8, 1.35);
-  sun.position.set(40, 55, 18);
+  const sun = new THREE.DirectionalLight(0xfff3d6, 1.85);
+  sun.position.set(48, 70, 22);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.00015;
+  sun.shadow.normalBias = 0.02;
   sun.shadow.camera.near = 5;
   sun.shadow.camera.far = reach * 3;
   sun.shadow.camera.left = -reach;
@@ -27,6 +29,11 @@ export function attachCourse(scene, visuals) {
   sun.shadow.camera.top = reach;
   sun.shadow.camera.bottom = -reach;
   group.add(sun);
+  group.add(sun.target);
+
+  const fill = new THREE.DirectionalLight(0xb8d8ff, 0.35);
+  fill.position.set(-30, 25, -40);
+  group.add(fill);
 
   const srcPos = visuals.mesh.positions;
   const srcNrm = visuals.mesh.normals;
@@ -37,6 +44,7 @@ export function attachCourse(scene, visuals) {
   asphaltMap.wrapS = THREE.RepeatWrapping;
   asphaltMap.wrapT = THREE.ClampToEdgeWrapping;
   asphaltMap.colorSpace = THREE.SRGBColorSpace;
+  asphaltMap.anisotropy = 8;
 
   const curbInMap = dataTexture(visuals.curbInnerAtlas);
   curbInMap.wrapS = THREE.RepeatWrapping;
@@ -48,16 +56,46 @@ export function attachCourse(scene, visuals) {
   curbOutMap.wrapT = THREE.RepeatWrapping;
   curbOutMap.colorSpace = THREE.SRGBColorSpace;
 
+  const grassMap = proceduralGroundTexture({
+    width: 256,
+    height: 256,
+    base: [52, 168, 62],
+    variance: 28,
+    speck: [90, 200, 70],
+  });
+  grassMap.wrapS = THREE.RepeatWrapping;
+  grassMap.wrapT = THREE.RepeatWrapping;
+  grassMap.repeat.set(18, 18);
+  grassMap.colorSpace = THREE.SRGBColorSpace;
+
+  const sandMap = proceduralGroundTexture({
+    width: 256,
+    height: 256,
+    base: [214, 186, 132],
+    variance: 22,
+    speck: [236, 210, 160],
+  });
+  sandMap.wrapS = THREE.RepeatWrapping;
+  sandMap.wrapT = THREE.RepeatWrapping;
+  sandMap.repeat.set(10, 10);
+  sandMap.colorSpace = THREE.SRGBColorSpace;
+
   const materialFor = {
-    grass: () => new THREE.MeshLambertMaterial({ color: 0x45b34f, side: THREE.FrontSide }),
-    sand: () => new THREE.MeshLambertMaterial({ color: 0xd2b48c, side: THREE.FrontSide }),
-    asphalt: () => new THREE.MeshLambertMaterial({ map: asphaltMap, side: THREE.FrontSide }),
-    curbInner: () => new THREE.MeshLambertMaterial({ map: curbInMap, side: THREE.FrontSide }),
-    curbOuter: () => new THREE.MeshLambertMaterial({ map: curbOutMap, side: THREE.FrontSide }),
+    grass: () =>
+      new THREE.MeshLambertMaterial({ map: grassMap, side: THREE.FrontSide }),
+    sand: () =>
+      new THREE.MeshLambertMaterial({ map: sandMap, side: THREE.FrontSide }),
+    asphalt: () =>
+      new THREE.MeshLambertMaterial({ map: asphaltMap, side: THREE.FrontSide }),
+    curbInner: () =>
+      new THREE.MeshLambertMaterial({ map: curbInMap, side: THREE.FrontSide }),
+    curbOuter: () =>
+      new THREE.MeshLambertMaterial({ map: curbOutMap, side: THREE.FrontSide }),
   };
 
   const meshes = [];
   const materials = [];
+  const extraMaps = [grassMap, sandMap];
 
   for (const g of visuals.mesh.groups) {
     if (!MATERIALS.includes(g.material)) throw new Error(`unknown material ${g.material}`);
@@ -81,7 +119,6 @@ export function attachCourse(scene, visuals) {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = `course-${g.material}`;
     mesh.receiveShadow = true;
-    // Dense loft ribbons were disappearing under frustum tests in headless GL.
     mesh.frustumCulled = false;
     if (g.material !== 'grass') {
       mesh.renderOrder = 1;
@@ -92,6 +129,8 @@ export function attachCourse(scene, visuals) {
     group.add(mesh);
     meshes.push(mesh);
   }
+
+  addCourseProps(group, visuals.grassRadius);
 
   scene.add(group);
 
@@ -107,8 +146,74 @@ export function attachCourse(scene, visuals) {
         }
         mat.dispose();
       }
+      for (const map of extraMaps) {
+        if (!seen.has(map)) map.dispose();
+      }
     },
   };
+}
+
+/** Soft MKWii-ish props. Visual only. Physics ignores them. */
+function addCourseProps(group, grassRadius) {
+  const trunk = new THREE.MeshLambertMaterial({ color: 0x6b3f22 });
+  const leaf = new THREE.MeshLambertMaterial({ color: 0x2f9e44 });
+  const pipe = new THREE.MeshLambertMaterial({ color: 0x3caa2a });
+  const positions = [
+    [grassRadius * 0.55, grassRadius * 0.15],
+    [-grassRadius * 0.4, grassRadius * 0.45],
+    [grassRadius * 0.2, -grassRadius * 0.55],
+    [-grassRadius * 0.55, -grassRadius * 0.2],
+    [grassRadius * 0.48, -grassRadius * 0.35],
+  ];
+  for (const [x, z] of positions) {
+    const tree = new THREE.Group();
+    const bole = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 2.2, 8), trunk);
+    bole.position.y = 1.1;
+    bole.castShadow = true;
+    tree.add(bole);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2.8, 8), leaf);
+    crown.position.y = 3.1;
+    crown.castShadow = true;
+    tree.add(crown);
+    tree.position.set(x, 0, z);
+    group.add(tree);
+  }
+
+  const pipeMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 1.6, 16), pipe);
+  pipeMesh.position.set(-grassRadius * 0.15, 0.8, grassRadius * 0.52);
+  pipeMesh.castShadow = true;
+  pipeMesh.receiveShadow = true;
+  group.add(pipeMesh);
+}
+
+function proceduralGroundTexture({ width, height, base, variance, speck }) {
+  const rgba = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const n =
+        ((Math.sin(x * 0.37 + y * 0.19) * 43758.5453) % 1) +
+        ((Math.sin(x * 0.11 - y * 0.29) * 12345.678) % 1);
+      const grain = ((n * variance) | 0) - (variance >> 1);
+      const useSpeck = ((x * 13 + y * 29) % 17) === 0;
+      const c = useSpeck ? speck : base;
+      const i = (y * width + x) * 4;
+      rgba[i] = clampByte(c[0] + grain);
+      rgba[i + 1] = clampByte(c[1] + grain);
+      rgba[i + 2] = clampByte(c[2] + grain);
+      rgba[i + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(rgba, width, height, THREE.RGBAFormat);
+  tex.needsUpdate = true;
+  tex.flipY = false;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  return tex;
+}
+
+function clampByte(v) {
+  return Math.max(0, Math.min(255, v | 0));
 }
 
 /** Remap a triangle index slice onto a dense vertex buffer. */

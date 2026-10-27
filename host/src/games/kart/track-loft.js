@@ -37,8 +37,8 @@ export function loftCourse(input) {
   const mesh = triangulate(stations, rings, sandDeep, worldRadius);
   const markings = planMarkings(stations, perim, dashQuads, grid);
   const atlas = rasterizeMarkings(markings);
-  const curbInnerAtlas = stripeAtlas(0x2f9e44, 0xf4f4f4);
-  const curbOuterAtlas = stripeAtlas(0xf4f4f4, 0x2f9e44);
+  const curbInnerAtlas = stripeAtlas(0x1f8a2e, 0xffffff);
+  const curbOuterAtlas = stripeAtlas(0xffffff, 0x1f8a2e);
 
   const sandOutline = sandRingsFrom(stations, rings, sandDeep);
   const outline = {
@@ -396,7 +396,7 @@ function rasterizeMarkings(markings) {
           const x0 = Math.max(xa, x + t);
           const x1 = Math.min(xb, x + t + 3);
           if (x1 <= x0) continue;
-          fillRect(x0, mid - half + t, x1, mid + half - t, 242, 122, 18);
+          fillRect(x0, mid - half + t, x1, mid + half - t, 255, 110, 8);
         }
       }
     }

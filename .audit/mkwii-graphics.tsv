@@ -1,0 +1,7 @@
+ts	phase	decision	why	evidence	result
+2026-10-27T15:51:07Z	start	figure-it-out graphics upgrade to MKWii look	operator granted full autonomy and grok-only delegates	agent-run	open
+2026-10-27T15:51:34Z	frame	done = screenshots show detailed karts textured Luigi Circuit outdoor light chase cam VFX; tests green; no Nintendo binaries	prove-it-works + experience-first: MKWii look not max complexity	.audit/mkwii-graphics-plan.md	framed
+2026-10-27T15:51:34Z	frame	stay vanilla Three + loft pipeline; no R3F; procedural/canvas textures only	laziness + license fence; mario-kart-js is technique reference only	KartScene.jsx track-view.js /tmp/mario-kart-js	settled
+2026-10-27T15:51:34Z	frame	skip full architect/arena	design already concrete under constraints; second arena would be over-engineering	principle-laziness-protocol	skipped
+2026-10-27T15:51:34Z	frame	operator override: all delegates use grok only	user said only use grok	user_query	constraint
+2026-10-27T15:53:06Z	U0	fresh before screenshot via full onboard snapshot-race.mjs	old race-2p-after.png was stale vs lofted track	visual-baseline/current/race-2p-before.png	baseline captured
