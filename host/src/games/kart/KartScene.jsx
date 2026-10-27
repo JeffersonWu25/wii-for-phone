@@ -5,19 +5,24 @@ import { syncEntities } from './entity-mesh.js';
 import { updateKartFx } from './kart-fx.js';
 import { makeRacer } from './kart-mesh.js';
 import { viewports } from './layout.js';
-import { driftView, effectView } from './race.js';
+import { contactFrame, driftView, effectView } from './race.js';
 import { attachCourse } from './track-view.js';
 
 export { CAM_DIST, CAM_HEIGHT, LOOK_AHEAD, LOOK_Y, FOV } from './camera.js';
 
 function placeRacer(mesh, kart, now) {
   const view = driftView(kart);
+  const slope = contactFrame(kart.normal, view.facing);
   const fxKind = effectView(kart);
   const body = mesh.userData.body;
-  mesh.position.set(kart.x, 0, kart.z);
+  mesh.position.set(kart.x, kart.y, kart.z);
   mesh.rotation.set(0, view.facing, 0);
   body.position.y = PIVOT_Y + Math.abs(view.roll) * TRACK_HALF;
-  body.rotation.set(0, 0, fxKind === 'spin' ? Math.sin(now / 80) * 0.4 : view.roll);
+  body.rotation.set(
+    slope.pitch,
+    0,
+    fxKind === 'spin' ? Math.sin(now / 80) * 0.4 : view.roll + slope.roadRoll,
+  );
   if (mesh.userData.fx) {
     updateKartFx(mesh.userData.fx, view, fxKind, now);
   } else {

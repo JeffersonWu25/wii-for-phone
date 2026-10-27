@@ -11,6 +11,8 @@ export const FINISH_GRACE_MS = 20000;
 const GATE_WINDOW = 0.15;
 
 const ACCEL = 22;
+const SLOPE_TAU = 4;
+const G = 9.81;
 const COAST = 14;
 const MAX_SPEED = 32;
 const BOOST_SPEED = 42;
@@ -99,6 +101,24 @@ function tuningScales(raceTuning, kart) {
 
 function travelOf(facing, slip) {
   return wrapPi(facing - slip);
+}
+
+// Positive roadRoll lifts the +lateral tire. Positive pitch raises the nose.
+export function contactFrame(normal, heading) {
+  const ny = normal?.y;
+  const nx = normal?.x;
+  const nz = normal?.z;
+  if (!(ny > 0) || !Number.isFinite(nx) || !Number.isFinite(nz) || !Number.isFinite(heading)) {
+    throw new Error('followTrack hit is missing contact');
+  }
+  const s = Math.sin(heading);
+  const c = Math.cos(heading);
+  return {
+    along: G * ny * (nx * s + nz * c),
+    side: G * ny * (nx * c - nz * s),
+    roadRoll: Math.atan2(-(nx * c - nz * s), ny),
+    pitch: Math.atan2(nx * s + nz * c, ny),
+  };
 }
 
 function rollOf(slip, charge) {
@@ -280,6 +300,8 @@ export function createRace(players, now, track, rng = Math.random) {
       finished: false,
       finishTimeMs: null,
       progress: sample.progress,
+      y: sample.y,
+      normal: sample.normal,
       surface: sample.surface || 'asphalt',
       dashRemaining: 0,
       driftPhase: IDLE_PHASE,
@@ -397,10 +419,19 @@ function contain(kart, sample, track) {
   return track.sampleTrack(kart.x, kart.z);
 }
 
+function storeContact(kart, hit) {
+  if (!Number.isFinite(hit?.y) || !(hit.normal?.y > 0)) {
+    throw new Error('followTrack hit is missing contact');
+  }
+  kart.y = hit.y;
+  kart.normal = hit.normal;
+  kart.surface = hit.surface;
+}
+
 function commitContact(kart, hit) {
+  storeContact(kart, hit);
   kart.x = hit.x;
   kart.z = hit.z;
-  kart.surface = hit.surface;
   if (hit.dashEntered) kart.dashRemaining = Math.max(kart.dashRemaining || 0, DASH_TIME);
 }
 
@@ -451,9 +482,15 @@ function stepKart(kart, input, dt, tuning) {
   const stepped = stepDrift(oldPhase, input, kart.speed, dt, scales);
 
   const preCap = speedCap(oldPhase, scales, kart);
-  const target = input.gas ? preCap : 0;
+  const travel = travelOf(kart.facing, oldPhase.slip || 0);
+  const slope = contactFrame(kart.normal, travel);
+  const cap = Math.max(0, preCap + slope.along * SLOPE_TAU);
+  const target = input.gas ? cap : 0;
   if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * scales.speed * dt);
   else kart.speed = Math.max(target, kart.speed - COAST * dt);
+
+  // A stopped kart has no travel direction, so the bank does not yaw it.
+  if (kart.speed > 0) kart.facing += (slope.side / Math.max(kart.speed, 4)) * dt;
 
   const pace = clamp(kart.speed / Math.max(preCap, 1e-6), 0, 1);
   const cornerTurn = (kart.speed / HOLD_RADIUS) * scales.turn;
@@ -469,9 +506,9 @@ function stepKart(kart, input, dt, tuning) {
     kart.speed = Math.min(cap, kart.speed + stepped.boostKick);
   }
 
-  const travel = travelOf(kart.facing, kart.driftPhase.slip || 0);
-  kart.x += Math.sin(travel) * kart.speed * dt;
-  kart.z += Math.cos(travel) * kart.speed * dt;
+  const moved = travelOf(kart.facing, kart.driftPhase.slip || 0);
+  kart.x += Math.sin(moved) * kart.speed * dt;
+  kart.z += Math.cos(moved) * kart.speed * dt;
 }
 
 export function rankKarts(karts) {
@@ -591,9 +628,9 @@ export function stepRace(race, dt, now) {
       sample = contain(kart, sample, race.track);
       const half = race.track.HALF;
       const onTrack = sample.lateral > -half - 0.8 && sample.lateral < half + 1.6;
+      storeContact(kart, sample);
       noteProgress(kart, sample.progress, onTrack, race.timeMs);
       kart.progress = sample.progress;
-      if (sample.surface) kart.surface = sample.surface;
     }
     if (kart.finished && race.firstFinishAt == null) race.firstFinishAt = now;
   }

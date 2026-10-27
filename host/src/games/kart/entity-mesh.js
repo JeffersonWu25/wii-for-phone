@@ -40,7 +40,7 @@ function makeItemBox() {
   q2.position.z = -0.54;
   group.add(q2);
 
-  group.userData.y = 1.15;
+  group.userData.hover = 1.15;
   group.userData.kind = 'box';
   group.userData.spin = true;
   return group;
@@ -53,7 +53,7 @@ function makeBanana() {
   );
   mesh.rotation.x = -Math.PI / 2;
   mesh.castShadow = true;
-  mesh.userData.y = 0.28;
+  mesh.userData.hover = 0.28;
   mesh.userData.kind = 'banana';
   return mesh;
 }
@@ -72,7 +72,7 @@ function makeShell() {
   );
   band.rotation.x = Math.PI / 2;
   group.add(band);
-  group.userData.y = 0.42;
+  group.userData.hover = 0.42;
   group.userData.kind = 'shell';
   return group;
 }
@@ -87,7 +87,7 @@ export function syncEntities(scene, pool, entities, now) {
       pool.set(entity.id, mesh);
       scene.add(mesh);
     }
-    mesh.position.set(entity.x, mesh.userData.y, entity.z);
+    mesh.position.set(entity.x, entity.y + mesh.userData.hover, entity.z);
     mesh.visible = entity.kind !== 'box' || entity.cooldown <= 0;
     if (entity.kind === 'box') {
       mesh.rotation.y = now / 700;

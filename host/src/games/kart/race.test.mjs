@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HALF, PERIM, poseAt, sampleTrack, luigiCircuit as luigi } from './track.js';
+import { CAM_HEIGHT, LOOK_Y, placeCamera } from './camera.js';
 import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
@@ -10,6 +11,7 @@ import {
   TUNING_LIMITS,
   applyDrive,
   applyUseItem,
+  contactFrame,
   createRace,
   driftView,
   gridPose,
@@ -57,6 +59,8 @@ function park(kart, x, z, facing = 0, progressHint) {
   kart.lastInputAt = 0;
   const sample = sampleTrack(x, z, progressHint);
   kart.surface = sample.surface;
+  kart.y = sample.y;
+  kart.normal = sample.normal;
   kart.progress = sample.progress;
   kart.dashRemaining = 0;
 }
@@ -994,6 +998,160 @@ test('an unknown item clears the slot and does not count', () => {
   assert.equal(race.entities.some((entity) => entity.kind !== 'box'), false);
   kart.itemSecondary = 'star';
   assert.equal(snapshot(race).players[0].itemSecondary, null);
+});
+
+function slopeTrack(normal, follow = true) {
+  const sample = {
+    y: 0,
+    progress: 0.2,
+    surface: 'asphalt',
+    lateral: 0,
+    tx: 0,
+    tz: 1,
+    dirX: 1,
+    dirZ: 0,
+  };
+  const track = {
+    HALF: 6,
+    itemBoxProgress: [0],
+    poseAt() {
+      return { x: 0, z: 0, y: 0, heading: 0, halfWidth: 6 };
+    },
+    sampleTrack() {
+      return { ...sample, normal: { ...normal } };
+    },
+  };
+  if (follow) {
+    track.followTrack = ({ x1, z1 }) => ({
+      x: x1,
+      z: z1,
+      ...sample,
+      normal: { ...normal },
+      dashEntered: false,
+    });
+  }
+  return track;
+}
+
+function racingOn(track) {
+  const race = createRace(
+    [{ playerId: 'p', name: 'P', characterId: 'mario' }],
+    0,
+    track,
+  );
+  race.phase = 'racing';
+  race.startedAt = 0;
+  return race;
+}
+
+test('a hit without contact throws', () => {
+  const track = slopeTrack({ x: 0, y: 1, z: 0 });
+  track.followTrack = () => ({
+    x: 0,
+    z: 1,
+    y: Number.NaN,
+    progress: 0,
+    surface: 'asphalt',
+    normal: { x: 0, y: 1, z: 0 },
+  });
+  const race = racingOn(track);
+  assert.throws(() => stepRace(race, 0.05, 10), /followTrack hit is missing contact/);
+
+  const flat = slopeTrack({ x: 0, y: 0, z: 1 });
+  const tipped = racingOn(flat);
+  assert.throws(() => stepRace(tipped, 0.05, 10), /followTrack hit is missing contact/);
+});
+
+test('downhill raises the gas cap and uphill lowers it', () => {
+  function speedAfter(normal) {
+    const race = racingOn(slopeTrack(normal));
+    const kart = race.karts[0];
+    kart.speed = 32;
+    kart.gas = true;
+    kart.lastInputAt = 10;
+    stepRace(race, 0.05, 10);
+    return kart.speed;
+  }
+  const flat = speedAfter({ x: 0, y: 1, z: 0 });
+  const down = speedAfter({ x: 0, y: Math.cos(0.3), z: Math.sin(0.3) });
+  const up = speedAfter({ x: 0, y: Math.cos(0.3), z: -Math.sin(0.3) });
+  assert.ok(down > flat + 0.5, `down ${down} flat ${flat}`);
+  assert.ok(up < flat - 0.5, `up ${up} flat ${flat}`);
+});
+
+test('a stopped kart does not yaw on a bank, and a moving kart does', () => {
+  const normal = { x: -0.3, y: Math.sqrt(1 - 0.09), z: 0 };
+  const stopped = racingOn(slopeTrack(normal));
+  const still = stopped.karts[0];
+  const facing = still.facing;
+  stepRace(stopped, 0.05, 10);
+  assert.equal(still.facing, facing);
+  assert.equal(still.speed, 0);
+
+  const moving = racingOn(slopeTrack(normal));
+  const kart = moving.karts[0];
+  kart.speed = 16;
+  kart.gas = true;
+  kart.lastInputAt = 10;
+  const before = kart.facing;
+  stepRace(moving, 0.05, 10);
+  assert.ok(kart.facing < before, `facing ${kart.facing} vs ${before}`);
+});
+
+test('the bank lifts the outer tire and an uphill nose pitches up', () => {
+  let bestT = 0;
+  let best = poseAt(0);
+  for (let i = 0; i <= 360; i++) {
+    const t = i / 360;
+    const pose = poseAt(t);
+    if (pose.y > best.y) {
+      best = pose;
+      bestT = t;
+    }
+  }
+  const sample = sampleTrack(best.x, best.z, bestT);
+  const frame = contactFrame(sample.normal, best.heading);
+  assert.ok(frame.roadRoll > 0.01, `roadRoll ${frame.roadRoll}`);
+  assert.ok(Math.sin(frame.roadRoll) > 0);
+
+  const uphill = contactFrame({ x: 0, y: Math.cos(0.3), z: -Math.sin(0.3) }, 0);
+  assert.ok(uphill.pitch < 0, `pitch ${uphill.pitch}`);
+  assert.ok(uphill.along < 0);
+});
+
+test('createRace and the camera use the sampled height', () => {
+  const race = raceWith([{ playerId: 'p1', name: 'A' }]);
+  const kart = race.karts[0];
+  const home = gridPose(0, luigi);
+  const sample = sampleTrack(home.x, home.z);
+  assert.equal(kart.y, sample.y);
+  assert.ok(kart.normal.y > 0);
+  const box = race.entities.find((entity) => entity.kind === 'box');
+  const pose = poseAt(luigi.itemBoxProgress[0]);
+  assert.equal(box.y, pose.y);
+
+  const camera = {
+    position: { set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
+    lookAt(x, y, z) { this.look = { x, y, z }; },
+    up: { set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
+    fov: 0,
+  };
+  placeCamera(camera, { x: 4, y: 1.5, z: -2 }, 0);
+  assert.equal(camera.position.y, 1.5 + CAM_HEIGHT);
+  assert.equal(camera.look.y, 1.5 + LOOK_Y);
+  assert.equal(camera.up.y, 1);
+});
+
+test('a track without followTrack still stores sample contact', () => {
+  const race = racingOn(slopeTrack({ x: 0, y: 1, z: 0 }, false));
+  const kart = race.karts[0];
+  kart.y = 99;
+  kart.speed = 5;
+  kart.gas = true;
+  kart.lastInputAt = 10;
+  stepRace(race, 0.05, 10);
+  assert.equal(kart.y, 0);
+  assert.equal(kart.normal.y, 1);
 });
 
 test('straight up on the rim does not charge', () => {

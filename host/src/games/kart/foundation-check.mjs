@@ -74,6 +74,12 @@ for (const entry of TRACKS) {
   if (!Array.isArray(track?.itemBoxProgress) && typeof track?.itemBoxes !== 'function') {
     failures.push(`${entry.id}: missing itemBoxProgress or itemBoxes()`);
   }
+  const pose = track.poseAt(0);
+  const sample = track.sampleTrack(pose.x, pose.z);
+  if (!Number.isFinite(pose.y)) failures.push(`${entry.id}: poseAt().y`);
+  if (!Number.isFinite(sample.y) || !(sample.normal?.y > 0)) {
+    failures.push(`${entry.id}: sampleTrack contact`);
+  }
 }
 
 if (failures.length) {

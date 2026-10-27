@@ -102,6 +102,7 @@ function useDrop(race, kart, def) {
     itemId: def.id,
     ownerId: kart.playerId,
     x: kart.x - Math.sin(facing) * def.dropDistance,
+    y: kart.y,
     z: kart.z - Math.cos(facing) * def.dropDistance,
     color: def.color,
     arm: def.arm,
@@ -117,7 +118,9 @@ function useLaunch(race, kart, def) {
     itemId: def.id,
     ownerId: kart.playerId,
     x: kart.x + Math.sin(facing) * def.dropDistance,
+    y: kart.y,
     z: kart.z + Math.cos(facing) * def.dropDistance,
+    progress: kart.progress,
     color: def.color,
     arm: def.arm,
     vx: Math.sin(facing) * speed,
@@ -197,6 +200,7 @@ export function attachItems(race) {
     spawn(race, {
       kind: 'box',
       x: pose.x,
+      y: pose.y,
       z: pose.z,
       color: BOX_COLOR,
       cooldown: 0,
@@ -267,10 +271,10 @@ export function stepItems(race, dt, kartRadius) {
     const guide = GUIDES[guideId];
     if (!guide) throw new Error(`unknown guide ${guideId}`);
     guide(entity, dt);
-    const track = race.track;
-    if (Math.abs(track.sampleTrack(entity.x, entity.z).lateral) > track.HALF) {
-      retired.add(entity.id);
-    }
+    const sample = race.track.sampleTrack(entity.x, entity.z, entity.progress);
+    entity.y = sample.y;
+    entity.progress = sample.progress;
+    if (sample.surface !== 'asphalt') retired.add(entity.id);
   }
 
   collide(race, kartRadius, retired);
