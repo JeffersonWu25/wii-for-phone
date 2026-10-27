@@ -12,6 +12,101 @@ const FOV = 58;
 const PIVOT_Y = 0.42;
 const TRACK_HALF = 0.58;
 
+function makeRacer(character) {
+  const group = new THREE.Group();
+  const body = new THREE.Group();
+  body.position.y = PIVOT_Y;
+  group.add(body);
+
+  const bodyMat = new THREE.MeshLambertMaterial({ color: character.body });
+  const accentMat = new THREE.MeshLambertMaterial({ color: character.hat });
+  const skinMat = new THREE.MeshLambertMaterial({ color: character.skin });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x1c1c22 });
+  const metalMat = new THREE.MeshLambertMaterial({ color: 0x8a919c });
+
+  function add(mesh, x, y, z) {
+    mesh.position.set(x, y - PIVOT_Y, z);
+    mesh.castShadow = true;
+    body.add(mesh);
+    return mesh;
+  }
+
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.32, 1.85), bodyMat), 0, 0.42, 0);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.22, 0.55), bodyMat), 0, 0.4, 0.95);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.28, 0.55), darkMat), 0, 0.62, -0.15);
+
+  const spoilerPostL = add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.08), metalMat), -0.35, 0.72, -0.85);
+  const spoilerPostR = spoilerPostL.clone();
+  spoilerPostR.position.x = 0.35;
+  body.add(spoilerPostR);
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.08, 0.28), accentMat), 0, 0.92, -0.88);
+
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.42, 0.38), accentMat), 0, 0.95, -0.05);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), skinMat), 0, 1.28, -0.02);
+  add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+      accentMat,
+    ),
+    0,
+    1.38,
+    -0.02,
+  );
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.05, 16), accentMat), 0, 1.36, -0.02);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.26, 14);
+  for (const [wx, wz] of [[-0.58, 0.62], [0.58, 0.62], [-0.58, -0.62], [0.58, -0.62]]) {
+    const wheel = new THREE.Mesh(wheelGeo, darkMat);
+    wheel.rotation.z = Math.PI / 2;
+    add(wheel, wx, 0.3, wz);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.28, 10), metalMat);
+    hub.rotation.z = Math.PI / 2;
+    add(hub, wx, 0.3, wz);
+  }
+
+  const sparks = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 8, 6),
+    new THREE.MeshLambertMaterial({
+      color: 0x9ecbff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    }),
+  );
+  sparks.position.set(0, 0.05, -0.95);
+  body.add(sparks);
+
+  const glow = new THREE.Mesh(
+    new THREE.ConeGeometry(0.22, 0.55, 10),
+    new THREE.MeshLambertMaterial({ color: 0xffb15a }),
+  );
+  glow.rotation.x = Math.PI / 2;
+  glow.position.set(0, 0.05, -1.15);
+  glow.visible = false;
+  glow.castShadow = false;
+  body.add(glow);
+
+  group.userData.body = body;
+  group.userData.sparks = sparks;
+  group.userData.glow = glow;
+  return group;
+}
+
+function checkerMesh(start) {
+  const cols = 12;
+  const rows = 2;
+  const cw = start.width / cols;
+  const cd = start.depth / rows;
+  const [rx, rz] = right(start.heading);
+  const fx = Math.sin(start.heading);
+  const fz = Math.cos(start.heading);
+  const positions = [];
+  const indices = [];
+  const colors = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const dark = (row + col) % 2 === 0;
+
 function placeCamera(camera, kart, travel) {
   const backX = Math.sin(travel);
   const backZ = Math.cos(travel);
