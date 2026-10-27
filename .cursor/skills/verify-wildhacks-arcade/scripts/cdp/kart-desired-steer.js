@@ -1,9 +1,3 @@
-/**
- * Host Runtime.evaluate expression.
- * Computes a steer command (-1..1) that keeps the first kart on the racing line.
- * Does not mutate the race. The phone stick must apply this value so drive
- * messages still come from the phone page.
- */
 export const expression = `(() => {
   const el = document.querySelector('.kart-layout');
   if (!el) return { error: 'no-layout' };

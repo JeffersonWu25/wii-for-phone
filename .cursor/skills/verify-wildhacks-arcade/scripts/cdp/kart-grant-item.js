@@ -1,10 +1,3 @@
-/**
- * Host Runtime.evaluate expression factory.
- * Grants itemPrimary on the first kart so the phone Use item path can be proved
- * for each catalog id without waiting on RNG item boxes.
- *
- * Replace __ITEM_ID__ with mushroom | banana | green_shell | star.
- */
 export function expressionFor(itemId) {
   return expression.replace('__ITEM_ID__', JSON.stringify(itemId));
 }
@@ -25,7 +18,6 @@ export const expression = `(() => {
         if (race && Array.isArray(race.karts) && race.phase === 'racing') {
           const kart = race.karts[0];
           if (!kart || kart.finished) return { error: 'no-live-kart' };
-          // Park on the racing line so launched shells stay on asphalt long enough to observe.
           const pose = race.track.poseAt(kart.progress);
           kart.x = pose.x;
           kart.z = pose.z;

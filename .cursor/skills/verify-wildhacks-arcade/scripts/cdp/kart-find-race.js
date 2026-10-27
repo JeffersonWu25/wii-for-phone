@@ -1,8 +1,3 @@
-/**
- * Host Runtime.evaluate expression.
- * Returns a compact race view or { error }.
- * Walks React fibers from `.kart-layout` to the KartApp raceRef.
- */
 export const expression = `(() => {
   const el = document.querySelector('.kart-layout');
   if (!el) return { error: 'no-layout' };

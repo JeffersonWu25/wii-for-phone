@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-/**
- * Rerunnable lever for complete-lap and use-kart-items.
- * Requires an already-launched verification instance (doctor OK).
- * Usage from repo root:
- *   node .cursor/skills/verify-wildhacks-arcade/scripts/drive-kart-lap-items.mjs
- *
- * Optional PUPPETEER path: set PUPPETEER_EXECUTABLE_PATH.
- * Default Chrome: /usr/bin/google-chrome-stable
- */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -38,10 +29,7 @@ async function loadExpr(name, replacements = {}) {
 }
 
 async function evalJson(page, expression) {
-  return page.evaluate(async (code) => {
-    // eslint-disable-next-line no-eval
-    return eval(code);
-  }, expression);
+  return page.evaluate((code) => new Function(`return (${code})`)(), expression);
 }
 
 async function waitFor(page, fn, { timeoutMs = 30000, label = 'condition' } = {}) {
@@ -104,9 +92,7 @@ async function main() {
       if (typeof DeviceMotionEvent !== 'undefined') {
         Object.defineProperty(DeviceMotionEvent, 'requestPermission', { value: undefined });
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   });
   const resolvedPhone = phoneUrl.startsWith('http') ? phoneUrl : `${PHONE_ORIGIN}${phoneUrl}`;
   await phone.goto(resolvedPhone, { waitUntil: 'domcontentloaded' });
@@ -137,7 +123,6 @@ async function main() {
   await shot(host, joinDir, 'host-after-join');
   await shot(phone, joinDir, 'phone-waiting');
 
-  // Select Mario Kart
   await host.evaluate(() => {
     const buttons = [...document.querySelectorAll('button')];
     const btn = buttons.find((b) => /Select Game/i.test(b.textContent || ''));
@@ -219,7 +204,6 @@ async function main() {
     return view && view.phase === 'racing';
   }, { label: 'racing phase', timeoutMs: 20000 });
 
-  // Drive one lap
   const lapDir = path.join(ART, 'complete-lap');
   fs.mkdirSync(lapDir, { recursive: true });
   const desiredExpr = await loadExpr('kart-desired-steer.js');
@@ -249,7 +233,6 @@ async function main() {
   fs.writeFileSync(path.join(lapDir, 'host-lap-count.txt'), hostLap);
   console.log('complete-lap OK', last, 'hostLap', hostLap);
 
-  // Use each item
   const itemsDir = path.join(ART, 'use-kart-items');
   fs.mkdirSync(itemsDir, { recursive: true });
   const grantMod = await import(pathToFileURL(path.join(__dirname, 'cdp', 'kart-grant-item.js')).href);

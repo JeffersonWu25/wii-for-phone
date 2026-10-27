@@ -1,7 +1,3 @@
-/**
- * Phone Runtime.evaluate expression.
- * Presses #kart-item the same way a finger would (pointerdown → use_item).
- */
 export const expression = `(() => {
   const btn = document.querySelector('#kart-item');
   if (!btn) return { error: 'no-item' };

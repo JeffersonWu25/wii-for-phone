@@ -1,10 +1,3 @@
-/**
- * Phone Runtime.evaluate expression factory.
- * Call with steer in [-1, 1]. Positive steer is a left turn (matches stickInput).
- * Gas is always true once the phone race stream is running, so only steer matters.
- *
- * Usage in a recipe: replace __STEER__ with the numeric steer from kart-desired-steer.
- */
 export function expressionFor(steer) {
   const value = Number(steer);
   const safe = Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
@@ -33,18 +26,10 @@ export const expression = `(() => {
     clientX,
     clientY,
   };
-  // Synthetic pointer events are untrusted. Stub setPointerCapture so the
-  // stick listener can finish and update input before the 20hz drive stream.
-  const capture = stick.setPointerCapture;
-  stick.setPointerCapture = () => {};
-  try {
-    if (!stick.hasPointerCapture?.(1)) {
-      stick.dispatchEvent(new PointerEvent('pointerdown', common));
-    }
-    stick.dispatchEvent(new PointerEvent('pointermove', common));
-  } finally {
-    stick.setPointerCapture = capture;
+  if (!stick.hasPointerCapture?.(1)) {
+    stick.dispatchEvent(new PointerEvent('pointerdown', common));
   }
+  stick.dispatchEvent(new PointerEvent('pointermove', common));
   const lap = document.querySelector('#kart-lap')?.textContent ?? '';
   const item = document.querySelector('#kart-item')?.textContent ?? '';
   return { ok: true, steer, lap, item };
