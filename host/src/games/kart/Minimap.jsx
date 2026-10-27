@@ -28,7 +28,8 @@ function ring(points, project) {
 }
 
 function ringPath(outer, inner, project) {
-  return ring([...outer, ...[...inner].reverse()], project);
+  // Two subpaths + evenodd punch the infield out of the road fill.
+  return `${ring(outer, project)} ${ring(inner, project)}`;
 }
 
 function courseMap(track) {
@@ -76,7 +77,13 @@ export default function Minimap({ players, track }) {
         {map.sand.map((d, i) => (
           <path key={`sand-${i}`} d={d} fill="rgba(210,180,130,0.72)" stroke="none" />
         ))}
-        <path d={map.road} fill="rgba(109,114,122,0.88)" stroke="rgba(244,244,244,0.95)" strokeWidth="0.6" />
+        <path
+          d={map.road}
+          fill="rgba(109,114,122,0.88)"
+          fillRule="evenodd"
+          stroke="rgba(244,244,244,0.95)"
+          strokeWidth="0.6"
+        />
         {map.dashes.map((d, i) => (
           <path key={`dash-${i}`} d={d} fill="rgba(242,122,18,0.95)" stroke="none" />
         ))}

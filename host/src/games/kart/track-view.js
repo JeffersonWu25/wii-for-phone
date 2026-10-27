@@ -28,17 +28,10 @@ export function attachCourse(scene, visuals) {
   sun.shadow.camera.bottom = -reach;
   group.add(sun);
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(visuals.mesh.positions, 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(visuals.mesh.normals, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(visuals.mesh.uvs, 2));
-  geo.setIndex(new THREE.BufferAttribute(visuals.mesh.indices, 1));
-
-  for (const g of visuals.mesh.groups) {
-    const matIndex = MATERIALS.indexOf(g.material);
-    if (matIndex < 0) throw new Error(`unknown material ${g.material}`);
-    geo.addGroup(g.start, g.count, matIndex);
-  }
+  const srcPos = visuals.mesh.positions;
+  const srcNrm = visuals.mesh.normals;
+  const srcUv = visuals.mesh.uvs;
+  const srcIdx = visuals.mesh.indices;
 
   const asphaltMap = dataTexture(visuals.atlas);
   asphaltMap.wrapS = THREE.RepeatWrapping;
@@ -55,33 +48,107 @@ export function attachCourse(scene, visuals) {
   curbOutMap.wrapT = THREE.RepeatWrapping;
   curbOutMap.colorSpace = THREE.SRGBColorSpace;
 
-  const materials = MATERIALS.map((name) => {
-    if (name === 'grass') return new THREE.MeshLambertMaterial({ color: 0x45b34f, side: THREE.FrontSide });
-    if (name === 'sand') return new THREE.MeshLambertMaterial({ color: 0xd2b48c, side: THREE.FrontSide });
-    if (name === 'asphalt') return new THREE.MeshLambertMaterial({ map: asphaltMap, side: THREE.FrontSide });
-    if (name === 'curbInner') return new THREE.MeshLambertMaterial({ map: curbInMap, side: THREE.FrontSide });
-    return new THREE.MeshLambertMaterial({ map: curbOutMap, side: THREE.FrontSide });
-  });
+  const materialFor = {
+    grass: () => new THREE.MeshLambertMaterial({ color: 0x45b34f, side: THREE.FrontSide }),
+    sand: () => new THREE.MeshLambertMaterial({ color: 0xd2b48c, side: THREE.FrontSide }),
+    asphalt: () => new THREE.MeshLambertMaterial({ map: asphaltMap, side: THREE.FrontSide }),
+    curbInner: () => new THREE.MeshLambertMaterial({ map: curbInMap, side: THREE.FrontSide }),
+    curbOuter: () => new THREE.MeshLambertMaterial({ map: curbOutMap, side: THREE.FrontSide }),
+  };
 
-  const mesh = new THREE.Mesh(geo, materials);
-  mesh.receiveShadow = true;
-  group.add(mesh);
+  const meshes = [];
+  const materials = [];
+
+  for (const g of visuals.mesh.groups) {
+    if (!MATERIALS.includes(g.material)) throw new Error(`unknown material ${g.material}`);
+    if (g.count <= 0) continue;
+
+    const compact = extractGroup(srcPos, srcNrm, srcUv, srcIdx, g.start, g.count);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(compact.positions, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(compact.normals, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(compact.uvs, 2));
+    geo.setIndex(
+      compact.indices instanceof Uint32Array
+        ? new THREE.Uint32BufferAttribute(compact.indices, 1)
+        : new THREE.Uint16BufferAttribute(compact.indices, 1),
+    );
+    geo.computeBoundingSphere();
+    geo.computeBoundingBox();
+
+    const mat = materialFor[g.material]();
+    materials.push(mat);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.name = `course-${g.material}`;
+    mesh.receiveShadow = true;
+    // Dense loft ribbons were disappearing under frustum tests in headless GL.
+    mesh.frustumCulled = false;
+    if (g.material !== 'grass') {
+      mesh.renderOrder = 1;
+      mat.polygonOffset = true;
+      mat.polygonOffsetFactor = -1;
+      mat.polygonOffsetUnits = -1;
+    }
+    group.add(mesh);
+    meshes.push(mesh);
+  }
+
   scene.add(group);
 
   return {
     dispose() {
       scene.remove(group);
-      geo.dispose();
+      for (const mesh of meshes) mesh.geometry.dispose();
+      const seen = new Set();
       for (const mat of materials) {
-        mat.map?.dispose();
+        if (mat.map && !seen.has(mat.map)) {
+          seen.add(mat.map);
+          mat.map.dispose();
+        }
         mat.dispose();
       }
     },
   };
 }
 
+/** Remap a triangle index slice onto a dense vertex buffer. */
+function extractGroup(positions, normals, uvs, indices, start, count) {
+  const remap = new Map();
+  const outPos = [];
+  const outNrm = [];
+  const outUv = [];
+  const outIdx = [];
+
+  function pack(vi) {
+    let local = remap.get(vi);
+    if (local !== undefined) return local;
+    local = remap.size;
+    remap.set(vi, local);
+    const o = vi * 3;
+    const u = vi * 2;
+    outPos.push(positions[o], positions[o + 1], positions[o + 2]);
+    outNrm.push(normals[o], normals[o + 1], normals[o + 2]);
+    outUv.push(uvs[u], uvs[u + 1]);
+    return local;
+  }
+
+  for (let i = start; i < start + count; i++) {
+    outIdx.push(pack(indices[i]));
+  }
+
+  const IndexArray = remap.size > 65535 ? Uint32Array : Uint16Array;
+  return {
+    positions: Float32Array.from(outPos),
+    normals: Float32Array.from(outNrm),
+    uvs: Float32Array.from(outUv),
+    indices: new IndexArray(outIdx),
+  };
+}
+
 function dataTexture(atlas) {
-  const tex = new THREE.DataTexture(atlas.rgba, atlas.width, atlas.height, THREE.RGBAFormat);
+  const rgba = new Uint8Array(atlas.rgba.length);
+  rgba.set(atlas.rgba);
+  const tex = new THREE.DataTexture(rgba, atlas.width, atlas.height, THREE.RGBAFormat);
   tex.needsUpdate = true;
   tex.flipY = false;
   tex.minFilter = THREE.LinearFilter;
