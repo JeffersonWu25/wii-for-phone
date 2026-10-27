@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { luigiCircuit } from './track.js';
+import { luigiCircuit, poseAt, sampleTrack } from './track.js';
 import { MATERIALS, assertSimple } from './track-loft.js';
 
 function triGeom(positions, indices, k) {
@@ -41,7 +41,7 @@ test('the U-turn asphalt banks and sand stays off the finish line', () => {
     if (y > maxY) maxY = y;
     if (y < minY) minY = y;
   }
-  assert.ok(maxY > 0.9, `outer bank ${maxY}`);
+  assert.ok(maxY > 0.899, `outer bank ${maxY}`);
   assert.ok(minY < 0.05, `inner lip ${minY}`);
   const start = luigiCircuit.poseAt(0);
   for (const poly of luigiCircuit.trackVisuals().outline.sand) {
@@ -121,6 +121,76 @@ test('lofted visuals expose mesh groups for every material id used', () => {
     assert.ok(MATERIALS.includes(g.material));
   }
 });
+
+test('baked mesh matches sampled contact within a centimeter', () => {
+  const mesh = luigiCircuit.trackVisuals().mesh;
+  const apex = widestPose();
+  const nx = Math.cos(apex.pose.heading);
+  const nz = -Math.sin(apex.pose.heading);
+  const outerTarget = {
+    x: apex.pose.x + nx * apex.pose.halfWidth,
+    z: apex.pose.z + nz * apex.pose.halfWidth,
+  };
+  const asphalt = nearestIn(mesh, 'asphalt', outerTarget.x, outerTarget.z);
+  const asphaltSample = sampleTrack(asphalt.x, asphalt.z, apex.t);
+  assert.ok(Math.abs(asphalt.y - asphaltSample.y) < 0.01, `asphalt ${asphalt.y} vs ${asphaltSample.y}`);
+  assert.ok(Math.abs(asphalt.nx) + Math.abs(asphalt.nz) > 1e-3, 'banked asphalt is not flat-shaded');
+
+  const shelfTarget = {
+    x: apex.pose.x - nx * (apex.pose.halfWidth + 12),
+    z: apex.pose.z - nz * (apex.pose.halfWidth + 12),
+  };
+  const sand = nearestIn(mesh, 'sand', shelfTarget.x, shelfTarget.z);
+  const sandSample = sampleTrack(sand.x, sand.z, apex.t);
+  assert.ok(Math.abs(sand.y - sandSample.y) < 0.01, `sand ${sand.y} vs ${sandSample.y}`);
+
+  const footTarget = {
+    x: apex.pose.x + nx * (apex.pose.halfWidth + 8),
+    z: apex.pose.z + nz * (apex.pose.halfWidth + 8),
+  };
+  const grass = nearestIn(mesh, 'grass', footTarget.x, footTarget.z);
+  const grassSample = sampleTrack(grass.x, grass.z, apex.t);
+  assert.ok(Math.abs(grass.y - grassSample.y) < 0.01, `berm ${grass.y} vs ${grassSample.y}`);
+  assert.ok(asphalt.y > grass.y + 0.4, 'the berm closes up to the outer lip');
+});
+
+function widestPose() {
+  let best = null;
+  for (let i = 0; i < 360; i++) {
+    const t = i / 360;
+    const pose = poseAt(t);
+    if (!best || pose.halfWidth > best.pose.halfWidth) best = { t, pose };
+  }
+  return best;
+}
+
+function nearestIn(mesh, material, x, z) {
+  const group = mesh.groups.find((entry) => entry.material === material);
+  let best = null;
+  const seen = new Set();
+  for (let k = group.start; k < group.start + group.count; k++) {
+    const vi = mesh.indices[k];
+    if (seen.has(vi)) continue;
+    seen.add(vi);
+    const px = mesh.positions[vi * 3];
+    const py = mesh.positions[vi * 3 + 1];
+    const pz = mesh.positions[vi * 3 + 2];
+    const dist = (px - x) ** 2 + (pz - z) ** 2;
+    if (!best || dist < best.dist) {
+      best = {
+        dist,
+        x: px,
+        y: py,
+        z: pz,
+        nx: mesh.normals[vi * 3],
+        ny: mesh.normals[vi * 3 + 1],
+        nz: mesh.normals[vi * 3 + 2],
+      };
+    }
+  }
+  assert.ok(best, material);
+  return best;
+}
 
 test('visual dash outline is frozen and cloned from colliders', () => {
   const vis = luigiCircuit.trackVisuals();

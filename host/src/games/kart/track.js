@@ -1,5 +1,5 @@
 import { LUIGI_PLAN } from './tracks/luigi-circuit-plan.js';
-import { loftCourse } from './track-loft.js';
+import { STATION_STEP_M, loftCourse } from './track-loft.js';
 
 export const PROGRESS_CONTINUITY = 0.10;
 
@@ -255,6 +255,7 @@ function compile(plan, opts = {}) {
     p0: progressOf(band.from, band.u0),
     p1: progressOf(band.to, band.u1),
     depth: band.depth,
+    feather: readFeather(band),
   }));
 
   const dashes = [];
@@ -289,16 +290,27 @@ function compile(plan, opts = {}) {
       length += Math.hypot(raw[i].x - raw[i - 1].x, raw[i].z - raw[i - 1].z);
       center.push({ x: raw[i].x, z: raw[i].z, s: length });
     }
-    const poly = ribbon(center, (i, n) => {
+    const widthAt = (i, n) => {
       const t = n <= 1 ? 0 : i / (n - 1);
       return 2.4 + Math.sin(Math.PI * t) * spec.reach;
-    });
+    };
+    const sides = ribbonSides(center, widthAt);
+    const poly = [...sides.left, ...sides.right.slice().reverse()];
     const span = forwardSpan(s0, s1);
     const jump = length < 1e-3 ? Infinity : (MAX_STEP_M / length) * span;
     if (!(jump <= PROGRESS_CONTINUITY)) {
       throw new Error(`${spec.id} progress jump ${jump.toFixed(3)} exceeds budget`);
     }
-    return { id: spec.id, s0, s1, length, center, poly };
+    const left = [];
+    const right = [];
+    for (let i = 0; i < center.length; i++) {
+      const t = center.length <= 1 ? 0 : i / (center.length - 1);
+      const progress = wrap01(s0 + t * span);
+      const shelf = shelfPoint(poseAtSLocal(progress * perim));
+      left.push(paintShelf(sides.left[i], shelf));
+      right.push(paintShelf(sides.right[i], shelf));
+    }
+    return { id: spec.id, s0, s1, length, center, poly, left, right };
   });
 
   let worldRadius = 0;
@@ -307,7 +319,8 @@ function compile(plan, opts = {}) {
   };
   for (let s = 0; s <= perim; s += 2) {
     const pose = poseAtSLocal(Math.min(s, perim - 1e-4));
-    consider(pose.x + pose.nx * pose.half, pose.z + pose.nz * pose.half);
+    const foot = pose.half + shoulderWidth(pose.bankOuterY);
+    consider(pose.x + pose.nx * foot, pose.z + pose.nz * foot);
     consider(pose.x - pose.nx * (pose.half + 18), pose.z - pose.nz * (pose.half + 18));
   }
   for (const corridor of corridors) {
@@ -334,14 +347,30 @@ function compile(plan, opts = {}) {
     if (!(perim > lo && perim < hi)) throw new Error(`PERIM ${perim}`);
   }
 
-  const visuals = loftCourse({
+  const course = {
     perim,
     edges,
-    sandBands: sand,
+    sand,
+    dashes,
+    corridors,
+    worldRadius,
+    poseAtSLocal,
+    frameOnEdge,
+  };
+  const stations = bakeStations(course);
+  const meadow = bakeMeadow(course, stations);
+  const visuals = loftCourse({
+    perim,
+    stations,
     dashQuads: structuredClone(dashes),
-    corridors: structuredClone(corridors),
+    corridors: corridors.map((corridor) => ({
+      id: corridor.id,
+      ribbon: { left: corridor.left, right: corridor.right },
+      outline: corridor.poly,
+    })),
     worldRadius,
     grid: plan.grid,
+    meadow,
   });
 
   return {
@@ -493,9 +522,160 @@ function sandDepthAt(course, progress) {
   for (const band of course.sand) {
     const span = forwardSpan(band.p0, band.p1);
     const rel = forwardSpan(band.p0, progress);
-    if (rel <= span + 1e-6) depth = Math.max(depth, band.depth);
+    if (rel > span + 1e-6) continue;
+    let next = band.depth;
+    if (band.feather > 0) {
+      const near = Math.min(rel, span - rel) * course.perim;
+      if (near < band.feather) next *= near / band.feather;
+    }
+    depth = Math.max(depth, next);
   }
   return depth;
+}
+
+function readFeather(band) {
+  if (!Object.hasOwn(band, 'feather')) return 0;
+  if (!(band.feather >= 0)) throw new Error(`${band.from}: feather must be >= 0`);
+  return band.feather;
+}
+
+function paintShelf(point, shelf) {
+  return {
+    x: point.x,
+    y: shelf.y,
+    z: point.z,
+    nx: shelf.normal.x,
+    ny: shelf.normal.y,
+    nz: shelf.normal.z,
+  };
+}
+
+function railAt(frame, lateral, region) {
+  const normal = surfaceNormal(frame, region, lateral);
+  return {
+    x: frame.x + frame.nx * lateral,
+    y: surfaceY(frame, lateral),
+    z: frame.z + frame.nz * lateral,
+    nx: normal.x,
+    ny: normal.y,
+    nz: normal.z,
+  };
+}
+
+function bakeStations(course) {
+  const stations = [];
+  for (const edge of course.edges) {
+    const steps = Math.max(1, Math.ceil(edge.length / STATION_STEP_M));
+    for (let i = 0; i < steps; i++) {
+      const frame = course.frameOnEdge(edge, i / steps);
+      const sandDepth = sandDepthAt(course, frame.progress);
+      const inner = railAt(frame, -frame.half, 'asphalt');
+      const outer = railAt(frame, frame.half, 'asphalt');
+      const lipNormal = surfaceNormal(frame, 'shelf', -frame.half);
+      const width = shoulderWidth(frame.bankOuterY);
+      const bermFoot = railAt(frame, frame.half + width, 'shoulder');
+      const groundNormal = surfaceNormal(frame, 'shelf', frame.half + width);
+      stations.push({
+        progress: frame.progress,
+        heading: frame.heading,
+        half: frame.half,
+        sandDepth,
+        x: frame.x,
+        z: frame.z,
+        nx: frame.nx,
+        nz: frame.nz,
+        inner,
+        outer,
+        sandLip: { x: inner.x, y: inner.y, z: inner.z, nx: lipNormal.x, ny: lipNormal.y, nz: lipNormal.z },
+        sandDeep: railAt(frame, -(frame.half + sandDepth), 'shelf'),
+        bermLip: railAt(frame, frame.half, 'shoulder'),
+        bermFoot,
+        bermGround: {
+          x: bermFoot.x,
+          y: bermFoot.y,
+          z: bermFoot.z,
+          nx: groundNormal.x,
+          ny: groundNormal.y,
+          nz: groundNormal.z,
+        },
+      });
+    }
+  }
+  if (stations.length < 3) throw new Error('track needs at least 3 stations');
+  return stations;
+}
+
+function bakeMeadow(course, stations) {
+  const quads = [];
+  const feet = stations.map((station) => station.bermGround);
+  const rims = feet.map((foot, index) => {
+    const station = stations[index];
+    const rim = rayToRadius(foot.x, foot.z, station.nx, station.nz, course.worldRadius);
+    return contactRail(course, rim.x, rim.z);
+  });
+  pushStrip(quads, feet, rims);
+
+  const boundary = stations.map((station) => station.sandDeep);
+  let cx = 0;
+  let cz = 0;
+  for (const point of boundary) {
+    cx += point.x;
+    cz += point.z;
+  }
+  cx /= boundary.length;
+  cz /= boundary.length;
+  let reach = 0;
+  for (const point of boundary) reach = Math.max(reach, Math.hypot(point.x - cx, point.z - cz));
+  const rings = Math.max(2, Math.ceil(reach / 4));
+  let prev = boundary;
+  for (let ring = 1; ring <= rings; ring++) {
+    const scale = ring / (rings + 1);
+    const next = boundary.map((point) => contactRail(
+      course,
+      point.x + (cx - point.x) * scale,
+      point.z + (cz - point.z) * scale,
+    ));
+    pushStrip(quads, prev, next);
+    prev = next;
+  }
+  const hub = contactRail(course, cx, cz);
+  for (let i = 0; i < prev.length; i++) {
+    // The fan is stored as quads. The repeated hub makes the second triangle empty.
+    quads.push([prev[i], prev[(i + 1) % prev.length], hub, hub]);
+  }
+  return quads;
+}
+
+function contactRail(course, x, z) {
+  const hit = locate(course, x, z, null);
+  return {
+    x,
+    y: hit.y,
+    z,
+    nx: hit.normal.x,
+    ny: hit.normal.y,
+    nz: hit.normal.z,
+  };
+}
+
+function pushStrip(quads, inner, outer) {
+  const count = inner.length;
+  for (let i = 0; i < count; i++) {
+    const j = (i + 1) % count;
+    quads.push([inner[i], inner[j], outer[j], outer[i]]);
+  }
+}
+
+function rayToRadius(x, z, nx, nz, radius) {
+  const radial = Math.hypot(x, z) || 1;
+  const outward = x * nx + z * nz;
+  if (outward <= 0.05) return { x: (x / radial) * radius, z: (z / radial) * radius };
+  const c = radial * radial - radius * radius;
+  const disc = outward * outward - c;
+  if (c >= 0 || disc < 0) return { x: (x / radial) * radius, z: (z / radial) * radius };
+  const t = -outward + Math.sqrt(disc);
+  if (!(t > 0)) return { x: (x / radial) * radius, z: (z / radial) * radius };
+  return { x: x + nx * t, z: z + nz * t };
 }
 
 function poseOn(course, t) {
@@ -561,13 +741,13 @@ function side(p, q, r) {
   return (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
 }
 
-function ribbon(center, widthAt) {
+function ribbonSides(center, widthAt) {
   const left = [];
   const right = [];
-  const n = center.length;
-  for (let i = 0; i < n; i++) {
+  const count = center.length;
+  for (let i = 0; i < count; i++) {
     const prev = center[Math.max(0, i - 1)];
-    const next = center[Math.min(n - 1, i + 1)];
+    const next = center[Math.min(count - 1, i + 1)];
     let tx = next.x - prev.x;
     let tz = next.z - prev.z;
     const mag = Math.hypot(tx, tz) || 1;
@@ -575,11 +755,11 @@ function ribbon(center, widthAt) {
     tz /= mag;
     const nx = tz;
     const nz = -tx;
-    const w = widthAt(i, n);
-    left.push({ x: center[i].x + nx * w, z: center[i].z + nz * w });
-    right.push({ x: center[i].x - nx * w, z: center[i].z - nz * w });
+    const width = widthAt(i, count);
+    left.push({ x: center[i].x + nx * width, z: center[i].z + nz * width });
+    right.push({ x: center[i].x - nx * width, z: center[i].z - nz * width });
   }
-  return [...left, ...right.reverse()];
+  return { left, right };
 }
 
 function offset(frame, lateral) {

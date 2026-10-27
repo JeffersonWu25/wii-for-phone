@@ -12,33 +12,26 @@ export const MATERIALS = Object.freeze([
   'curbOuter',
 ]);
 
-const ASPHALT_Y = 0.02;
-
 export function loftCourse(input) {
-  const { perim, edges, sandBands, dashQuads, worldRadius, grid } = input;
-  if (!(perim > 0) || !edges?.length) throw new Error('loftCourse needs edges and perim');
+  const { perim, stations, dashQuads, worldRadius, grid, corridors = [], meadow = [] } = input;
+  if (!(perim > 0) || !stations?.length) throw new Error('loftCourse needs stations and perim');
 
-  const stations = sampleStations(edges, perim, sandBands);
-  const rings = strokeVariableWidth(stations);
-
-  const sandDeep = stations.map((st, i) => {
-    const nx = rings.nx[i];
-    const nz = rings.nz[i];
-    const lat = st.half + st.sandDepth;
-    return {
-      x: st.x - nx * lat,
-      y: 0,
-      z: st.z - nz * lat,
-    };
-  });
-
-  const mesh = triangulate(stations, rings, sandDeep, worldRadius);
+  const rings = strokeRails(stations);
+  const sandDeep = stations.map((station) => station.sandDeep);
+  const mesh = triangulate(stations, rings, meadow, corridors);
   const markings = planMarkings(stations, perim, dashQuads, grid);
   const atlas = rasterizeMarkings(markings);
   const curbInnerAtlas = stripeAtlas(0x00a63c, 0xffffff);
   const curbOuterAtlas = stripeAtlas(0xffffff, 0x00a63c);
 
   const sandOutline = sandRingsFrom(stations, rings, sandDeep);
+  for (const corridor of corridors) {
+    if (corridor.outline?.length >= 3) {
+      const loop = corridor.outline.map((point) => ({ x: point.x, z: point.z }));
+      collapseOffsetSelfCrossings(loop);
+      sandOutline.push(loop);
+    }
+  }
   const outline = {
     inner: rings.inner.map((p) => ({ x: p.x, z: p.z })),
     outer: rings.outer.map((p) => ({ x: p.x, z: p.z })),
@@ -63,63 +56,46 @@ export function loftCourse(input) {
   });
 }
 
-function sampleStations(edges, perim, sandBands) {
-  const stations = [];
-  for (const edge of edges) {
-    const steps = Math.max(1, Math.ceil(edge.length / STATION_STEP_M));
-    for (let i = 0; i < steps; i++) {
-      const u = i / steps;
-      const s = edge.s0 + edge.length * u;
-      const progress = wrap01(s / perim);
-      const half = edge.half0 + (edge.half1 - edge.half0) * u;
-      const bankY = edge.y0 + (edge.y1 - edge.y0) * u;
-      stations.push({
-        s,
-        progress,
-        x: edge.x0 + (edge.x1 - edge.x0) * u,
-        z: edge.z0 + (edge.z1 - edge.z0) * u,
-        tx: edge.tx,
-        tz: edge.tz,
-        nx: edge.nx,
-        nz: edge.nz,
-        half,
-        bankY,
-        sandDepth: sandDepthAt(sandBands, progress),
-        heading: Math.atan2(edge.tx, edge.tz),
-      });
-    }
-  }
-  if (stations.length < 3) throw new Error('loft needs at least 3 stations');
-  return stations;
-}
-
-function strokeVariableWidth(stations) {
-  const inner = [];
-  const outer = [];
-  const nxArr = [];
-  const nzArr = [];
-
-  for (const cur of stations) {
-    nxArr.push(cur.nx);
-    nzArr.push(cur.nz);
-    inner.push({
-      x: cur.x - cur.nx * cur.half,
-      y: ASPHALT_Y,
-      z: cur.z - cur.nz * cur.half,
-    });
-    outer.push({
-      x: cur.x + cur.nx * cur.half,
-      y: ASPHALT_Y + cur.bankY,
-      z: cur.z + cur.nz * cur.half,
-    });
-  }
+function strokeRails(stations) {
+  const inner = stations.map((station) => ({ ...station.inner }));
+  const outer = stations.map((station) => ({ ...station.outer }));
   collapseOffsetSelfCrossings(inner);
   collapseOffsetSelfCrossings(outer);
-
-  return { inner, outer, nx: nxArr, nz: nzArr };
+  for (let i = 0; i < stations.length; i++) {
+    inner[i].y = stations[i].inner.y;
+    outer[i].y = stations[i].outer.y;
+    copyNormal(inner[i], stations[i].inner);
+    copyNormal(outer[i], stations[i].outer);
+  }
+  return {
+    inner,
+    outer,
+    nx: stations.map((station) => station.nx),
+    nz: stations.map((station) => station.nz),
+  };
 }
 
-function triangulate(stations, rings, sandDeep, worldRadius) {
+function copyNormal(point, source) {
+  point.nx = source.nx;
+  point.ny = source.ny;
+  point.nz = source.nz;
+}
+
+function facingNormal(points) {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (const point of points) {
+    x += point.nx;
+    y += point.ny;
+    z += point.nz;
+  }
+  const len = Math.hypot(x, y, z);
+  if (!(len > 1e-8)) return [0, 1, 0];
+  return [x / len, y / len, z / len];
+}
+
+function triangulate(stations, rings, meadow, corridors) {
   const positions = [];
   const normals = [];
   const uvs = [];
@@ -173,47 +149,50 @@ function triangulate(stations, rings, sandDeep, worldRadius) {
 
   const n = stations.length;
 
+  function addRail(point, u, v) {
+    return addVertex(point.x, point.y, point.z, point.nx, point.ny, point.nz, u, v);
+  }
+
+  function addQuad(points, u0, u1) {
+    const [nx, ny, nz] = facingNormal(points);
+    const i0 = addRail(points[0], u0, 0);
+    const i1 = addRail(points[1], u1, 0);
+    const i2 = addRail(points[2], u1, 1);
+    const i3 = addRail(points[3], u0, 1);
+    pushQuadFacing(i0, i1, i2, i3, nx, ny, nz);
+  }
+
   const grassStart = indices.length;
-  const grassY = 0;
-  const center = addVertex(0, grassY, 0, 0, 1, 0, 0.5, 0.5);
-  const discN = 72;
-  const discVerts = [];
-  for (let i = 0; i < discN; i++) {
-    const a = (i / discN) * Math.PI * 2;
-    discVerts.push(
-      addVertex(
-        Math.cos(a) * worldRadius,
-        grassY,
-        Math.sin(a) * worldRadius,
-        0,
-        1,
-        0,
-        (Math.cos(a) + 1) / 2,
-        (Math.sin(a) + 1) / 2,
-      ),
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    addQuad(
+      [stations[i].bermLip, stations[j].bermLip, stations[j].bermFoot, stations[i].bermFoot],
+      stations[i].progress,
+      stations[j].progress,
     );
   }
-  for (let i = 0; i < discN; i++) {
-    pushTriFacing(center, discVerts[i], discVerts[(i + 1) % discN], 0, 1, 0);
-  }
+  for (const quad of meadow) addQuad(quad, 0, 1);
   pushGroup('grass', grassStart, indices.length - grassStart);
 
   const sandStart = indices.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     if (stations[i].sandDepth < 1e-4 && stations[j].sandDepth < 1e-4) continue;
-    const a = rings.inner[i];
-    const b = rings.inner[j];
-    const c = sandDeep[j];
-    const d = sandDeep[i];
+    const a = stations[i].sandLip;
+    const b = stations[j].sandLip;
+    const c = stations[j].sandDeep;
+    const d = stations[i].sandDeep;
     const spanI = Math.hypot(a.x - d.x, a.z - d.z);
     const spanJ = Math.hypot(b.x - c.x, b.z - c.z);
     if (isCollapsedSandLip(spanI, spanJ)) continue;
-    const i0 = addVertex(a.x, a.y, a.z, 0, 1, 0, stations[i].progress, 0);
-    const i1 = addVertex(b.x, b.y, b.z, 0, 1, 0, stations[j].progress, 0);
-    const i2 = addVertex(c.x, b.y, c.z, 0, 1, 0, stations[j].progress, 1);
-    const i3 = addVertex(d.x, a.y, d.z, 0, 1, 0, stations[i].progress, 1);
-    pushQuadFacing(i0, i1, i2, i3, 0, 1, 0);
+    addQuad([a, b, c, d], stations[i].progress, stations[j].progress);
+  }
+  for (const corridor of corridors) {
+    const left = corridor.ribbon?.left || [];
+    const right = corridor.ribbon?.right || [];
+    for (let i = 0; i < left.length - 1; i++) {
+      addQuad([left[i], left[i + 1], right[i + 1], right[i]], i / left.length, (i + 1) / left.length);
+    }
   }
   pushGroup('sand', sandStart, indices.length - sandStart);
 
@@ -223,12 +202,13 @@ function triangulate(stations, rings, sandDeep, worldRadius) {
   for (let i = 0; i < n; i++) {
     const inn = rings.inner[i];
     const out = rings.outer[i];
-    asphaltInner.push(addVertex(inn.x, inn.y, inn.z, 0, 1, 0, stations[i].progress, 0));
-    asphaltOuter.push(addVertex(out.x, out.y, out.z, 0, 1, 0, stations[i].progress, 1));
+    asphaltInner.push(addRail(inn, stations[i].progress, 0));
+    asphaltOuter.push(addRail(out, stations[i].progress, 1));
   }
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    pushQuadFacing(asphaltInner[i], asphaltOuter[i], asphaltOuter[j], asphaltInner[j], 0, 1, 0);
+    const [nx, ny, nz] = facingNormal([rings.inner[i], rings.outer[i], rings.outer[j], rings.inner[j]]);
+    pushQuadFacing(asphaltInner[i], asphaltOuter[i], asphaltOuter[j], asphaltInner[j], nx, ny, nz);
   }
   pushGroup('asphalt', asphaltStart, indices.length - asphaltStart);
 
@@ -657,22 +637,6 @@ function segmentsCross(a, b, c, d) {
 
 function side(p, q, r) {
   return (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
-}
-
-function sandDepthAt(sandBands, progress) {
-  let depth = 0;
-  for (const band of sandBands || []) {
-    const span = forwardSpan(band.p0, band.p1);
-    const rel = forwardSpan(band.p0, progress);
-    if (rel <= span + 1e-6) depth = Math.max(depth, band.depth);
-  }
-  return depth;
-}
-
-function forwardSpan(from, to) {
-  let d = to - from;
-  if (d < 0) d += 1;
-  return d;
 }
 
 function wrap01(t) {

@@ -175,6 +175,23 @@ test('createTrack compiles a short rectangle and a race can step it', () => {
   assert.equal(typeof track.trackVisuals().grassRadius, 'number');
 });
 
+test('a sand feather starts at the lip and reaches full depth past the ramp', () => {
+  const plan = rectanglePlan();
+  plan.sandBands = [{ from: 'a', u0: 0, to: 'b', u1: 0, depth: 10, feather: 8 }];
+  const track = createTrack(plan, { id: 'feather' });
+  const pose = track.poseAt(0.125);
+  const rightX = Math.cos(pose.heading);
+  const rightZ = -Math.sin(pose.heading);
+  const mid = track.sampleTrack(pose.x - rightX * (pose.halfWidth + 4), pose.z - rightZ * (pose.halfWidth + 4));
+  const edgePose = track.poseAt(2 / track.PERIM);
+  const edge = track.sampleTrack(
+    edgePose.x - Math.cos(edgePose.heading) * (edgePose.halfWidth + 4),
+    edgePose.z + Math.sin(edgePose.heading) * (edgePose.halfWidth + 4),
+  );
+  assert.equal(mid.surface, 'sand');
+  assert.equal(edge.surface, 'grass');
+});
+
 test('compile rejects visualOuterY and a non-finite bank', () => {
   const legacy = rectanglePlan();
   legacy.waypoints[0] = { ...legacy.waypoints[0], visualOuterY: 0.9 };
