@@ -143,9 +143,9 @@ function shadeGrass(broad, fine, speck) {
 
 function shadeSand(broad, fine) {
   return [
-    196 + broad * 26 + (fine - 0.5) * 12,
-    166 + broad * 22 + (fine - 0.5) * 10,
-    126 + broad * 18 + (fine - 0.5) * 8,
+    191 + broad * 52 + (fine - 0.5) * 12,
+    160 + broad * 48 + (fine - 0.5) * 10,
+    123 + broad * 36 + (fine - 0.5) * 8,
   ];
 }
 
