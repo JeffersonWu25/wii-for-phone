@@ -2,11 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { luigiCircuit as luigi } from './track.js';
 import { createRace, stepRace, applyUseItem } from './race.js';
-import { presentation, revealItem } from './items.js';
+import { catalogIds, presentation, revealItem } from './items.js';
 
 test('item presentation stays data-driven from the registry', () => {
   assert.deepEqual(presentation('mushroom'), { label: 'Mushroom', color: '#e23b3b' });
   assert.equal(presentation('not-an-item'), null);
+});
+
+test('catalog ids name every item the view can be asked to draw', () => {
+  assert.deepEqual(
+    new Set(catalogIds()),
+    new Set(['mushroom', 'banana', 'green_shell', 'red_shell', 'star']),
+  );
 });
 
 test('a self-buff item activates from the kart slot without race.js knowing the id', () => {
@@ -43,6 +50,7 @@ test('green shell guide moves the entity without race.js naming the guide', () =
   applyUseItem(race, { playerId: 'p' });
   const shell = race.entities.find((entity) => entity.kind === 'shell');
   assert.ok(shell, 'shell spawned');
+  assert.equal(Number.isFinite(shell.roadY), true);
   assert.equal(race.entities.length, before + 1);
   const x0 = shell.x;
   const z0 = shell.z;

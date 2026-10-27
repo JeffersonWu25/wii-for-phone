@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { FOV, PIVOT_Y, TRACK_HALF, placeCamera } from './camera.js';
-import { syncEntities } from './entity-mesh.js';
+import { createItemView } from './item-view.js';
 import { updateKartFx } from './kart-fx.js';
 import { makeRacer } from './kart-mesh.js';
 import { viewports } from './layout.js';
@@ -52,7 +52,8 @@ export default function KartScene({ raceRef, track }) {
     const courseHandle = attachCourse(scene, track.trackVisuals());
 
     const racers = [];
-    const entityPool = new Map();
+    const itemView = createItemView();
+    itemView.load();
     function ensureRacers(race) {
       if (racers.length === race.karts.length) return;
       for (const mesh of racers) scene.remove(mesh);
@@ -95,7 +96,7 @@ export default function KartScene({ raceRef, track }) {
         if (!mesh) return;
         placeRacer(mesh, kart, now);
       });
-      syncEntities(scene, entityPool, race.entities, now);
+      itemView.sync(scene, race, racers, now);
 
       const w = wrap.clientWidth || 1;
       const h = wrap.clientHeight || 1;
@@ -134,6 +135,7 @@ export default function KartScene({ raceRef, track }) {
       cancelAnimationFrame(frame);
       window.clearTimeout(timer);
       observer.disconnect();
+      itemView.release(scene);
       courseHandle.dispose();
       scene.traverse((obj) => {
         if (obj.parent?.name === 'luigi-course') return;

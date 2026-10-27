@@ -116,14 +116,22 @@ function useSelf(_race, kart, def) {
   }
 }
 
+function roadYAt(track, x, z) {
+  const sample = track.sampleTrack(x, z);
+  return track.poseAt(sample.progress).visualOuterY || 0;
+}
+
 function useDrop(race, kart, def) {
   const facing = kart.facing;
+  const x = kart.x - Math.sin(facing) * def.dropDistance;
+  const z = kart.z - Math.cos(facing) * def.dropDistance;
   spawn(race, {
     kind: def.kind,
     itemId: def.id,
     ownerId: kart.playerId,
-    x: kart.x - Math.sin(facing) * def.dropDistance,
-    z: kart.z - Math.cos(facing) * def.dropDistance,
+    x,
+    z,
+    roadY: roadYAt(race.track, x, z),
     color: def.color,
     arm: def.arm,
     life: def.life,
@@ -133,12 +141,15 @@ function useDrop(race, kart, def) {
 function useLaunch(race, kart, def) {
   const facing = kart.facing;
   const speed = def.projectileSpeed;
+  const x = kart.x + Math.sin(facing) * def.dropDistance;
+  const z = kart.z + Math.cos(facing) * def.dropDistance;
   spawn(race, {
     kind: 'shell',
     itemId: def.id,
     ownerId: kart.playerId,
-    x: kart.x + Math.sin(facing) * def.dropDistance,
-    z: kart.z + Math.cos(facing) * def.dropDistance,
+    x,
+    z,
+    roadY: roadYAt(race.track, x, z),
     color: def.color,
     arm: def.arm,
     vx: Math.sin(facing) * speed,
@@ -320,6 +331,10 @@ export function slotView(kart, timeMs) {
   };
 }
 
+export function catalogIds() {
+  return ITEM_LIST.map((def) => def.id);
+}
+
 export function presentation(itemId) {
   const def = ITEMS[itemId];
   return def ? { label: def.label, color: def.color } : null;
@@ -374,9 +389,10 @@ export function stepItems(race, dt, kartRadius) {
     if (!guide) throw new Error(`unknown guide ${guideId}`);
     guide(entity, dt);
     const track = race.track;
-    if (Math.abs(track.sampleTrack(entity.x, entity.z).lateral) > track.HALF) {
-      retired.add(entity.id);
-    }
+    const sample = track.sampleTrack(entity.x, entity.z);
+    if (Math.abs(sample.lateral) > track.HALF) retired.add(entity.id);
+    // The shell keeps moving, so the height the view reads has to follow the road.
+    entity.roadY = track.poseAt(sample.progress).visualOuterY || 0;
   }
 
   collide(race, kartRadius, retired);
