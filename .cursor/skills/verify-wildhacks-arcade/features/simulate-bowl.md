@@ -87,16 +87,16 @@ new Promise((resolve) => {
 }))
 ```
 
-The player who threw has a new mark in the current frame: a digit, `X`, or `/`. Save that JSON as `artifacts/simulate-bowl/scoreboard.json`.
-- **Next turn.** Snapshot again at least 1500ms after the result heading appeared. A strike hands `BOWL` to the other joined phone. Any other first roll returns `BOWL` to the same phone. The result screen stays up on a phone that is waiting for its next turn.
+The player who threw has a new mark in the current frame: a digit or `X` on the first roll of a frame (`/` appears only when a later roll in that frame clears the rest). Save that JSON as `artifacts/simulate-bowl/scoreboard.json`.
+- **Next turn.** Snapshot again at least 1500ms after the result heading appeared. A strike hands `BOWL` to the other joined phone while the throwing phone still shows the result. Any other first roll also leaves the throwing phone on the result heading. The host queues `your_turn`, but the phone shows `BOWL` only after a click on `#screen-result`.
 - **Proof.** Save `artifacts/simulate-bowl/result.aria.txt` and `result.png` from the phone result screen, and `artifacts/simulate-bowl/scoreboard.png` from the host. The phone artifact shows the result heading. The host artifact shows `Scores` and the same player name. There is no relay log line for a throw.
 
 ## Gotchas
 
 - A mouse click on `BOWL`, including `browser_click` with `holdDurationMs`, does not send a throw. The button only listens for `touchstart` and `touchend`.
 - A gap under 150ms sets `#bowl-hint` to `Hold longer and swing!` and leaves the scoreboard unchanged. That is the short-hold path, not this one. The hint text stays on the bowl screen until a result replaces it, so a later real throw can still show that old hint.
-- The release expression above is the swing. It must report `motion.peakAz` near 25 and `motion.peakGamma` of 0. The first sample of that swing has `az` 0, so a reading of the first event is not the pulse. A hold with no events still sends power `0.5` and spin `0`. Do not use that hold as proof of a bowl. Do not require a specific pin count beyond a result heading.
+- The release expression above is the swing. It must report `motion.peakAz` near 25 and `motion.peakGamma` of 0. The first sample of that swing has `az` 0, so a reading of the first event is not the pulse. A hold with no events still sends power `0.5`. The throw message has no `spin` field. Curve comes from `tilt.hookM`. Do not use an empty-buffer hold as proof of a bowl. Do not require a specific pin count beyond a result heading.
 - The bowl screen has no heading. A still-visible `BOWL` button during the first few seconds means the ball has not settled yet. The result heading is the signal.
-- After the result, the same player gets `BOWL` again about 1500ms later when the frame needs another roll. Capture the result heading from the evaluate return as soon as it appears. A later snapshot can show `BOWL` again and the result heading will be gone.
+- Capture the result heading from the evaluate return as soon as it appears. The result stays until a click on `#screen-result`. The host may send `your_turn` about 1500ms later, but `BOWL` does not replace the result heading by itself.
 - A frame-ending roll leaves the result screen up. The other phone gets `BOWL` about 1500ms later.
 - `STRIKE!` on the phone finishes that frame in one roll. `SPARE!` appears on the second roll of a frame. A second roll that leaves pins standing uses the `knocked down` heading, not `SPARE!`.
