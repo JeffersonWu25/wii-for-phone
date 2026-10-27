@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-/**
- * Capture a 2-player race screenshot for visual before/after.
- * Walks lobby → Mario Kart → character pick → track → ready → Start Race.
- *
- * Usage: node snapshot-race.mjs [hostUrl] [outPng]
- * Env: PHONE_URL (default http://127.0.0.1:15174)
- */
 import { mkdirSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { chromium } from 'playwright-core';
@@ -68,9 +61,7 @@ async function join(name) {
           value: undefined,
         });
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   });
   await page.goto(`${PHONE}/?session=${encodeURIComponent(sessionId)}`, {
     waitUntil: 'networkidle',

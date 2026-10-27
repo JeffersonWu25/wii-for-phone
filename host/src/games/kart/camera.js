@@ -1,5 +1,3 @@
-/** Mario Kart Wii–style chase camera constants for KartScene. */
-
 export const CAM_DIST = 7.2;
 export const CAM_HEIGHT = 3.15;
 export const LOOK_AHEAD = 7.2;

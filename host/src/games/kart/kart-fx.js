@@ -1,9 +1,5 @@
 import * as THREE from 'three';
 
-/**
- * Drift / boost / dust visuals attached under a racer body.
- * Driven each frame from driftView + effectView (race.js).
- */
 export function attachKartFx(body) {
   const sparks = makeSparkBurst();
   sparks.position.set(0, 0.02, -0.95);

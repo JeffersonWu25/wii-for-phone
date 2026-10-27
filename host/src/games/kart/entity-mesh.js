@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 
-/** Visual-only item / hazard meshes. Physics stays in race.js. */
 export function makeEntity(kind) {
   if (kind === 'box') return makeItemBox();
   if (kind === 'banana') return makeBanana();
