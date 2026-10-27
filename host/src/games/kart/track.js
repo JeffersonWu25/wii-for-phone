@@ -1,152 +1,81 @@
+import { LUIGI_PLAN } from './tracks/luigi-circuit-plan.js';
+
 export const PROGRESS_CONTINUITY = 0.10;
 
 const MAX_STEP_M = 6;
-const GRID = Object.freeze({
-  frontMeters: 2.3,
-  rowMeters: 3.0,
-  colOffset: 1.6,
-  columns: 2,
-});
 
-const LUIGI_PLAN = {
-  waypoints: [
-    { id: 'sf', seg: 'start', x: 34, z: -6, halfWidth: 6 },
-    { id: 's1', seg: 'start', x: 34, z: 10, halfWidth: 6 },
-    { id: 's2', seg: 'start', x: 34, z: 24, halfWidth: 6.1 },
-    { id: 't18', seg: 'turn1', x: 33.12, z: 29.56, halfWidth: 6.32 },
-    { id: 't36', seg: 'turn1', x: 30.56, z: 34.58, halfWidth: 6.44 },
-    { id: 't54', seg: 'turn1', x: 26.58, z: 38.56, halfWidth: 6.52 },
-    { id: 't72', seg: 'turn1', x: 21.56, z: 41.12, halfWidth: 6.58 },
-    { id: 't90', seg: 'turn1', x: 16, z: 42, halfWidth: 6.6 },
-    { id: 't110', seg: 'turn1', x: 9.84, z: 40.91, halfWidth: 6.55 },
-    { id: 't130', seg: 'turn1', x: 4.43, z: 37.79, halfWidth: 6.5 },
-    { id: 'tA', seg: 'turn1', x: 3.2, z: 32.5, halfWidth: 6.45 },
-    { id: 'tB', seg: 'turn1', x: -8, z: 29.5, halfWidth: 6.35 },
-    { id: 'tC', seg: 'turn1', x: -18, z: 23, halfWidth: 6.2 },
-    { id: 'k1', seg: 'kink', x: -22.19, z: 16.15, halfWidth: 6.05 },
-    { id: 'k2', seg: 'kink', x: -23.83, z: 9.43, halfWidth: 6 },
-    { id: 'k3', seg: 'kink', x: -22.51, z: 2.5, halfWidth: 5.95 },
-    { id: 'b0', seg: 'back', x: -16, z: -6, halfWidth: 5.9 },
-    { id: 'b1', seg: 'back', x: -9, z: -14, halfWidth: 6 },
-    { id: 'b2', seg: 'back', x: -4, z: -21, halfWidth: 6.2 },
-    { id: 'b3', seg: 'back', x: -2.64, z: -24.86, halfWidth: 6.4 },
-    { id: 'u0', seg: 'bank', x: -2, z: -28, halfWidth: 6.6, visualOuterY: 0.15 },
-    { id: 'u210', seg: 'bank', x: 0.41, z: -37, halfWidth: 7.9, visualOuterY: 0.45 },
-    { id: 'u240', seg: 'bank', x: 7, z: -43.59, halfWidth: 8.78, visualOuterY: 0.75 },
-    { id: 'u270', seg: 'bank', x: 16, z: -46, halfWidth: 9.1, visualOuterY: 0.9 },
-    { id: 'u300', seg: 'bank', x: 25, z: -43.59, halfWidth: 8.78, visualOuterY: 0.75 },
-    { id: 'u330', seg: 'bank', x: 31.59, z: -37, halfWidth: 7.9, visualOuterY: 0.4 },
-    { id: 'link', seg: 'start', x: 34, z: -28, halfWidth: 6.2 },
-  ],
-  sandBands: [
-    { from: 't36', u0: 0, to: 'k2', u1: 0.5, depth: 10 },
-    { from: 'b2', u0: 0, to: 'u330', u1: 1, depth: 18 },
-  ],
-  dashes: [
-    { from: 'u210', u0: 0.05, to: 'u330', u1: 0.85, latFrac0: 0.18, latFrac1: 0.94 },
-  ],
-  corridors: [
-    {
-      id: 'rampCut',
-      from: 'b1',
-      u0: 0.15,
-      to: 'u210',
-      u1: 0.35,
-      reach: 7,
-      spine: [
-        { at: 'b1', u: 0.15, lateral: 'inner' },
-        { at: 'b2', u: 0.45, lateral: -12 },
-        { at: 'b3', u: 0.6, lateral: -13 },
-        { at: 'u0', u: 0.45, lateral: -12 },
-        { at: 'u210', u: 0.35, lateral: 'inner' },
-      ],
-    },
-    {
-      id: 'uCut',
-      from: 'u0',
-      u0: 0.15,
-      to: 'u330',
-      u1: 0.8,
-      reach: 8,
-      spine: [
-        { at: 'u0', u: 0.15, lateral: 'inner' },
-        { at: 'u210', u: 0.45, lateral: -15 },
-        { at: 'u240', u: 0.5, lateral: -17 },
-        { at: 'u270', u: 0.5, lateral: -18 },
-        { at: 'u300', u: 0.5, lateral: -17 },
-        { at: 'u330', u: 0.8, lateral: 'inner' },
-      ],
-    },
-  ],
-  grid: GRID,
-  grassMargin: 12,
-};
-
-const COURSE = compile(LUIGI_PLAN);
-
-export const PERIM = COURSE.perim;
-/** Start-straight asphalt half-width. Items and older contain paths still read this. */
-export const HALF = poseAtS(0).half;
-
-export function poseAt(t) {
-  const hit = poseAtS(wrap01(t) * PERIM);
-  return {
-    x: hit.x,
-    z: hit.z,
-    heading: hit.heading,
-    halfWidth: hit.half,
-    visualOuterY: hit.visualOuterY,
-  };
-}
-
-export function sampleTrack(x, z, seedProgress) {
-  if (!Number.isFinite(x) || !Number.isFinite(z)) {
-    throw new TypeError('sampleTrack needs finite x and z');
+export function createTrack(plan, opts = {}) {
+  const course = compile(plan, opts);
+  const grid = plan.grid;
+  const boxes = opts.itemBoxProgress ?? plan.itemBoxProgress;
+  if (!Array.isArray(boxes)) {
+    throw new Error('createTrack needs itemBoxProgress on opts or plan');
   }
-  const seed = Number.isFinite(seedProgress) ? wrap01(seedProgress) : null;
-  return locate(x, z, seed);
-}
+  const itemBoxProgress = Object.freeze([...boxes]);
 
-export function followTrack(motion) {
-  const x0 = motion?.x0;
-  const z0 = motion?.z0;
-  const x1 = motion?.x1;
-  const z1 = motion?.z1;
-  const seedProgress = motion?.seedProgress;
-  if (![x0, z0, x1, z1, seedProgress].every(Number.isFinite)) {
-    throw new TypeError('followTrack motion needs finite numbers');
+  function poseAt(t) {
+    return poseOn(course, t);
   }
-  const end = clampDisc(x1, z1);
-  const sample = locate(end.x, end.z, wrap01(seedProgress));
-  const dashEntered = segmentHitsDash(x0, z0, end.x, end.z) && !pointInDash(x0, z0);
-  return {
-    ...sample,
-    x: end.x,
-    z: end.z,
-    dashEntered,
-  };
+
+  function sampleTrack(x, z, seedProgress) {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) {
+      throw new TypeError('sampleTrack needs finite x and z');
+    }
+    const seed = Number.isFinite(seedProgress) ? wrap01(seedProgress) : null;
+    return locate(course, x, z, seed);
+  }
+
+  function followTrack(motion) {
+    const x0 = motion?.x0;
+    const z0 = motion?.z0;
+    const x1 = motion?.x1;
+    const z1 = motion?.z1;
+    const seedProgress = motion?.seedProgress;
+    if (![x0, z0, x1, z1, seedProgress].every(Number.isFinite)) {
+      throw new TypeError('followTrack motion needs finite numbers');
+    }
+    const end = clampDisc(course, x1, z1);
+    const sample = locate(course, end.x, end.z, wrap01(seedProgress));
+    const dashEntered = segmentHitsDash(course, x0, z0, end.x, end.z) && !pointInDash(course, x0, z0);
+    return {
+      ...sample,
+      x: end.x,
+      z: end.z,
+      dashEntered,
+    };
+  }
+
+  function gridPose(index) {
+    const row = Math.floor(index / 2);
+    const col = index % 2;
+    const back = (grid.frontMeters + row * grid.rowMeters) / course.perim;
+    const pose = poseAt(-back);
+    const side = (col === 0 ? -1 : 1) * grid.colOffset;
+    const rx = Math.cos(pose.heading);
+    const rz = -Math.sin(pose.heading);
+    return {
+      x: pose.x + rx * side,
+      z: pose.z + rz * side,
+      facing: pose.heading,
+    };
+  }
+
+  return Object.freeze({
+    id: opts.id || null,
+    PERIM: course.perim,
+    HALF: course.poseAtSLocal(0).half,
+    itemBoxProgress,
+    poseAt,
+    sampleTrack,
+    followTrack,
+    gridPose,
+    trackVisuals() {
+      return course.visuals;
+    },
+  });
 }
 
-export function gridPose(index) {
-  const row = Math.floor(index / 2);
-  const col = index % 2;
-  const back = (GRID.frontMeters + row * GRID.rowMeters) / PERIM;
-  const pose = poseAt(-back);
-  const side = (col === 0 ? -1 : 1) * GRID.colOffset;
-  const rx = Math.cos(pose.heading);
-  const rz = -Math.sin(pose.heading);
-  return {
-    x: pose.x + rx * side,
-    z: pose.z + rz * side,
-    facing: pose.heading,
-  };
-}
-
-export function trackVisuals() {
-  return COURSE.visuals;
-}
-
-function compile(plan) {
+function compile(plan, opts = {}) {
   const waypoints = plan.waypoints;
   const idIndex = new Map(waypoints.map((wp, i) => [wp.id, i]));
   const edges = [];
@@ -300,8 +229,13 @@ function compile(plan) {
 
   const back = plan.grid.frontMeters + 5 * plan.grid.rowMeters;
   const gridFrame = poseAtSLocal(wrap01(-back / perim) * perim);
-  if (gridFrame.seg !== 'start') throw new Error('grid row 5 leaves the start straight');
-  if (!(perim > 190 && perim < 245)) throw new Error(`PERIM ${perim}`);
+  if (opts.requireStartGrid && gridFrame.seg !== 'start') {
+    throw new Error('grid row 5 leaves the start straight');
+  }
+  if (opts.perimRange) {
+    const [lo, hi] = opts.perimRange;
+    if (!(perim > lo && perim < hi)) throw new Error(`PERIM ${perim}`);
+  }
 
   const visuals = buildVisuals({
     perim,
@@ -311,6 +245,7 @@ function compile(plan) {
     corridors,
     worldRadius,
     edges,
+    grid: plan.grid,
   });
 
   return {
@@ -353,7 +288,9 @@ function buildVisuals(course) {
   for (const corridor of course.corridors) sand.push(corridor.poly);
   const stripe = course.poseAtSLocal(0);
   const gridMarks = [];
-  for (let i = 0; i < 12; i++) gridMarks.push(gridMark(i, course.perim, course.poseAtSLocal));
+  for (let i = 0; i < 12; i++) {
+    gridMarks.push(gridMark(i, course.perim, course.poseAtSLocal, course.grid));
+  }
   return {
     grassRadius: course.worldRadius,
     road,
@@ -394,12 +331,12 @@ function bandPoly(course, p0, p1, depth) {
   return [...roadSide, ...deepSide.reverse()];
 }
 
-function gridMark(index, perim, poseAtSLocal) {
+function gridMark(index, perim, poseAtSLocal, grid) {
   const row = Math.floor(index / 2);
   const col = index % 2;
-  const back = (GRID.frontMeters + row * GRID.rowMeters) / perim;
+  const back = (grid.frontMeters + row * grid.rowMeters) / perim;
   const pose = poseAtSLocal(wrap01(-back) * perim);
-  const side = (col === 0 ? -1 : 1) * GRID.colOffset;
+  const side = (col === 0 ? -1 : 1) * grid.colOffset;
   const rx = Math.cos(pose.heading);
   const rz = -Math.sin(pose.heading);
   return {
@@ -409,24 +346,24 @@ function gridMark(index, perim, poseAtSLocal) {
   };
 }
 
-function locate(x, z, seed) {
+function locate(course, x, z, seed) {
   if (seed != null) {
-    const cut = locateCorridor(x, z, seed);
+    const cut = locateCorridor(course, x, z, seed);
     if (cut) return cut;
   }
   let best = null;
-  for (const edge of COURSE.edges) {
-    const proj = projectEdge(edge, x, z);
+  for (const edge of course.edges) {
+    const proj = projectEdge(course, edge, x, z);
     if (seed != null && circDist(proj.progress, seed) > PROGRESS_CONTINUITY) continue;
     if (!best || proj.dist2 < best.dist2) best = proj;
   }
   if (!best) {
-    for (const edge of COURSE.edges) {
-      const proj = projectEdge(edge, x, z);
+    for (const edge of course.edges) {
+      const proj = projectEdge(course, edge, x, z);
       if (!best || proj.dist2 < best.dist2) best = proj;
     }
   }
-  const depth = sandDepthAt(best.progress);
+  const depth = sandDepthAt(course, best.progress);
   let surface = 'grass';
   if (Math.abs(best.lateral) <= best.half + 1e-4) surface = 'asphalt';
   else if (best.lateral < 0 && -best.lateral <= best.half + depth) surface = 'sand';
@@ -441,13 +378,13 @@ function locate(x, z, seed) {
     dirZ: best.dirZ,
     halfWidth: best.half,
     surface,
-    onDash: pointInDash(x, z),
+    onDash: pointInDash(course, x, z),
   };
 }
 
-function locateCorridor(x, z, seed) {
+function locateCorridor(course, x, z, seed) {
   let best = null;
-  for (const corridor of COURSE.corridors) {
+  for (const corridor of course.corridors) {
     if (!seedHitsSpan(seed, corridor.s0, corridor.s1)) continue;
     if (!pointInPoly(corridor.poly, x, z)) continue;
     const proj = projectSpine(corridor.center, x, z);
@@ -457,7 +394,7 @@ function locateCorridor(x, z, seed) {
   const span = forwardSpan(best.corridor.s0, best.corridor.s1);
   const u = best.corridor.length <= 1e-6 ? 0 : best.proj.s / best.corridor.length;
   const progress = wrap01(best.corridor.s0 + clamp(u, 0, 1) * span);
-  const pose = poseAt(progress);
+  const pose = poseOn(course, progress);
   const lx = x - pose.x;
   const lz = z - pose.z;
   const ld = Math.hypot(lx, lz);
@@ -474,11 +411,11 @@ function locateCorridor(x, z, seed) {
     dirZ: ld < 1e-6 ? 0 : lz / ld,
     halfWidth: pose.halfWidth,
     surface: 'sand',
-    onDash: pointInDash(x, z),
+    onDash: pointInDash(course, x, z),
   };
 }
 
-function projectEdge(edge, x, z) {
+function projectEdge(course, edge, x, z) {
   const dx = x - edge.x0;
   const dz = z - edge.z0;
   let u = (dx * edge.tx + dz * edge.tz) / edge.length;
@@ -488,7 +425,7 @@ function projectEdge(edge, x, z) {
   const lx = x - cx;
   const lz = z - cz;
   const lateral = lx * edge.nx + lz * edge.nz;
-  const progress = wrap01((edge.s0 + edge.length * u) / PERIM);
+  const progress = wrap01((edge.s0 + edge.length * u) / course.perim);
   const half = edge.half0 + (edge.half1 - edge.half0) * u;
   const ld = Math.hypot(lx, lz);
   return {
@@ -522,9 +459,9 @@ function projectSpine(center, x, z) {
   return best;
 }
 
-function sandDepthAt(progress) {
+function sandDepthAt(course, progress) {
   let depth = 0;
-  for (const band of COURSE.sand) {
+  for (const band of course.sand) {
     const span = forwardSpan(band.p0, band.p1);
     const rel = forwardSpan(band.p0, progress);
     if (rel <= span + 1e-6) depth = Math.max(depth, band.depth);
@@ -532,29 +469,36 @@ function sandDepthAt(progress) {
   return depth;
 }
 
-function poseAtS(s) {
-  return COURSE.poseAtSLocal(s);
+function poseOn(course, t) {
+  const hit = course.poseAtSLocal(wrap01(t) * course.perim);
+  return {
+    x: hit.x,
+    z: hit.z,
+    heading: hit.heading,
+    halfWidth: hit.half,
+    visualOuterY: hit.visualOuterY,
+  };
 }
 
-function clampDisc(x, z) {
+function clampDisc(course, x, z) {
   const r = Math.hypot(x, z);
-  if (r <= COURSE.worldRadius || r < 1e-8) return { x, z };
-  const k = COURSE.worldRadius / r;
+  if (r <= course.worldRadius || r < 1e-8) return { x, z };
+  const k = course.worldRadius / r;
   return { x: x * k, z: z * k };
 }
 
-function pointInDash(x, z) {
-  for (const quad of COURSE.dashes) {
+function pointInDash(course, x, z) {
+  for (const quad of course.dashes) {
     if (pointInPoly(quad, x, z)) return true;
   }
   return false;
 }
 
-function segmentHitsDash(x0, z0, x1, z1) {
-  if (pointInDash(x1, z1)) return true;
+function segmentHitsDash(course, x0, z0, x1, z1) {
+  if (pointInDash(course, x1, z1)) return true;
   const a = { x: x0, z: z0 };
   const b = { x: x1, z: z1 };
-  for (const quad of COURSE.dashes) {
+  for (const quad of course.dashes) {
     for (let i = 0; i < quad.length; i++) {
       const c = quad[i];
       const d = quad[(i + 1) % quad.length];
@@ -640,3 +584,19 @@ function wrap01(t) {
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
+
+export const luigiCircuit = createTrack(LUIGI_PLAN, {
+  id: 'luigi-circuit',
+  perimRange: [190, 245],
+  requireStartGrid: true,
+});
+
+export const PERIM = luigiCircuit.PERIM;
+/** Start-straight asphalt half-width. Items and older contain paths still read this. */
+export const HALF = luigiCircuit.HALF;
+export const itemBoxProgress = luigiCircuit.itemBoxProgress;
+export const poseAt = luigiCircuit.poseAt;
+export const sampleTrack = luigiCircuit.sampleTrack;
+export const followTrack = luigiCircuit.followTrack;
+export const gridPose = luigiCircuit.gridPose;
+export const trackVisuals = luigiCircuit.trackVisuals;

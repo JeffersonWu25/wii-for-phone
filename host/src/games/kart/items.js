@@ -1,6 +1,3 @@
-import { HALF, poseAt, sampleTrack } from './track.js';
-
-const BOX_T = Object.freeze([0.08, 0.22, 0.38, 0.55, 0.72, 0.88]);
 const BOX_COOLDOWN = 3;
 const BOX_RADIUS = 1.7;
 const HIT_RADIUS = 1.25;
@@ -15,6 +12,13 @@ const MODIFIERS = Object.freeze({
     yawRate: 10,
     speedScale: 0.35,
   }),
+});
+
+const GUIDES = Object.freeze({
+  straight(entity, dt) {
+    entity.x += entity.vx * dt;
+    entity.z += entity.vz * dt;
+  },
 });
 
 const ITEMS = Object.freeze({
@@ -81,6 +85,7 @@ const ITEM_LIST = Object.freeze(Object.values(ITEMS));
       throw new Error(`bad spawn kind ${def.kind}`);
     }
     if (def.kind != null && !(def.life > 0)) throw new Error(`${def.id} missing life`);
+    if (def.guide != null && !GUIDES[def.guide]) throw new Error(`unknown guide ${def.guide} on ${def.id}`);
   }
 }
 
@@ -182,8 +187,13 @@ export function attachItems(race) {
   race.entities = [];
   race._nextEntityId = 1;
   race._touchPairs = new Set();
-  for (const t of BOX_T) {
-    const pose = poseAt(t);
+  const track = race.track;
+  const boxes = track.itemBoxProgress;
+  if (!Array.isArray(boxes) || boxes.length === 0) {
+    throw new Error('track.itemBoxProgress required');
+  }
+  for (const t of boxes) {
+    const pose = track.poseAt(t);
     spawn(race, {
       kind: 'box',
       x: pose.x,
@@ -253,11 +263,14 @@ export function stepItems(race, dt, kartRadius) {
 
   for (const entity of race.entities) {
     if (entity.kind !== 'shell' || retired.has(entity.id)) continue;
-    const guide = ITEMS[entity.itemId].guide;
-    if (guide !== 'straight') throw new Error(`not implemented: guide ${guide}`);
-    entity.x += entity.vx * dt;
-    entity.z += entity.vz * dt;
-    if (Math.abs(sampleTrack(entity.x, entity.z).lateral) > HALF) retired.add(entity.id);
+    const guideId = ITEMS[entity.itemId].guide;
+    const guide = GUIDES[guideId];
+    if (!guide) throw new Error(`unknown guide ${guideId}`);
+    guide(entity, dt);
+    const track = race.track;
+    if (Math.abs(track.sampleTrack(entity.x, entity.z).lateral) > track.HALF) {
+      retired.add(entity.id);
+    }
   }
 
   collide(race, kartRadius, retired);

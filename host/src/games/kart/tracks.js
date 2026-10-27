@@ -1,11 +1,12 @@
-import * as luigi from './track.js';
+import { luigiCircuit } from './track.js';
 
+// Add a map by createTrack(plan, opts) plus one row here.
 export const TRACKS = [
   {
     id: 'luigi-circuit',
     name: 'Luigi Circuit',
     blurb: 'Wide asphalt, sand cuts, and dash panels on the final bank.',
-    track: luigi,
+    track: luigiCircuit,
   },
 ];
 

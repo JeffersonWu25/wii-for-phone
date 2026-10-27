@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HALF, PERIM, poseAt, sampleTrack } from './track.js';
-import * as luigi from './track.js';
+import { HALF, PERIM, poseAt, sampleTrack, luigiCircuit as luigi } from './track.js';
 import { stickInput } from '../../../../phone/src/games/kart/steer.js';
 import { slots } from './layout.js';
 import {
@@ -30,7 +29,7 @@ function raceWith(players, now = 0) {
   );
 }
 
-const BOX_T = [0.08, 0.22, 0.38, 0.55, 0.72, 0.88];
+const BOX_T = luigi.itemBoxProgress;
 const MUSHROOM_CAP = 32 * 1.45;
 const STAR_CAP = 32 * 1.55;
 

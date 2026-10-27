@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { trackVisuals } from './track.js';
 import { viewports } from './layout.js';
 import { driftView, effectView } from './race.js';
 
@@ -179,8 +178,11 @@ function checkerMesh(start) {
   return meshFrom(positions, indices, lambert(0xffffff, { vertexColors: true }), colors);
 }
 
-function addTrack(scene) {
-  const vis = trackVisuals();
+function addTrack(scene, track) {
+  if (!track || typeof track.trackVisuals !== 'function') {
+    throw new Error('KartScene requires a track with trackVisuals()');
+  }
+  const vis = track.trackVisuals();
   const reach = vis.grassRadius + 12;
   scene.background = new THREE.Color(0x7ec8f5);
   scene.fog = new THREE.Fog(0x7ec8f5, 90, reach * 2.4);
@@ -346,7 +348,7 @@ function syncEntities(scene, pool, entities, now) {
   }
 }
 
-export default function KartScene({ raceRef, track: _track }) {
+export default function KartScene({ raceRef, track }) {
   const wrapRef = useRef(null);
 
   useEffect(() => {
@@ -359,7 +361,7 @@ export default function KartScene({ raceRef, track: _track }) {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     wrap.appendChild(renderer.domElement);
-    addTrack(scene);
+    addTrack(scene, track);
 
     const racers = [];
     const entityPool = new Map();
@@ -459,7 +461,7 @@ export default function KartScene({ raceRef, track: _track }) {
       renderer.dispose();
       if (renderer.domElement.parentNode === wrap) wrap.removeChild(renderer.domElement);
     };
-  }, [raceRef]);
+  }, [raceRef, track]);
 
   return <div className="kart-canvas" ref={wrapRef} />;
 }

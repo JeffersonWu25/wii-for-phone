@@ -82,13 +82,17 @@ function boostingPhase(remaining, slip) {
   });
 }
 
-function tuningScales(tuning) {
+function tuningScales(raceTuning, kart) {
+  const stats = kart?.character?.stats;
   const scales = {};
   for (const key of Object.keys(TUNING_LIMITS)) {
     const { min, max } = TUNING_LIMITS[key];
-    const raw = tuning?.[key];
-    const fallback = DEFAULT_TUNING[key];
-    scales[key] = clamp(Number.isFinite(raw) ? raw : fallback, min, max);
+    const raw = Number.isFinite(raceTuning?.[key]) ? raceTuning[key] : DEFAULT_TUNING[key];
+    const host = clamp(raw, min, max);
+    const base = Number.isFinite(stats?.[key]) ? stats[key] : 1;
+    // Host knobs stay in TUNING_LIMITS. Character weight class scales on top so
+    // relative roster differences survive high host values.
+    scales[key] = host * base;
   }
   return scales;
 }
@@ -426,7 +430,7 @@ function separate(karts) {
 
 function stepKart(kart, input, dt, tuning) {
   if (kart.dashRemaining > 0) kart.dashRemaining = Math.max(0, kart.dashRemaining - dt);
-  const scales = tuningScales(tuning);
+  const scales = tuningScales(tuning, kart);
   const ctrl = controlOf(kart);
   kart.speedMul = ctrl.speedMul;
   if (ctrl.locked) {
@@ -579,7 +583,7 @@ export function stepRace(race, dt, now) {
         seedProgress: kart.progress,
       });
       commitContact(kart, hit);
-      if (hit.dashEntered) raiseToCap(kart, tuningScales(race.tuning));
+      if (hit.dashEntered) raiseToCap(kart, tuningScales(race.tuning, kart));
       noteProgress(kart, hit.progress, true, race.timeMs);
       kart.progress = hit.progress;
     } else {
