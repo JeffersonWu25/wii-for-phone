@@ -1,29 +1,80 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { luigiCircuit } from './track.js';
-import { MATERIALS } from './track-loft.js';
+import { MATERIALS, assertSimple } from './track-loft.js';
 
-test('lofted Luigi outline rings have far fewer self-crossings than the old strip', () => {
+function triGeom(positions, indices, k) {
+  const ia = indices[k] * 3;
+  const ib = indices[k + 1] * 3;
+  const ic = indices[k + 2] * 3;
+  const ux = positions[ib] - positions[ia];
+  const uy = positions[ib + 1] - positions[ia + 1];
+  const uz = positions[ib + 2] - positions[ia + 2];
+  const vx = positions[ic] - positions[ia];
+  const vy = positions[ic + 1] - positions[ia + 1];
+  const vz = positions[ic + 2] - positions[ia + 2];
+  const nx = uy * vz - uz * vy;
+  const ny = uz * vx - ux * vz;
+  const nz = ux * vy - uy * vx;
+  const len = Math.hypot(nx, ny, nz) || 1;
+  return { nx: nx / len, ny: ny / len, nz: nz / len, area: len / 2 };
+}
+
+test('lofted outline rings are simple polygons', () => {
   const vis = luigiCircuit.trackVisuals();
-  function crossings(ring) {
-    let n = 0;
-    const len = ring.length;
-    const side = (p, q, r) => (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
-    const cross = (a, b, c, d) => side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0;
-    for (let i = 0; i < len; i++) {
-      for (let j = i + 1; j < len; j++) {
-        if ((j + 1) % len === i || (i + 1) % len === j) continue;
-        if (i === 0 && j === len - 1) continue;
-        if (cross(ring[i], ring[(i + 1) % len], ring[j], ring[(j + 1) % len])) n += 1;
-      }
+  assertSimple(vis.outline.inner, 'inner');
+  assertSimple(vis.outline.outer, 'outer');
+});
+
+test('up-facing course triangles wind toward +Y and curb walls face their stored normal', () => {
+  const { positions, normals, indices, groups } = luigiCircuit.trackVisuals().mesh;
+  const grass = groups.find((g) => g.material === 'grass');
+  const asphalt = groups.find((g) => g.material === 'asphalt');
+  const grass0 = triGeom(positions, indices, grass.start);
+  const asphalt0 = triGeom(positions, indices, asphalt.start);
+  assert.ok(grass0.ny > 0, `first grass normal.y ${grass0.ny}`);
+  assert.ok(asphalt0.ny > 0, `first asphalt normal.y ${asphalt0.ny}`);
+
+  for (const group of groups) {
+    for (let k = group.start; k < group.start + group.count; k += 3) {
+      const geom = triGeom(positions, indices, k);
+      if (geom.area < 1e-6) continue;
+      const s = indices[k] * 3;
+      const dot = geom.nx * normals[s] + geom.ny * normals[s + 1] + geom.nz * normals[s + 2];
+      assert.ok(dot > 0.5, `${group.material} tri ${k} faces against its stored normal (${dot.toFixed(3)})`);
     }
-    return n;
   }
-  const inner = crossings(vis.outline.inner);
-  const outer = crossings(vis.outline.outer);
-  // Chordal joins can leave a few local notches; old strip stacked ~359 m² of cover.
-  assert.ok(inner <= 20, `inner crossings ${inner}`);
-  assert.ok(outer <= 20, `outer crossings ${outer}`);
+});
+
+test('boost chevrons sit on dash spans, not the whole outer atlas', () => {
+  const atlas = luigiCircuit.trackVisuals().atlas;
+  const { width, height, rgba } = atlas;
+  const orangeCol = new Uint8Array(width);
+  let orange = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const isOrange = rgba[i] > 200 && rgba[i + 1] > 80 && rgba[i + 1] < 190 && rgba[i + 2] < 80;
+      if (!isOrange) continue;
+      orange += 1;
+      if (y > height * 0.5) orangeCol[x] = 1;
+      assert.ok(y > height * 0.4, `orange boost pixel in the inner half at ${x},${y}`);
+    }
+  }
+  assert.ok(orange > 0, 'expected boost paint on the dash');
+  let gap = 0;
+  let maxGap = 0;
+  let run = 0;
+  for (let x = 0; x < width * 2; x++) {
+    if (orangeCol[x % width]) {
+      if (run > maxGap) maxGap = run;
+      run = 0;
+      gap += 1;
+    } else {
+      run += 1;
+    }
+  }
+  assert.ok(maxGap > width / 3, `longest outer band without boost paint is ${maxGap}px of ${width}`);
 });
 
 test('lofted visuals expose mesh groups for every material id used', () => {
