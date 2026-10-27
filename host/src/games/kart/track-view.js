@@ -20,7 +20,7 @@ export function attachCourse(scene, visuals) {
 
   const reach = visuals.grassRadius + 12;
   const horizon = 0xc6e7f8;
-  const zenith = 0x3d8fd8;
+  const zenith = 0x2f7ed4;
   scene.background = new THREE.Color(horizon);
   scene.fog = new THREE.Fog(horizon, 85, reach * 2.15);
 
@@ -129,24 +129,17 @@ export function attachCourse(scene, visuals) {
   };
 }
 
-function shadeGrass(broad, fine, speck) {
-  let r = 48 + broad * 46 + (fine - 0.5) * 18;
-  let g = 150 + broad * 62 + (fine - 0.5) * 22;
-  let b = 42 + broad * 24 + (fine - 0.5) * 10;
-  if (speck > 0.965) {
-    r *= 0.7;
-    g *= 0.75;
-    b *= 0.68;
-  }
-  return [r, g, b];
+function shadeGrass(broad, fine) {
+  return [
+    40 + broad * 64 + (fine - 0.5) * 10,
+    138 + broad * 86 + (fine - 0.5) * 12,
+    36 + broad * 34 + (fine - 0.5) * 6,
+  ];
 }
 
 function shadeSand(broad, fine) {
-  return [
-    191 + broad * 52 + (fine - 0.5) * 12,
-    160 + broad * 48 + (fine - 0.5) * 10,
-    123 + broad * 36 + (fine - 0.5) * 8,
-  ];
+  const scale = 0.7 + broad * 0.55 + (fine - 0.5) * 0.12;
+  return [206 * scale, 174 * scale, 132 * scale];
 }
 
 function groundTexture(shade) {
@@ -157,7 +150,7 @@ function groundTexture(shade) {
       const v = (y + 0.5) / TEX;
       const broad = fbm(u, v, 2);
       const fine = fbm(u, v, 8);
-      const [r, g, b] = shade(broad, fine, hash01(x, y));
+      const [r, g, b] = shade(broad, fine);
       const i = (y * TEX + x) * 4;
       rgba[i] = clampByte(r);
       rgba[i + 1] = clampByte(g);
@@ -205,7 +198,8 @@ function makeSky(radius, horizonHex, zenithHex) {
   const tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const t = Math.min(1, Math.max(0, pos.getY(i) / radius));
-    tmp.copy(horizon).lerp(zenith, t * t);
+    const lift = Math.min(1, (t * t) / 0.04);
+    tmp.copy(horizon).lerp(zenith, lift);
     colors[i * 3] = tmp.r;
     colors[i * 3 + 1] = tmp.g;
     colors[i * 3 + 2] = tmp.b;
