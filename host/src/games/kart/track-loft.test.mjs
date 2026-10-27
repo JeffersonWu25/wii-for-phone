@@ -24,6 +24,7 @@ test('lofted outline rings are simple polygons', () => {
   const vis = luigiCircuit.trackVisuals();
   assertSimple(vis.outline.inner, 'inner');
   assertSimple(vis.outline.outer, 'outer');
+  for (const poly of vis.outline.sand) assertSimple(poly, 'sand');
 });
 
 test('the U-turn asphalt banks and sand stays off the finish line', () => {
