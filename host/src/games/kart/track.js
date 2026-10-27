@@ -8,11 +8,13 @@ const MAX_STEP_M = 6;
 export function createTrack(plan, opts = {}) {
   const course = compile(plan, opts);
   const grid = plan.grid;
-  const boxes = opts.itemBoxProgress ?? plan.itemBoxProgress;
-  if (!Array.isArray(boxes)) {
-    throw new Error('createTrack needs itemBoxProgress on opts or plan');
-  }
-  const itemBoxProgress = Object.freeze([...boxes]);
+  const itemBoxSites = Object.freeze(
+    resolveSites(plan, opts).map((site) => Object.freeze({
+      progress: site.progress,
+      stack: site.stack,
+    })),
+  );
+  const itemBoxProgress = Object.freeze(itemBoxSites.map((site) => site.progress));
 
   function poseAt(t) {
     return poseOn(course, t);
@@ -65,6 +67,7 @@ export function createTrack(plan, opts = {}) {
     id: opts.id || null,
     PERIM: course.perim,
     HALF: course.poseAtSLocal(0).half,
+    itemBoxSites,
     itemBoxProgress,
     poseAt,
     sampleTrack,
@@ -74,6 +77,41 @@ export function createTrack(plan, opts = {}) {
       return course.visuals;
     },
   });
+}
+
+function resolveSites(plan, opts) {
+  if (opts.itemBoxSites != null && opts.itemBoxProgress != null) {
+    throw new Error('createTrack opts include both itemBoxSites and itemBoxProgress');
+  }
+  if (plan.itemBoxSites != null && plan.itemBoxProgress != null) {
+    throw new Error('createTrack plan includes both itemBoxSites and itemBoxProgress');
+  }
+
+  let specs;
+  if (opts.itemBoxSites != null) specs = opts.itemBoxSites;
+  else if (opts.itemBoxProgress != null) specs = sitesFromProgress(opts.itemBoxProgress);
+  else if (plan.itemBoxSites != null) specs = plan.itemBoxSites;
+  else if (plan.itemBoxProgress != null) specs = sitesFromProgress(plan.itemBoxProgress);
+  else throw new Error('createTrack needs itemBoxSites or itemBoxProgress');
+
+  if (!Array.isArray(specs) || specs.length === 0) {
+    throw new Error('item box sites must be a non-empty array');
+  }
+
+  return specs.map((spec) => {
+    const progress = spec?.progress;
+    const stack = spec?.stack;
+    if (!Number.isFinite(progress)) throw new Error('item box progress must be finite');
+    if (stack !== 1 && stack !== 2) throw new Error('item box stack must be 1 or 2');
+    // Already inside [0, 1) stays bit-exact. wrap01's modulo nudges marks like 0.08.
+    const unit = progress >= 0 && progress < 1 ? progress : wrap01(progress);
+    return { progress: unit, stack };
+  });
+}
+
+function sitesFromProgress(list) {
+  if (!Array.isArray(list)) return list;
+  return list.map((progress) => ({ progress, stack: 1 }));
 }
 
 function compile(plan, opts = {}) {

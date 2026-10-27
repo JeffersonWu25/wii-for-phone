@@ -74,6 +74,13 @@ export const LUIGI_PLAN = {
     colOffset: 1.6,
     columns: 2,
   }),
-  itemBoxProgress: Object.freeze([0.08, 0.22, 0.38, 0.55, 0.72, 0.88]),
+  itemBoxSites: Object.freeze([
+    { progress: 0.08, stack: 1 },
+    { progress: 0.22, stack: 2 },
+    { progress: 0.38, stack: 1 },
+    { progress: 0.55, stack: 2 },
+    { progress: 0.72, stack: 1 },
+    { progress: 0.88, stack: 1 },
+  ]),
   grassMargin: 12,
 };

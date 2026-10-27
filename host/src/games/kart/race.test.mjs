@@ -87,7 +87,9 @@ function parkNear(kart, t, lateral = 0, along = 0, facingOffset = 0) {
 }
 
 function firstBox(race) {
-  return race.entities.find((entity) => entity.kind === 'box');
+  const boxes = race.entities.filter((entity) => entity.columnKey === '0:0');
+  assert.equal(boxes.length, 1);
+  return boxes[0];
 }
 
 function hold(race, kart, id) {
@@ -603,16 +605,43 @@ test('createRace rejects a missing character and a track module without the samp
   ));
 });
 
-test('a race starts with six cooldown-free boxes on the centerline', () => {
+test('six item-box sites expand to rows whose middle column sits on the centerline', () => {
   const race = raceWith([{ playerId: 'p1', name: 'A' }]);
+  const sites = luigi.itemBoxSites;
   const boxes = race.entities.filter((entity) => entity.kind === 'box');
-  assert.equal(boxes.length, 6);
-  for (let i = 0; i < BOX_T.length; i++) {
-    const pose = poseAt(BOX_T[i]);
-    assert.equal(boxes[i].cooldown, 0);
-    assert.ok(Math.abs(boxes[i].x - pose.x) < 1e-9);
-    assert.ok(Math.abs(boxes[i].z - pose.z) < 1e-9);
-    assert.ok(Math.abs(sampleTrack(boxes[i].x, boxes[i].z).lateral) < 0.05);
+  assert.deepEqual(sites.map((site) => site.progress), [0.08, 0.22, 0.38, 0.55, 0.72, 0.88]);
+  assert.deepEqual(sites.map((site) => site.stack), [1, 2, 1, 2, 1, 1]);
+  assert.deepEqual(BOX_T, sites.map((site) => site.progress));
+  assert.equal(boxes.length, sites.reduce((sum, site) => sum + 5 * site.stack, 0));
+
+  for (let siteIndex = 0; siteIndex < sites.length; siteIndex++) {
+    const site = sites[siteIndex];
+    const pose = poseAt(site.progress);
+    for (let column = 0; column < 5; column++) {
+      const stack = boxes.filter((box) => box.columnKey === `${siteIndex}:${column}`);
+      assert.equal(stack.length, site.stack);
+      assert.deepEqual(stack.map((box) => box.tier), [...Array(site.stack).keys()]);
+      for (const box of stack) {
+        assert.equal(box.cooldown, 0);
+        assert.equal(box.x, stack[0].x);
+        assert.equal(box.z, stack[0].z);
+        assert.equal(box.roadY, pose.visualOuterY);
+        const sample = sampleTrack(box.x, box.z, site.progress);
+        assert.ok(
+          Math.abs(sample.lateral) < pose.halfWidth,
+          `site ${siteIndex} column ${column} lateral ${sample.lateral}`,
+        );
+      }
+    }
+    const mid = boxes.find((box) => box.columnKey === `${siteIndex}:2`);
+    const left = boxes.find((box) => box.columnKey === `${siteIndex}:0`);
+    const right = boxes.find((box) => box.columnKey === `${siteIndex}:4`);
+    assert.ok(Math.abs(mid.x - pose.x) < 1e-6, `site ${siteIndex} x`);
+    assert.ok(Math.abs(mid.z - pose.z) < 1e-6, `site ${siteIndex} z`);
+    assert.ok(Math.abs(sampleTrack(mid.x, mid.z, site.progress).lateral) < 0.05);
+    assert.ok(Math.abs((left.x - pose.x) + (right.x - pose.x)) < 1e-6);
+    assert.ok(Math.abs((left.z - pose.z) + (right.z - pose.z)) < 1e-6);
+    assert.ok(Math.hypot(left.x - right.x, left.z - right.z) > 1);
   }
 });
 
@@ -677,8 +706,11 @@ test('the nearer empty kart takes the box', () => {
     { playerId: 'near', name: 'Near' },
   ], () => 0);
   const box = firstBox(race);
-  park(race.karts[0], box.x + 1.2, box.z);
-  park(race.karts[1], box.x + 0.4, box.z);
+  const pose = poseAt(luigi.itemBoxSites[0].progress);
+  const tx = Math.sin(pose.heading);
+  const tz = Math.cos(pose.heading);
+  park(race.karts[0], box.x + tx * 1.2, box.z + tz * 1.2);
+  park(race.karts[1], box.x + tx * 0.4, box.z + tz * 0.4);
   stepRace(race, 0.05, 50);
   assert.equal(race.karts[1].itemPrimary, 'mushroom');
   assert.equal(race.karts[0].itemPrimary, null);

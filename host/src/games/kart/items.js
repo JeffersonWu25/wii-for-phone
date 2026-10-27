@@ -1,7 +1,13 @@
 const BOX_COOLDOWN = 3;
 const BOX_RADIUS = 1.7;
 const HIT_RADIUS = 1.25;
-const BOX_COLOR = '#f0c419';
+
+// Five columns at 2.6 m still fit the narrowest Luigi asphalt after a 1.05 m inset.
+const ROW = Object.freeze({
+  columns: 5,
+  maxSpacing: 2.6,
+  edgeInset: 1.05,
+});
 
 const MODIFIERS = Object.freeze({
   speed: Object.freeze({}),
@@ -183,25 +189,54 @@ function pairKey(a, b) {
     : `${b.playerId}|${a.playerId}`;
 }
 
+function offsetLateral(pose, lateral) {
+  const rx = Math.cos(pose.heading);
+  const rz = -Math.sin(pose.heading);
+  return { x: pose.x + rx * lateral, z: pose.z + rz * lateral };
+}
+
+function columnLaterals(halfWidth) {
+  const gaps = ROW.columns - 1;
+  const span = Math.min(
+    ROW.maxSpacing * gaps,
+    Math.max(0, (halfWidth - ROW.edgeInset) * 2),
+  );
+  const step = span / gaps;
+  const origin = -span / 2;
+  return Array.from({ length: ROW.columns }, (_, i) => origin + step * i);
+}
+
+function expandBoxes(race, sites) {
+  sites.forEach((site, siteIndex) => {
+    const pose = race.track.poseAt(site.progress);
+    const laterals = columnLaterals(pose.halfWidth);
+    laterals.forEach((lateral, column) => {
+      const at = offsetLateral(pose, lateral);
+      const roadY = pose.visualOuterY || 0;
+      for (let tier = 0; tier < site.stack; tier++) {
+        spawn(race, {
+          kind: 'box',
+          x: at.x,
+          z: at.z,
+          roadY,
+          tier,
+          columnKey: `${siteIndex}:${column}`,
+          cooldown: 0,
+        });
+      }
+    });
+  });
+}
+
 export function attachItems(race) {
   race.entities = [];
   race._nextEntityId = 1;
   race._touchPairs = new Set();
-  const track = race.track;
-  const boxes = track.itemBoxProgress;
-  if (!Array.isArray(boxes) || boxes.length === 0) {
-    throw new Error('track.itemBoxProgress required');
+  const sites = race.track.itemBoxSites;
+  if (!Array.isArray(sites) || sites.length === 0) {
+    throw new Error('track.itemBoxSites required');
   }
-  for (const t of boxes) {
-    const pose = track.poseAt(t);
-    spawn(race, {
-      kind: 'box',
-      x: pose.x,
-      z: pose.z,
-      color: BOX_COLOR,
-      cooldown: 0,
-    });
-  }
+  expandBoxes(race, sites);
 }
 
 export function activateItem(race, kart) {
