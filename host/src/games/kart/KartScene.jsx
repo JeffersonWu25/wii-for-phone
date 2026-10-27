@@ -1,13 +1,14 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { FOV, PIVOT_Y, TRACK_HALF, placeCamera } from './camera.js';
-export { CAM_DIST, CAM_HEIGHT, LOOK_AHEAD, LOOK_Y, FOV } from './camera.js';
 import { syncEntities } from './entity-mesh.js';
 import { updateKartFx } from './kart-fx.js';
 import { makeRacer } from './kart-mesh.js';
 import { viewports } from './layout.js';
 import { driftView, effectView } from './race.js';
 import { attachCourse } from './track-view.js';
+
+export { CAM_DIST, CAM_HEIGHT, LOOK_AHEAD, LOOK_Y, FOV } from './camera.js';
 
 function placeRacer(mesh, kart, now) {
   const view = driftView(kart);

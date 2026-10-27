@@ -59,25 +59,25 @@ export function attachCourse(scene, visuals) {
   const grassMap = proceduralGroundTexture({
     width: 256,
     height: 256,
-    base: [52, 168, 62],
-    variance: 28,
-    speck: [90, 200, 70],
+    base: [42, 158, 52],
+    variance: 48,
+    speck: [110, 210, 70],
   });
   grassMap.wrapS = THREE.RepeatWrapping;
   grassMap.wrapT = THREE.RepeatWrapping;
-  grassMap.repeat.set(18, 18);
+  grassMap.repeat.set(22, 22);
   grassMap.colorSpace = THREE.SRGBColorSpace;
 
   const sandMap = proceduralGroundTexture({
     width: 256,
     height: 256,
-    base: [214, 186, 132],
-    variance: 22,
-    speck: [236, 210, 160],
+    base: [210, 176, 118],
+    variance: 36,
+    speck: [240, 214, 158],
   });
   sandMap.wrapS = THREE.RepeatWrapping;
   sandMap.wrapT = THREE.RepeatWrapping;
-  sandMap.repeat.set(10, 10);
+  sandMap.repeat.set(12, 12);
   sandMap.colorSpace = THREE.SRGBColorSpace;
 
   const materialFor = {
