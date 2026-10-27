@@ -1,6 +1,7 @@
 const BOX_COOLDOWN = 3;
 const BOX_RADIUS = 1.7;
 const HIT_RADIUS = 1.25;
+const ROULETTE_MS = 1200;
 
 // Five columns at 2.6 m still fit the narrowest Luigi asphalt after a 1.05 m inset.
 const ROW = Object.freeze({
@@ -54,6 +55,20 @@ const ITEMS = Object.freeze({
     weight: 25,
     label: 'Green Shell',
     color: '#3ddc4a',
+    kind: 'shell',
+    guide: 'straight',
+    projectileSpeed: 48,
+    life: 4,
+    dropDistance: 2.4,
+    arm: 0.2,
+    hit: 'spin',
+    use: useLaunch,
+  }),
+  red_shell: Object.freeze({
+    id: 'red_shell',
+    weight: 0,
+    label: 'Red Shell',
+    color: '#e23d2b',
     kind: 'shell',
     guide: 'straight',
     projectileSpeed: 48,
@@ -160,11 +175,14 @@ function spawn(race, fields) {
 
 function rollItem(rng) {
   let ticket = rng() * 100;
+  let fallback = null;
   for (const def of ITEM_LIST) {
+    if (!(def.weight > 0)) continue;
+    fallback = def.id;
     ticket -= def.weight;
     if (ticket < 0) return def.id;
   }
-  return ITEM_LIST[ITEM_LIST.length - 1].id;
+  return fallback;
 }
 
 function dist(a, b) {
@@ -228,7 +246,34 @@ function expandBoxes(race, sites) {
   });
 }
 
+function defineSlot(kart, slots, name, key) {
+  Object.defineProperty(kart, key, {
+    enumerable: true,
+    configurable: true,
+    get() {
+      return slots[name]?.id ?? null;
+    },
+    set() {
+      throw new TypeError('item slots are read-only');
+    },
+  });
+}
+
+function installSlots(kart) {
+  const slots = { primary: null, secondary: null };
+  kart.slots = slots;
+  defineSlot(kart, slots, 'primary', 'itemPrimary');
+  defineSlot(kart, slots, 'secondary', 'itemSecondary');
+}
+
+export function revealItem(kart, slot, id) {
+  if (slot !== 'primary' && slot !== 'secondary') throw new Error(`bad slot ${slot}`);
+  if (typeof id !== 'string' || id.length === 0) throw new Error('revealItem requires an item id');
+  kart.slots[slot] = { id, readyAt: 0 };
+}
+
 export function attachItems(race) {
+  for (const kart of race.karts) installSlots(kart);
   race.entities = [];
   race._nextEntityId = 1;
   race._touchPairs = new Set();
@@ -240,13 +285,39 @@ export function attachItems(race) {
 }
 
 export function activateItem(race, kart) {
-  const id = kart.itemPrimary;
-  kart.itemPrimary = null;
-  kart.itemSecondary = null;
+  const slot = kart.slots.primary;
+  if (!slot || slot.readyAt > race.timeMs) return;
+  const id = slot.id;
+  kart.slots.primary = kart.slots.secondary;
+  kart.slots.secondary = null;
   const def = ITEMS[id];
   if (!def) return;
   def.use(race, kart, def);
   kart.itemPresses += 1;
+}
+
+function face(slot, timeMs) {
+  if (!slot) return null;
+  return timeMs >= slot.readyAt ? 'held' : 'roll';
+}
+
+export function slotView(kart, timeMs) {
+  const primary = kart.slots.primary;
+  const secondary = kart.slots.secondary;
+  const primaryFace = face(primary, timeMs);
+  const secondaryFace = face(secondary, timeMs);
+  const shown = primaryFace === 'held' ? presentation(primary.id) : null;
+  const shownSecondary = secondaryFace === 'held' ? presentation(secondary.id) : null;
+  return {
+    itemPrimary: primary?.id ?? null,
+    itemSecondary: secondary?.id ?? null,
+    itemLabel: shown?.label ?? null,
+    itemColor: shown?.color ?? null,
+    secondaryColor: shownSecondary?.color ?? null,
+    primaryFace,
+    secondaryFace,
+    effect: effectView(kart),
+  };
 }
 
 export function presentation(itemId) {
@@ -323,18 +394,66 @@ export function stepItems(race, dt, kartRadius) {
   race.entities = race.entities.filter((entity) => entity.kind === 'box' || !retired.has(entity.id));
 }
 
+function columnRank(columnKey) {
+  const [site, column] = columnKey.split(':').map(Number);
+  return site * ROW.columns + column;
+}
+
+function openSlot(slots) {
+  if (slots.primary == null) return 'primary';
+  if (slots.secondary == null) return 'secondary';
+  return null;
+}
+
+function collideBoxes(race) {
+  const timeMs = race.timeMs;
+  const columns = new Map();
+  for (const entity of race.entities) {
+    if (entity.kind !== 'box' || entity.cooldown > 0) continue;
+    let boxes = columns.get(entity.columnKey);
+    if (!boxes) {
+      boxes = [];
+      columns.set(entity.columnKey, boxes);
+    }
+    boxes.push(entity);
+  }
+
+  const pairs = [];
+  for (const [columnKey, boxes] of columns) {
+    boxes.sort((a, b) => a.tier - b.tier);
+    const anchor = boxes[0];
+    race.karts.forEach((kart, kartIndex) => {
+      if (kart.finished || !openSlot(kart.slots)) return;
+      const gap = Math.hypot(kart.x - anchor.x, kart.z - anchor.z);
+      if (gap > BOX_RADIUS) return;
+      pairs.push({ gap, columnKey, boxes, kart, kartIndex });
+    });
+  }
+
+  pairs.sort((a, b) => (
+    a.gap - b.gap
+    || columnRank(a.columnKey) - columnRank(b.columnKey)
+    || a.kartIndex - b.kartIndex
+  ));
+
+  const kartTaken = new Set();
+  const columnTaken = new Set();
+  for (const pair of pairs) {
+    if (kartTaken.has(pair.kart.playerId) || columnTaken.has(pair.columnKey)) continue;
+    kartTaken.add(pair.kart.playerId);
+    columnTaken.add(pair.columnKey);
+    for (const box of pair.boxes) {
+      const name = openSlot(pair.kart.slots);
+      if (!name) break;
+      pair.kart.slots[name] = { id: rollItem(race.rng), readyAt: timeMs + ROULETTE_MS };
+      box.cooldown = BOX_COOLDOWN;
+    }
+  }
+}
+
 function collide(race, kartRadius, retired) {
   const live = race.karts.filter((kart) => !kart.finished);
-
-  for (const box of race.entities) {
-    if (box.kind !== 'box' || box.cooldown > 0) continue;
-    const open = live.filter((kart) => kart.itemPrimary == null);
-    const winner = nearestKart(open, box, BOX_RADIUS);
-    if (!winner) continue;
-    winner.itemPrimary = rollItem(race.rng);
-    winner.itemSecondary = null;
-    box.cooldown = BOX_COOLDOWN;
-  }
+  collideBoxes(race);
 
   for (const entity of race.entities) {
     if (retired.has(entity.id)) continue;

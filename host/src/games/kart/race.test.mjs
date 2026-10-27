@@ -20,6 +20,7 @@ import {
   snapshot,
   stepRace,
 } from './race.js';
+import { revealItem } from './items.js';
 
 function raceWith(players, now = 0) {
   return createRace(
@@ -93,7 +94,7 @@ function firstBox(race) {
 }
 
 function hold(race, kart, id) {
-  kart.itemPrimary = id;
+  revealItem(kart, 'primary', id);
   applyUseItem(race, { playerId: kart.playerId });
 }
 
@@ -347,7 +348,7 @@ test('use_item is ignored in countdown, for a finished kart, and for an unknown 
     { playerId: 'p1', name: 'A' },
     { playerId: 'p2', name: 'B' },
   ]);
-  race.karts[0].itemPrimary = 'mushroom';
+  revealItem(race.karts[0], 'primary', 'mushroom');
   applyUseItem(race, { playerId: 'p1' });
   assert.equal(race.karts[0].itemPresses, 0);
   assert.equal(race.karts[0].itemPrimary, 'mushroom');
@@ -364,7 +365,7 @@ test('use_item is ignored in countdown, for a finished kart, and for an unknown 
   assert.equal(race.karts[0].itemPresses, 0);
   assert.equal(race.karts[1].itemPresses, 0);
 
-  race.karts[1].itemPrimary = 'banana';
+  revealItem(race.karts[1], 'primary', 'banana');
   applyUseItem(race, { playerId: 'p2' });
   assert.equal(race.karts[1].itemPresses, 1);
   assert.equal(race.karts[1].itemPrimary, null);
@@ -373,7 +374,7 @@ test('use_item is ignored in countdown, for a finished kart, and for an unknown 
   assert.equal(race.karts[0].itemPrimary, 'mushroom');
 
   race.phase = 'finished';
-  race.karts[1].itemPrimary = 'star';
+  revealItem(race.karts[1], 'primary', 'star');
   applyUseItem(race, { playerId: 'p2' });
   assert.equal(race.karts[1].itemPresses, 1);
   assert.equal(race.karts[1].itemPrimary, 'star');
@@ -671,33 +672,98 @@ test('an empty kart collects the rng bucket and starts the box cooldown', () => 
     stepRace(race, 0.05, 50);
     assert.equal(kart.itemPrimary, ids[i]);
     assert.equal(kart.itemSecondary, null);
+    assert.equal(kart.slots.primary.readyAt, race.timeMs + 1200);
     assert.equal(box.cooldown, 3);
+    const rolling = snapshot(race).players[0];
+    assert.equal(rolling.itemPrimary, ids[i]);
+    assert.equal(rolling.itemSecondary, null);
+    assert.equal(rolling.primaryFace, 'roll');
+    assert.equal(rolling.itemLabel, null);
+    assert.equal(rolling.itemColor, null);
+    assert.equal(rolling.effect, null);
+    race.timeMs = kart.slots.primary.readyAt;
     const shot = snapshot(race).players[0];
+    assert.equal(shot.primaryFace, 'held');
     assert.equal(shot.itemLabel, labels[i]);
     assert.equal(shot.itemColor, colors[i]);
     assert.equal(shot.itemSecondary, null);
-    assert.equal(shot.effect, null);
   }
 });
 
-test('a full slot leaves the box live and a second press does not count', () => {
+test('a full inventory leaves the box live and a sealed reserve does not count', () => {
   const race = startRace([{ playerId: 'p1', name: 'A' }], () => 0);
   const box = firstBox(race);
   const kart = race.karts[0];
-  kart.itemPrimary = 'banana';
+  revealItem(kart, 'primary', 'banana');
+  revealItem(kart, 'secondary', 'star');
+  kart.slots.secondary.readyAt = 4000;
   park(kart, box.x, box.z);
   stepRace(race, 0.05, 50);
   assert.equal(kart.itemPrimary, 'banana');
+  assert.equal(kart.itemSecondary, 'star');
   assert.equal(box.cooldown, 0);
 
   const phase = kart.driftPhase;
   applyUseItem(race, { playerId: 'p1' });
   assert.equal(kart.itemPresses, 1);
-  assert.equal(kart.itemPrimary, null);
+  assert.equal(kart.itemPrimary, 'star');
   assert.equal(kart.itemSecondary, null);
+  assert.equal(kart.slots.primary.readyAt, 4000);
+  assert.equal(snapshot(race).players[0].primaryFace, 'roll');
   assert.equal(kart.driftPhase, phase);
   applyUseItem(race, { playerId: 'p1' });
   assert.equal(kart.itemPresses, 1);
+});
+
+test('a single column fills the open reserve slot', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }], () => 0);
+  const box = firstBox(race);
+  const kart = race.karts[0];
+  revealItem(kart, 'primary', 'banana');
+  kart.slots.primary.readyAt = 5000;
+  park(kart, box.x, box.z);
+  stepRace(race, 0.05, 50);
+  assert.equal(kart.itemPrimary, 'banana');
+  assert.equal(kart.slots.primary.readyAt, 5000);
+  assert.equal(kart.itemSecondary, 'mushroom');
+  assert.equal(box.cooldown, 3);
+});
+
+test('a double column fills both slots and leaves the neighbor live', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }], () => 0);
+  const siteIndex = luigi.itemBoxSites.findIndex((site) => site.stack === 2);
+  const column = race.entities.filter((entity) => entity.columnKey === `${siteIndex}:2`);
+  assert.deepEqual(column.map((box) => box.tier), [0, 1]);
+  const neighbor = race.entities.find((entity) => entity.columnKey === `${siteIndex}:1`);
+  const kart = race.karts[0];
+  park(kart, column[0].x, column[0].z);
+  stepRace(race, 0.05, 50);
+  assert.equal(kart.itemPrimary, 'mushroom');
+  assert.equal(kart.itemSecondary, 'mushroom');
+  assert.equal(kart.slots.primary.readyAt, race.timeMs + 1200);
+  assert.equal(kart.slots.secondary.readyAt, race.timeMs + 1200);
+  assert.ok(column.every((box) => box.cooldown === 3));
+  assert.equal(neighbor.cooldown, 0);
+  const shot = snapshot(race).players[0];
+  assert.equal(shot.itemSecondary, 'mushroom');
+  assert.equal(shot.primaryFace, 'roll');
+  assert.equal(shot.secondaryFace, 'roll');
+  assert.equal(shot.itemLabel, null);
+  assert.equal(shot.secondaryColor, null);
+});
+
+test('one open slot on a double column cools only the tier it takes', () => {
+  const race = startRace([{ playerId: 'p1', name: 'A' }], () => 0);
+  const siteIndex = luigi.itemBoxSites.findIndex((site) => site.stack === 2);
+  const column = race.entities.filter((entity) => entity.columnKey === `${siteIndex}:2`);
+  const kart = race.karts[0];
+  revealItem(kart, 'primary', 'banana');
+  park(kart, column[0].x, column[0].z);
+  stepRace(race, 0.05, 50);
+  assert.equal(kart.itemPrimary, 'banana');
+  assert.equal(kart.itemSecondary, 'mushroom');
+  assert.equal(column.find((box) => box.tier === 0).cooldown, 3);
+  assert.equal(column.find((box) => box.tier === 1).cooldown, 0);
 });
 
 test('the nearer empty kart takes the box', () => {
@@ -735,6 +801,10 @@ test('a mushroom raises the speed cap without touching drift and then expires', 
   park(kart, box.x, box.z);
   stepRace(race, 0.05, 50);
   assert.equal(kart.itemPrimary, 'mushroom');
+  applyUseItem(race, { playerId: 'p1' });
+  assert.equal(kart.itemPresses, 0);
+  assert.equal(kart.modifiers.speed, undefined);
+  race.timeMs = kart.slots.primary.readyAt;
   const phase = kart.driftPhase;
   applyUseItem(race, { playerId: 'p1' });
   assert.equal(kart.modifiers.speed, 1.5);
@@ -1015,17 +1085,27 @@ test('a star blocks spins, rams on a new touch, and then expires', () => {
   assert.ok(star.speed > 10, `speed ${star.speed}`);
 });
 
-test('an unknown item clears the slot and does not count', () => {
+test('a planted red shell launches and the snapshot keeps the reserve', () => {
   const race = startRace([{ playerId: 'p1', name: 'A' }]);
   const kart = race.karts[0];
-  kart.itemPrimary = 'red_shell';
+  parkOnTrack(kart, 0.05);
+  revealItem(kart, 'primary', 'red_shell');
+  revealItem(kart, 'secondary', 'star');
+  const shot = snapshot(race).players[0];
+  assert.equal(shot.itemPrimary, 'red_shell');
+  assert.equal(shot.itemSecondary, 'star');
+  assert.equal(shot.primaryFace, 'held');
+  assert.equal(shot.secondaryFace, 'held');
+  assert.equal(shot.itemLabel, 'Red Shell');
+  assert.equal(shot.itemColor, '#e23d2b');
+  assert.equal(shot.secondaryColor, '#ffe566');
   applyUseItem(race, { playerId: 'p1' });
-  assert.equal(kart.itemPrimary, null);
-  assert.equal(kart.itemPresses, 0);
-  assert.deepEqual(kart.modifiers, {});
-  assert.equal(race.entities.some((entity) => entity.kind !== 'box'), false);
-  kart.itemSecondary = 'star';
-  assert.equal(snapshot(race).players[0].itemSecondary, null);
+  const shell = race.entities.find((entity) => entity.kind === 'shell');
+  assert.equal(shell?.itemId, 'red_shell');
+  assert.equal(kart.itemPresses, 1);
+  assert.equal(kart.itemPrimary, 'star');
+  assert.equal(kart.slots.primary.readyAt, 0);
+  assert.equal(kart.itemSecondary, null);
 });
 
 test('straight up on the rim does not charge', () => {

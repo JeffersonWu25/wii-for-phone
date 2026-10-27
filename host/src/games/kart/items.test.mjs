@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { luigiCircuit as luigi } from './track.js';
 import { createRace, stepRace, applyUseItem } from './race.js';
-import { presentation } from './items.js';
+import { presentation, revealItem } from './items.js';
 
 test('item presentation stays data-driven from the registry', () => {
   assert.deepEqual(presentation('mushroom'), { label: 'Mushroom', color: '#e23b3b' });
@@ -18,7 +18,9 @@ test('a self-buff item activates from the kart slot without race.js knowing the 
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  kart.itemPrimary = 'mushroom';
+  assert.throws(() => { kart.itemPrimary = 'mushroom'; });
+  revealItem(kart, 'primary', 'mushroom');
+  assert.equal(kart.slots.primary.readyAt, 0);
   applyUseItem(race, { playerId: 'p' });
   assert.equal(kart.itemPrimary, null);
   assert.ok(kart.modifiers.speed > 0);
@@ -36,7 +38,7 @@ test('green shell guide moves the entity without race.js naming the guide', () =
   race.startedAt = 0;
   const kart = race.karts[0];
   parkOnAsphalt(kart);
-  kart.itemPrimary = 'green_shell';
+  revealItem(kart, 'primary', 'green_shell');
   const before = race.entities.length;
   applyUseItem(race, { playerId: 'p' });
   const shell = race.entities.find((entity) => entity.kind === 'shell');

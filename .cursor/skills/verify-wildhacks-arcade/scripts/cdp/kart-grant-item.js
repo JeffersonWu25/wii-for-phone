@@ -24,8 +24,8 @@ export const expression = `(() => {
           kart.facing = pose.heading;
           kart.modifiers = {};
           kart.speedMul = 1;
-          kart.itemPrimary = want;
-          kart.itemSecondary = null;
+          kart.slots.primary = { id: want, readyAt: 0 };
+          kart.slots.secondary = null;
           return { ok: true, itemPrimary: kart.itemPrimary, playerId: kart.playerId };
         }
       }

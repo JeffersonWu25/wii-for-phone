@@ -1,6 +1,6 @@
 import { characterById } from './characters.js';
 import { TRACKS } from './tracks.js';
-import { attachItems, activateItem, controlOf, effectView, presentation, stepItems } from './items.js';
+import { attachItems, activateItem, controlOf, effectView, slotView, stepItems } from './items.js';
 
 export { effectView };
 
@@ -285,8 +285,6 @@ export function createRace(players, now, track, rng = Math.random) {
       driftPhase: IDLE_PHASE,
       itemPresses: 0,
       coins: 0,
-      itemPrimary: null,
-      itemSecondary: null,
       modifiers: {},
       speedMul: 1,
     };
@@ -328,7 +326,7 @@ export function setTuning(race, partial) {
 export function applyUseItem(race, msg) {
   if (race.phase !== 'racing') return;
   const kart = race.karts.find((k) => k.playerId === msg.playerId);
-  if (!kart || kart.finished || !kart.itemPrimary) return;
+  if (!kart || kart.finished) return;
   activateItem(race, kart);
 }
 
@@ -513,11 +511,7 @@ function viewportOrderedPlayers(race) {
       placeText: placeLabel(place),
       lap: lapNumber(kart),
       coins: clamp(kart.coins | 0, 0, 10),
-      itemPrimary: kart.itemPrimary ?? null,
-      itemSecondary: null,
-      itemLabel: presentation(kart.itemPrimary)?.label ?? null,
-      itemColor: presentation(kart.itemPrimary)?.color ?? null,
-      effect: effectView(kart),
+      ...slotView(kart, race.timeMs),
       x: kart.x,
       z: kart.z,
       progress: kart.progress,
