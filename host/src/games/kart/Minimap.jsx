@@ -27,18 +27,8 @@ function ring(points, project) {
   }).join(' ') + ' Z';
 }
 
-function stripQuads(poly) {
-  const half = poly.length / 2;
-  const quads = [];
-  for (let i = 0; i < half - 1; i++) {
-    quads.push([
-      poly[i],
-      poly[i + 1],
-      poly[poly.length - 2 - i],
-      poly[poly.length - 1 - i],
-    ]);
-  }
-  return quads;
+function ringPath(outer, inner, project) {
+  return ring([...outer, ...[...inner].reverse()], project);
 }
 
 function courseMap(track) {
@@ -46,23 +36,31 @@ function courseMap(track) {
     throw new Error('Minimap requires a track with trackVisuals()');
   }
   const vis = track.trackVisuals();
+  const outline = vis.outline;
+  if (!outline?.outer || !outline?.inner) {
+    throw new Error('Minimap requires trackVisuals().outline');
+  }
   const pts = [];
-  for (const p of vis.edges.outer) pts.push([p.x, p.z]);
-  for (const p of vis.edges.inner) pts.push([p.x, p.z]);
-  for (const poly of vis.sand) {
+  for (const p of outline.outer) pts.push([p.x, p.z]);
+  for (const p of outline.inner) pts.push([p.x, p.z]);
+  for (const poly of outline.sand || []) {
     for (const p of poly) pts.push([p.x, p.z]);
   }
   const project = fit(pts);
-  const road = ring([...vis.edges.outer, ...[...vis.edges.inner].reverse()], project);
-  const sand = vis.sand.flatMap((poly) => stripQuads(poly).map((quad) => ring(quad, project)));
-  const dashes = vis.dashes.map((quad) => ring(quad, project));
-  const start = vis.startFinish;
+  const start = outline.stripe;
   const rx = Math.cos(start.heading);
   const rz = -Math.sin(start.heading);
   const a = project(start.x - rx * start.width / 2, start.z - rz * start.width / 2);
   const b = project(start.x + rx * start.width / 2, start.z + rz * start.width / 2);
   const stripe = `M${a[0].toFixed(2)} ${a[1].toFixed(2)} L${b[0].toFixed(2)} ${b[1].toFixed(2)}`;
-  return { road, sand, dashes, stripe, project };
+  return {
+    grassRadius: vis.grassRadius,
+    road: ringPath(outline.outer, outline.inner, project),
+    sand: (outline.sand || []).map((poly) => ring(poly, project)),
+    dashes: (outline.dashes || []).map((quad) => ring(quad, project)),
+    stripe,
+    project,
+  };
 }
 
 export default function Minimap({ players, track }) {
@@ -78,7 +76,7 @@ export default function Minimap({ players, track }) {
         {map.sand.map((d, i) => (
           <path key={`sand-${i}`} d={d} fill="rgba(210,180,130,0.72)" stroke="none" />
         ))}
-        <path d={map.road} fill="rgba(255,255,255,0.82)" stroke="rgba(255,255,255,0.95)" strokeWidth="0.6" />
+        <path d={map.road} fill="rgba(109,114,122,0.88)" stroke="rgba(244,244,244,0.95)" strokeWidth="0.6" />
         {map.dashes.map((d, i) => (
           <path key={`dash-${i}`} d={d} fill="rgba(242,122,18,0.95)" stroke="none" />
         ))}
