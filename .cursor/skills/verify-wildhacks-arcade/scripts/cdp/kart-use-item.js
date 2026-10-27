@@ -22,8 +22,16 @@ export const expression = `(() => {
     clientX,
     clientY,
   };
-  btn.dispatchEvent(new PointerEvent('pointerdown', common));
-  btn.dispatchEvent(new PointerEvent('pointerup', common));
+  // Synthetic pointer events are untrusted. setPointerCapture throws and would
+  // abort the listener before sendMsg({ type: 'use_item' }). Stub it for the press.
+  const capture = btn.setPointerCapture;
+  btn.setPointerCapture = () => {};
+  try {
+    btn.dispatchEvent(new PointerEvent('pointerdown', common));
+    btn.dispatchEvent(new PointerEvent('pointerup', common));
+  } finally {
+    btn.setPointerCapture = capture;
+  }
   return {
     before,
     after: {

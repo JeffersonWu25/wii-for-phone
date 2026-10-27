@@ -25,6 +25,13 @@ export const expression = `(() => {
         if (race && Array.isArray(race.karts) && race.phase === 'racing') {
           const kart = race.karts[0];
           if (!kart || kart.finished) return { error: 'no-live-kart' };
+          // Park on the racing line so launched shells stay on asphalt long enough to observe.
+          const pose = race.track.poseAt(kart.progress);
+          kart.x = pose.x;
+          kart.z = pose.z;
+          kart.facing = pose.heading;
+          kart.modifiers = {};
+          kart.speedMul = 1;
           kart.itemPrimary = want;
           kart.itemSecondary = null;
           return { ok: true, itemPrimary: kart.itemPrimary, playerId: kart.playerId };

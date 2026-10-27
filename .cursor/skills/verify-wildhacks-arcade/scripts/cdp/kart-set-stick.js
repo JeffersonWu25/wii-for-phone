@@ -33,10 +33,18 @@ export const expression = `(() => {
     clientX,
     clientY,
   };
-  if (!stick.hasPointerCapture?.(1)) {
-    stick.dispatchEvent(new PointerEvent('pointerdown', common));
+  // Synthetic pointer events are untrusted. Stub setPointerCapture so the
+  // stick listener can finish and update input before the 20hz drive stream.
+  const capture = stick.setPointerCapture;
+  stick.setPointerCapture = () => {};
+  try {
+    if (!stick.hasPointerCapture?.(1)) {
+      stick.dispatchEvent(new PointerEvent('pointerdown', common));
+    }
+    stick.dispatchEvent(new PointerEvent('pointermove', common));
+  } finally {
+    stick.setPointerCapture = capture;
   }
-  stick.dispatchEvent(new PointerEvent('pointermove', common));
   const lap = document.querySelector('#kart-lap')?.textContent ?? '';
   const item = document.querySelector('#kart-item')?.textContent ?? '';
   return { ok: true, steer, lap, item };

@@ -1,0 +1,37 @@
+{
+  "used": {
+    "before": {
+      "label": "Banana",
+      "armed": true
+    },
+    "after": {
+      "label": "Banana",
+      "armed": true,
+      "spinning": false,
+      "star": false
+    }
+  },
+  "after": {
+    "phase": "racing",
+    "countdown": 0,
+    "playerId": "500ee345",
+    "lap": 2,
+    "completedLaps": 1,
+    "progress": 0.08310698971841601,
+    "itemPrimary": null,
+    "effect": null,
+    "entities": [
+      "box",
+      "box",
+      "box",
+      "box",
+      "box",
+      "box",
+      "banana"
+    ],
+    "itemPresses": 2
+  },
+  "sawShell": false,
+  "sawBanana": true,
+  "beforePresses": 1
+}

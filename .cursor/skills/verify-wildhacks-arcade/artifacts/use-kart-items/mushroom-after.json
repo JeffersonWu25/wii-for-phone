@@ -1,0 +1,36 @@
+{
+  "used": {
+    "before": {
+      "label": "Mushroom",
+      "armed": true
+    },
+    "after": {
+      "label": "Mushroom",
+      "armed": true,
+      "spinning": false,
+      "star": false
+    }
+  },
+  "after": {
+    "phase": "racing",
+    "countdown": 0,
+    "playerId": "500ee345",
+    "lap": 2,
+    "completedLaps": 1,
+    "progress": 0.9369754038065881,
+    "itemPrimary": null,
+    "effect": "boost",
+    "entities": [
+      "box",
+      "box",
+      "box",
+      "box",
+      "box",
+      "box"
+    ],
+    "itemPresses": 1
+  },
+  "sawShell": false,
+  "sawBanana": false,
+  "beforePresses": 0
+}

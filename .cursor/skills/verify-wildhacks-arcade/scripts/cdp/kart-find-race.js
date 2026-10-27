@@ -32,6 +32,7 @@ export const expression = `(() => {
                 : null)
               : null,
             entities: (race.entities || []).map((e) => e.kind),
+            itemPresses: kart?.itemPresses ?? 0,
           };
         }
       }
