@@ -1,15 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import {
-  CAM_DIST,
-  CAM_HEIGHT,
-  FOV,
-  LOOK_AHEAD,
-  LOOK_Y,
-  PIVOT_Y,
-  TRACK_HALF,
-  placeCamera,
-} from './camera.js';
+import { FOV, PIVOT_Y, TRACK_HALF, placeCamera } from './camera.js';
+export { CAM_DIST, CAM_HEIGHT, LOOK_AHEAD, LOOK_Y, FOV } from './camera.js';
 import { syncEntities } from './entity-mesh.js';
 import { updateKartFx } from './kart-fx.js';
 import { makeRacer } from './kart-mesh.js';
@@ -160,6 +152,3 @@ export default function KartScene({ raceRef, track }) {
 
   return <div className="kart-canvas" ref={wrapRef} />;
 }
-
-// Re-export camera knobs for tests / SPEC readers.
-export { CAM_DIST, CAM_HEIGHT, LOOK_AHEAD, LOOK_Y, FOV };
