@@ -6,14 +6,11 @@ const BURST_MS = 400;
 const FLASH_EFFECTS = new Set(['boost', 'star']);
 const MAP_KEYS = ['map', 'alphaMap', 'aoMap', 'emissiveMap', 'lightMap', 'normalMap', 'specularMap'];
 
-// MeshBasic keeps the question-mark texture and the translucent cyan readable.
-// The scene has no environment map, and Lambert would shade the unlit glass.
 const VISUAL = Object.freeze({
   box: Object.freeze({
     url: '/kart-items/item_box.glb',
     shading: 'basic',
     lift: 1.15,
-    // The GLB cube is 1.19 m. 1.35 m between centers leaves a gap, and a shared bob keeps it.
     stackStep: 1.35,
     bob: 0.08,
     bobMs: 900,
@@ -31,7 +28,6 @@ const VISUAL = Object.freeze({
     shading: 'lambert',
     scale: 0.65,
     heldOffset: Object.freeze({ x: 0, y: 0.5, z: -1.3 }),
-    // The peel is authored upright. This lays it on the road before restY is measured.
     restRx: -Math.PI / 2,
   }),
   green_shell: Object.freeze({
@@ -138,7 +134,6 @@ function templateFromGltf(scene) {
 }
 
 function ensureNormals(root) {
-  // These GLBs store positions only. Lambert stays black until the faces have normals.
   root.traverse((obj) => {
     if (!obj.isMesh || !obj.geometry) return;
     if (!obj.geometry.getAttribute('normal')) obj.geometry.computeVertexNormals();
@@ -153,7 +148,6 @@ function prepareTemplate(scene, spec) {
   if (spec.restRx) root.rotation.x = spec.restRx;
   root.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(root);
-  // Measured after scale and the banana lay-down, so the lowest vertex sits on the road.
   root.userData.restY = bounds.isEmpty() ? 0 : -bounds.min.y;
   return root;
 }
@@ -220,7 +214,6 @@ function poseWorld(rig, entity, spec, now) {
   const visual = rig.userData.visual;
   if (spec.faceVelocity) {
     rig.rotation.set(0, Math.atan2(entity.vx || 0, entity.vz || 0), 0);
-    // Spin about local up so the dome stays above the road while yaw follows velocity.
     if (visual && spec.spinMs) visual.rotation.y = now / spec.spinMs;
   } else {
     rig.rotation.set(0, 0, 0);
@@ -413,7 +406,6 @@ export function createItemView() {
       }
       entry = held.get(playerId);
       if (entry && parent) {
-        // The outer kart group yaws. The body child rolls, so a prop on the body would swing.
         if (entry.rig.parent !== parent) parent.add(entry.rig);
         const offset = VISUAL[entry.id].heldOffset;
         entry.rig.position.set(offset.x, offset.y, offset.z);
@@ -422,12 +414,10 @@ export function createItemView() {
 
       const effect = effectView(kart);
       const prev = effects.get(playerId) ?? null;
-      // effectView stays null during a drift mini-turbo, so the flash does not follow the exhaust glow.
       if (effect && effect !== prev) {
         const flashSpec = FLASH_BY_EFFECT.get(effect);
         const url = flashSpec?.spec.url;
         const ready = !flashSpec || templates.has(flashSpec.key) || failures.has(url);
-        // A load still in flight must not eat the edge. The next sync can still see it rise.
         if (ready && parent) {
           if (flashSpec) {
             const current = flashes.get(playerId);

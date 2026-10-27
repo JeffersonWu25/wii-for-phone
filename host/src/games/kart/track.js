@@ -103,7 +103,6 @@ function resolveSites(plan, opts) {
     const stack = spec?.stack;
     if (!Number.isFinite(progress)) throw new Error('item box progress must be finite');
     if (stack !== 1 && stack !== 2) throw new Error('item box stack must be 1 or 2');
-    // Already inside [0, 1) stays bit-exact. wrap01's modulo nudges marks like 0.08.
     const unit = progress >= 0 && progress < 1 ? progress : wrap01(progress);
     return { progress: unit, stack };
   });

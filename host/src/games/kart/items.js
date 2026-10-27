@@ -3,7 +3,6 @@ const BOX_RADIUS = 1.7;
 const HIT_RADIUS = 1.25;
 const ROULETTE_MS = 1200;
 
-// Five columns at 2.6 m still fit the narrowest Luigi asphalt after a 1.05 m inset.
 const ROW = Object.freeze({
   columns: 5,
   maxSpacing: 2.6,
@@ -391,7 +390,6 @@ export function stepItems(race, dt, kartRadius) {
     const track = race.track;
     const sample = track.sampleTrack(entity.x, entity.z);
     if (Math.abs(sample.lateral) > track.HALF) retired.add(entity.id);
-    // The shell keeps moving, so the height the view reads has to follow the road.
     entity.roadY = track.poseAt(sample.progress).visualOuterY || 0;
   }
 
