@@ -41,6 +41,8 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Join the lobby](./join-lobby.md) covers the host lobby, phone name entry, the player appearing on the TV, empty names, and duplicate names.
 - [Select a game](./select-game.md) covers opening the hub, starting bowling, listing Mario Kart as built, and unfinished games as disabled Coming Soon cards.
 - [Start Mario Kart](./select-kart.md) covers starting Mario Kart from the grid and the host/phone race controls.
+- [Complete one Mario Kart lap](./complete-lap.md) covers Start Race through closed-loop stick drive until lap 2 of 3.
+- [Use every Mario Kart item](./use-kart-items.md) covers granting and firing Mushroom, Banana, Green Shell, and Star from the phone.
 - [Bowl on your turn](./bowling-turn.md) covers the bowl controls, lane aim, and a short hold.
 - [Simulate a bowl](./simulate-bowl.md) covers releasing a real throw from the desktop harness and the score that lands after the ball settles.
 - [Play two rounds](./play-two-rounds.md) covers two players each finishing frame 1 and frame 2.

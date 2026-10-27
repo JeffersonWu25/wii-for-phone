@@ -27,16 +27,16 @@ Preconditions:
 
 - **Throw the current roll.** Find the phone tab whose snapshot contains the button `BOWL`. Run the polling `Runtime.evaluate` release from [Simulate a bowl](./simulate-bowl.md) on that tab only. Wait for its returned `heading`. Do not start the next throw until that heading has arrived.
 - **Record the result.** Snapshot that phone until the heading is `STRIKE!`, `SPARE!`, or ends with `knocked down`. Then read the host scoreboard with the expression in [Simulate a bowl](./simulate-bowl.md). A frame is complete when its roll cells include `X`, or when two cells are non-empty (digits and/or `/`).
-- **Follow the turn.** After the result, wait until a phone shows `BOWL` again. A strike or a second roll moves `BOWL` to the other phone. A first roll that is not a strike returns `BOWL` to the same phone after about 1500ms. Repeat the throw on whichever phone shows `BOWL`.
+- **Follow the turn.** After the result, click `#screen-result` on the phone that showed the heading, then wait until a phone shows `BOWL`. A strike or a second roll moves `BOWL` to the other phone. A first roll that is not a strike queues `your_turn` back to the same phone after about 1500ms, and that phone shows `BOWL` after the result click. Repeat the throw on whichever phone shows `BOWL`.
 - **Stop at two rounds.** Stop when both `Verify Player` and `Second Player` have two complete frames. That is at most 8 throws. Do not start frame 3's proof; if `BOWL` appears for frame 3 after the second frames are already complete, leave it and capture the scoreboard as it is.
 - **Proof.** Save `artifacts/play-two-rounds/scoreboard.json` from the host expression after the last completing throw. Save `artifacts/play-two-rounds/scoreboard.aria.txt`, `scoreboard.png`, and one phone result snapshot pair (`result.aria.txt`, `result.png`) from the throw that completed the second frame for the second player. Both names appear on the host. Each player's first two frames are complete. The relay has no throw lines; the scoreboard is the side effect.
 
 ## Gotchas
 
 - One player cannot complete two rounds of a two-player game. Join `Second Player` before the host chooses `Bowling`. A player who joins after the game starts is not in the scoreboard.
-- Do not assert an exact score. Power is `0.5` with no swing, so pin counts vary. Assert that each of the four frames is complete.
-- Each roll in this harness took about 5 seconds to settle. The next `BOWL` appears about 1500ms after the result heading. Throwing again before the heading arrives stacks a throw the host ignores.
+- Do not assert an exact score. The simulate-bowl release is a light swing, so pin counts vary. Assert that each of the four frames is complete.
+- Each roll in this harness took about 5 seconds to settle. The host queues the next turn about 1500ms after settle. Click `#screen-result` before looking for `BOWL` on that phone. Throwing again before the heading arrives is dropped while a throw is in flight.
 - Throw only on the phone that currently shows `BOWL`. A throw from the waiting phone is ignored by the host.
-- The waiting phone's heading is `Bowling` with a line that includes `Waiting for your turn...` (sometimes `Game started! Waiting for your turn...`). After that player bowls, their screen stays on the result until their next turn. Do not look for `BOWL` on a phone that is showing a result.
+- The waiting phone's heading is `Bowling` with a line that includes `Waiting for your turn...` (a brief `Game started!` prefix is replaced when the first `your_turn` arrives). After that player bowls, their screen stays on the result until a click on `#screen-result`. Do not look for `BOWL` on a phone that is showing a result.
 - Stop at 8 throws even if a frame looks incomplete, and report the scoreboard JSON. More than 8 throws means a roll was not recorded.
 - `← Games` abandons the scoreboard. Do not press it during this recipe.
