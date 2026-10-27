@@ -4,6 +4,93 @@ import { loftCourse } from './track-loft.js';
 export const PROGRESS_CONTINUITY = 0.10;
 
 const MAX_STEP_M = 6;
+const SHOULDER_MIN_M = 8;
+const SHOULDER_SLOPE = Math.tan((18 * Math.PI) / 180);
+
+function readHeight(wp, key) {
+  if (!Object.hasOwn(wp, key)) return 0;
+  if (!Number.isFinite(wp[key])) throw new Error(`${wp.id}: ${key} must be finite`);
+  return wp[key];
+}
+
+// A tall bank widens the berm so the face stays at or under 18° instead of turning into a wall.
+function shoulderWidth(bankOuterY) {
+  return Math.max(SHOULDER_MIN_M, Math.abs(2 * bankOuterY) / SHOULDER_SLOPE);
+}
+
+function shoulderWidthSlope(bankOuterY) {
+  if (Math.abs(2 * bankOuterY) / SHOULDER_SLOPE <= SHOULDER_MIN_M || bankOuterY === 0) return 0;
+  return (2 * Math.sign(bankOuterY)) / SHOULDER_SLOPE;
+}
+
+function crossfall(lateral, half, bankOuterY) {
+  if (lateral <= -half) return -bankOuterY;
+  if (lateral <= half) return (bankOuterY * lateral) / half;
+  const width = shoulderWidth(bankOuterY);
+  if (lateral >= half + width) return -bankOuterY;
+  const t = (lateral - half) / width;
+  return bankOuterY * (1 - 2 * t);
+}
+
+function surfaceY(frame, lateral) {
+  return frame.centerY + crossfall(lateral, frame.half, frame.bankOuterY);
+}
+
+function surfaceNormal(frame, region, lateral) {
+  let dyLat = 0;
+  let dyS = frame.dCenter - frame.dBank;
+  if (region === 'asphalt') {
+    const { half, bankOuterY, dBank, dHalf } = frame;
+    dyLat = bankOuterY / half;
+    dyS = frame.dCenter + (lateral * (dBank * half - bankOuterY * dHalf)) / (half * half);
+  } else if (region === 'shoulder') {
+    const grade = shoulderGrade(frame, lateral);
+    dyLat = grade.dyLat;
+    dyS = frame.dCenter + grade.dyS;
+  }
+  return unitNormal(frame, dyS, dyLat);
+}
+
+function shoulderGrade(frame, lateral) {
+  const bank = frame.bankOuterY;
+  const width = shoulderWidth(bank);
+  const fromLip = lateral - frame.half;
+  const dWidth = shoulderWidthSlope(bank) * frame.dBank;
+  const num = bank * fromLip;
+  const dNum = frame.dBank * fromLip - bank * frame.dHalf;
+  const dQuot = (dNum * width - num * dWidth) / (width * width);
+  return {
+    dyLat: (-2 * bank) / width,
+    dyS: frame.dBank - 2 * dQuot,
+  };
+}
+
+function unitNormal(frame, dyS, dyLat) {
+  const cx = dyS * frame.nz - frame.tz * dyLat;
+  const cy = frame.tz * frame.nx - frame.tx * frame.nz;
+  const cz = frame.tx * dyLat - dyS * frame.nx;
+  const len = Math.hypot(cx, cy, cz);
+  if (!(len > 1e-8)) return { x: 0, y: 1, z: 0 };
+  return { x: cx / len, y: cy / len, z: cz / len };
+}
+
+function roadPoint(frame, lateral) {
+  const width = shoulderWidth(frame.bankOuterY);
+  let region = 'asphalt';
+  if (lateral < -frame.half || lateral >= frame.half + width) region = 'shelf';
+  else if (lateral > frame.half) region = 'shoulder';
+  return {
+    y: surfaceY(frame, lateral),
+    normal: surfaceNormal(frame, region, lateral),
+  };
+}
+
+function shelfPoint(frame) {
+  return {
+    y: surfaceY(frame, -frame.half),
+    normal: surfaceNormal(frame, 'shelf', -frame.half),
+  };
+}
 
 export function createTrack(plan, opts = {}) {
   const course = compile(plan, opts);
@@ -90,6 +177,9 @@ function compile(plan, opts = {}) {
     if (!(length > 0.5) || !(a.halfWidth > 0)) {
       throw new Error(`bad edge ${a.id}`);
     }
+    if ('visualOuterY' in a) {
+      throw new Error(`${a.id}: visualOuterY was replaced by centerY and bankOuterY`);
+    }
     const tx = dx / length;
     const tz = dz / length;
     edges.push({
@@ -107,8 +197,10 @@ function compile(plan, opts = {}) {
       nz: -tx,
       half0: a.halfWidth,
       half1: b.halfWidth,
-      y0: a.visualOuterY || 0,
-      y1: b.visualOuterY || 0,
+      center0: readHeight(a, 'centerY'),
+      center1: readHeight(b, 'centerY'),
+      bank0: readHeight(a, 'bankOuterY'),
+      bank1: readHeight(b, 'bankOuterY'),
     });
     cursor += length;
   }
@@ -125,7 +217,11 @@ function compile(plan, opts = {}) {
       tx: edge.tx,
       tz: edge.tz,
       half,
-      visualOuterY: edge.y0 + (edge.y1 - edge.y0) * uu,
+      centerY: edge.center0 + (edge.center1 - edge.center0) * uu,
+      bankOuterY: edge.bank0 + (edge.bank1 - edge.bank0) * uu,
+      dCenter: (edge.center1 - edge.center0) / edge.length,
+      dBank: (edge.bank1 - edge.bank0) / edge.length,
+      dHalf: (edge.half1 - edge.half0) / edge.length,
       s: edge.s0 + edge.length * uu,
       progress: wrap01((edge.s0 + edge.length * uu) / perim),
       heading: Math.atan2(edge.tx, edge.tz),
@@ -256,43 +352,58 @@ function compile(plan, opts = {}) {
     corridors,
     worldRadius,
     poseAtSLocal,
+    frameOnEdge,
     visuals,
   };
 }
 
 function locate(course, x, z, seed) {
+  const windowed = seed == null ? null : nearestEdge(course, x, z, seed);
+  // The shortcut polygon overlaps the inner asphalt. That strip stays on the road.
+  if (windowed && Math.abs(windowed.lateral) <= windowed.half + 1e-4) {
+    return describePoint(course, windowed, x, z, 'asphalt');
+  }
   if (seed != null) {
     const cut = locateCorridor(course, x, z, seed);
     if (cut) return cut;
   }
+  const proj = windowed ?? nearestEdge(course, x, z, null);
+  return describePoint(course, proj, x, z, surfaceAt(course, proj));
+}
+
+function nearestEdge(course, x, z, seed) {
   let best = null;
   for (const edge of course.edges) {
     const proj = projectEdge(course, edge, x, z);
     if (seed != null && circDist(proj.progress, seed) > PROGRESS_CONTINUITY) continue;
     if (!best || proj.dist2 < best.dist2) best = proj;
   }
-  if (!best) {
-    for (const edge of course.edges) {
-      const proj = projectEdge(course, edge, x, z);
-      if (!best || proj.dist2 < best.dist2) best = proj;
-    }
-  }
-  const depth = sandDepthAt(course, best.progress);
-  let surface = 'grass';
-  if (Math.abs(best.lateral) <= best.half + 1e-4) surface = 'asphalt';
-  else if (best.lateral < 0 && -best.lateral <= best.half + depth) surface = 'sand';
+  return best;
+}
+
+function surfaceAt(course, proj) {
+  const depth = sandDepthAt(course, proj.progress);
+  if (Math.abs(proj.lateral) <= proj.half + 1e-4) return 'asphalt';
+  if (proj.lateral < 0 && -proj.lateral <= proj.half + depth) return 'sand';
+  return 'grass';
+}
+
+function describePoint(course, proj, x, z, surface) {
+  const contact = roadPoint(proj.frame, proj.lateral);
   return {
-    cx: best.cx,
-    cz: best.cz,
-    tx: best.tx,
-    tz: best.tz,
-    lateral: best.lateral,
-    progress: best.progress,
-    dirX: best.dirX,
-    dirZ: best.dirZ,
-    halfWidth: best.half,
+    cx: proj.cx,
+    cz: proj.cz,
+    tx: proj.tx,
+    tz: proj.tz,
+    lateral: proj.lateral,
+    progress: proj.progress,
+    dirX: proj.dirX,
+    dirZ: proj.dirZ,
+    halfWidth: proj.half,
     surface,
     onDash: pointInDash(course, x, z),
+    y: contact.y,
+    normal: contact.normal,
   };
 }
 
@@ -308,24 +419,27 @@ function locateCorridor(course, x, z, seed) {
   const span = forwardSpan(best.corridor.s0, best.corridor.s1);
   const u = best.corridor.length <= 1e-6 ? 0 : best.proj.s / best.corridor.length;
   const progress = wrap01(best.corridor.s0 + clamp(u, 0, 1) * span);
-  const pose = poseOn(course, progress);
-  const lx = x - pose.x;
-  const lz = z - pose.z;
+  const frame = course.poseAtSLocal(progress * course.perim);
+  const lx = x - frame.x;
+  const lz = z - frame.z;
+  const roadLat = lx * frame.nx + lz * frame.nz;
+  if (roadLat >= -frame.half) return null;
   const ld = Math.hypot(lx, lz);
-  const nx = Math.cos(pose.heading);
-  const nz = -Math.sin(pose.heading);
+  const shelf = shelfPoint(frame);
   return {
-    cx: pose.x,
-    cz: pose.z,
-    tx: Math.sin(pose.heading),
-    tz: Math.cos(pose.heading),
-    lateral: lx * nx + lz * nz,
+    cx: frame.x,
+    cz: frame.z,
+    tx: frame.tx,
+    tz: frame.tz,
+    lateral: roadLat,
     progress,
     dirX: ld < 1e-6 ? 0 : lx / ld,
     dirZ: ld < 1e-6 ? 0 : lz / ld,
-    halfWidth: pose.halfWidth,
+    halfWidth: frame.half,
     surface: 'sand',
     onDash: pointInDash(course, x, z),
+    y: shelf.y,
+    normal: shelf.normal,
   };
 }
 
@@ -340,7 +454,7 @@ function projectEdge(course, edge, x, z) {
   const lz = z - cz;
   const lateral = lx * edge.nx + lz * edge.nz;
   const progress = wrap01((edge.s0 + edge.length * u) / course.perim);
-  const half = edge.half0 + (edge.half1 - edge.half0) * u;
+  const frame = course.frameOnEdge(edge, u);
   const ld = Math.hypot(lx, lz);
   return {
     cx,
@@ -349,7 +463,8 @@ function projectEdge(course, edge, x, z) {
     tz: edge.tz,
     lateral,
     progress,
-    half,
+    half: frame.half,
+    frame,
     dist2: lx * lx + lz * lz,
     dirX: ld < 1e-6 ? 0 : lx / ld,
     dirZ: ld < 1e-6 ? 0 : lz / ld,
@@ -388,9 +503,9 @@ function poseOn(course, t) {
   return {
     x: hit.x,
     z: hit.z,
+    y: hit.centerY,
     heading: hit.heading,
     halfWidth: hit.half,
-    visualOuterY: hit.visualOuterY,
   };
 }
 
@@ -501,7 +616,7 @@ function clamp(v, min, max) {
 
 export const luigiCircuit = createTrack(LUIGI_PLAN, {
   id: 'luigi-circuit',
-  perimRange: [190, 245],
+  perimRange: LUIGI_PLAN.perimRange,
   requireStartGrid: true,
 });
 

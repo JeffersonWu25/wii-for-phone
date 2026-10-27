@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HALF, PERIM, createTrack, itemBoxProgress, poseAt } from './track.js';
 import * as luigiNs from './track.js';
+import { LUIGI_PLAN } from './tracks/luigi-circuit-plan.js';
 import { applyDrive, createRace, stepRace } from './race.js';
 
 /** Minimal second track that only satisfies the race/items/scene contract. */
@@ -18,7 +19,7 @@ function ovalTrack() {
         z: Math.cos(a) * radius,
         heading: a + Math.PI / 2,
         halfWidth: half,
-        visualOuterY: 0,
+        y: 0,
       };
     },
     sampleTrack(x, z) {
@@ -36,6 +37,8 @@ function ovalTrack() {
         cz: Math.cos(Math.atan2(x, z)) * radius,
         halfWidth: half,
         onDash: false,
+        y: 0,
+        normal: { x: 0, y: 1, z: 0 },
       };
     },
     trackVisuals() {
@@ -80,6 +83,12 @@ test('createRace accepts a non-Luigi track and steps without throwing', () => {
     track,
   );
   assert.equal(race.track, track);
+  const home = track.poseAt(0);
+  assert.equal(home.y, 0);
+  assert.equal('visualOuterY' in home, false);
+  const contact = track.sampleTrack(home.x, home.z);
+  assert.equal(contact.y, 0);
+  assert.deepEqual(contact.normal, { x: 0, y: 1, z: 0 });
   assert.equal(race.entities.filter((e) => e.kind === 'box').length, 2);
   race.phase = 'racing';
   race.startedAt = 0;
@@ -135,7 +144,7 @@ test('createTrack compiles a short rectangle and a race can step it', () => {
   assert.equal(luigiNs.luigiCircuit.poseAt, poseAt);
 
   assert.throws(
-    () => createTrack(rectanglePlan(), { perimRange: [190, 245] }),
+    () => createTrack(rectanglePlan(), { perimRange: LUIGI_PLAN.perimRange }),
     /PERIM 160/,
   );
   assert.throws(
@@ -164,4 +173,42 @@ test('createTrack compiles a short rectangle and a race can step it', () => {
   assert.ok(Number.isFinite(race.karts[0].x));
   assert.ok(Number.isFinite(race.karts[0].speed));
   assert.equal(typeof track.trackVisuals().grassRadius, 'number');
+});
+
+test('compile rejects visualOuterY and a non-finite bank', () => {
+  const legacy = rectanglePlan();
+  legacy.waypoints[0] = { ...legacy.waypoints[0], visualOuterY: 0.9 };
+  assert.throws(
+    () => createTrack(legacy),
+    /a: visualOuterY was replaced by centerY and bankOuterY/,
+  );
+  const bad = rectanglePlan();
+  bad.waypoints[1] = { ...bad.waypoints[1], bankOuterY: Number.NaN };
+  assert.throws(() => createTrack(bad), /b: bankOuterY must be finite/);
+});
+
+test('a steep bank shoulders wider than 8 m and still meets the inner lip', () => {
+  const bank = 3;
+  const half = 5;
+  const plan = rectanglePlan();
+  plan.waypoints = [
+    { id: 'a', seg: 'start', x: 0, z: -80, halfWidth: half, centerY: bank, bankOuterY: bank },
+    { id: 'b', seg: 'loop', x: 0, z: 80, halfWidth: half, centerY: bank, bankOuterY: bank },
+    { id: 'c', seg: 'loop', x: 200, z: 80, halfWidth: half },
+    { id: 'd', seg: 'loop', x: 200, z: -80, halfWidth: half },
+  ];
+  const track = createTrack(plan, { id: 'steep' });
+  const pose = track.poseAt(80 / track.PERIM);
+  assert.ok(Math.abs(pose.x) < 1e-6 && Math.abs(pose.z) < 1e-6, `pose ${pose.x},${pose.z}`);
+  const rightX = Math.cos(pose.heading);
+  const rightZ = -Math.sin(pose.heading);
+  const at = (lateral) => track.sampleTrack(pose.x + rightX * lateral, pose.z + rightZ * lateral);
+  const lip = at(-half);
+  const near = at(half + 8);
+  const far = at(half + 30);
+  assert.equal(lip.surface, 'asphalt');
+  assert.ok(Math.abs(lip.y - 0) < 1e-6, `inner lip ${lip.y}`);
+  assert.ok(near.y > 1, `8 m past the lip is still on the berm (${near.y})`);
+  assert.ok(Math.abs(far.y - lip.y) < 1e-3, `past the berm ${far.y}`);
+  assert.ok(near.y > far.y + 1);
 });
