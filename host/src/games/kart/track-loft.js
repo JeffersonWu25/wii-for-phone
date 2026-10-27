@@ -81,6 +81,11 @@ function copyNormal(point, source) {
   point.nz = source.nz;
 }
 
+function quadXzArea(points) {
+  const cross = (a, b, c) => (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+  return (Math.abs(cross(points[0], points[1], points[2])) + Math.abs(cross(points[0], points[2], points[3]))) / 2;
+}
+
 function facingNormal(points) {
   let x = 0;
   let y = 0;
@@ -136,15 +141,26 @@ function triangulate(stations, rings, meadow, corridors) {
     };
   }
 
-  function pushTriFacing(ia, ib, ic, nx, ny, nz) {
+  function xzSpan(ia, ib, ic) {
+    const ax = positions[ia * 3];
+    const az = positions[ia * 3 + 2];
+    const bx = positions[ib * 3];
+    const bz = positions[ib * 3 + 2];
+    const cx = positions[ic * 3];
+    const cz = positions[ic * 3 + 2];
+    return Math.abs((bx - ax) * (cz - az) - (bz - az) * (cx - ax)) / 2;
+  }
+
+  function pushTriFacing(ia, ib, ic, nx, ny, nz, minXz = 0) {
+    if (minXz > 0 && xzSpan(ia, ib, ic) < minXz) return;
     const cross = triCross(ia, ib, ic);
     if (cross.x * nx + cross.y * ny + cross.z * nz >= 0) indices.push(ia, ib, ic);
     else indices.push(ia, ic, ib);
   }
 
-  function pushQuadFacing(i0, i1, i2, i3, nx, ny, nz) {
-    pushTriFacing(i0, i1, i2, nx, ny, nz);
-    pushTriFacing(i0, i2, i3, nx, ny, nz);
+  function pushQuadFacing(i0, i1, i2, i3, nx, ny, nz, minXz = 0) {
+    pushTriFacing(i0, i1, i2, nx, ny, nz, minXz);
+    pushTriFacing(i0, i2, i3, nx, ny, nz, minXz);
   }
 
   const n = stations.length;
@@ -171,7 +187,12 @@ function triangulate(stations, rings, meadow, corridors) {
       stations[j].progress,
     );
   }
-  for (const quad of meadow) addQuad(quad, 0, 1);
+  for (const quad of meadow) {
+    // A folded infield ring makes a hairline quad. Once the shelf has a hill,
+    // that sliver's face is a wall and no longer matches the shelf normal.
+    if (quadXzArea(quad) < 0.25) continue;
+    addQuad(quad, 0, 1);
+  }
   pushGroup('grass', grassStart, indices.length - grassStart);
 
   const sandStart = indices.length;
@@ -208,7 +229,9 @@ function triangulate(stations, rings, meadow, corridors) {
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     const [nx, ny, nz] = facingNormal([rings.inner[i], rings.outer[i], rings.outer[j], rings.inner[j]]);
-    pushQuadFacing(asphaltInner[i], asphaltOuter[i], asphaltOuter[j], asphaltInner[j], nx, ny, nz);
+    // Collapse can park a corner vertex on its neighbor. A hill then turns that
+    // plan-view sliver into a wall, so the quad is dropped instead of shaded.
+    pushQuadFacing(asphaltInner[i], asphaltOuter[i], asphaltOuter[j], asphaltInner[j], nx, ny, nz, 0.05);
   }
   pushGroup('asphalt', asphaltStart, indices.length - asphaltStart);
 
@@ -258,7 +281,9 @@ function emitCurb(roadRing, nxArr, nzArr, side, stations, addVertex, pushQuadFac
     const c1 = addVertex(b.x, y1b, b.z, 0, 1, 0, u1, 0.5);
     const c2 = addVertex(bx, y1b, bz, 0, 1, 0, u1, 1);
     const c3 = addVertex(ax, y1a, az, 0, 1, 0, u0, 1);
-    pushQuadFacing(c0, c1, c2, c3, 0, 1, 0);
+    // A collapsed rail parks two curb corners on one plan point. The cap is then
+    // a wall, and a flat top normal no longer matches the face.
+    pushQuadFacing(c0, c1, c2, c3, 0, 1, 0, 0.01);
   }
 }
 
@@ -632,6 +657,8 @@ export function assertSimple(ring, label = 'ring') {
 function segmentsCross(a, b, c, d) {
   const ab = side(a, b, c) * side(a, b, d);
   const cd = side(c, d, a) * side(c, d, b);
+  // A collapsed tail lies on its chord. The orientation product there is ~1e-30, not a crossing.
+  if (Math.abs(ab) < 1e-12 || Math.abs(cd) < 1e-12) return false;
   return ab < 0 && cd < 0;
 }
 

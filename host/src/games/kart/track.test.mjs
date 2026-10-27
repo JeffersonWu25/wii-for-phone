@@ -125,9 +125,13 @@ test('dash contact is a single rising edge', () => {
 
 test('the bank apex lifts the outer lip and leaves the infield on the inner lip', () => {
   const apex = widest();
-  assert.ok(Math.abs(apex.pose.y - 0.45) < 0.02, `centerline ${apex.pose.y}`);
+  const authored = LUIGI_PLAN.waypoints.find((w) => w.id === 'u270');
+  const lip = authored.centerY + authored.bankOuterY;
+  assert.ok(authored.bankOuterY > 1, `bank ${authored.bankOuterY}`);
+  assert.ok(lip > 2.2, `outer lip authored ${lip}`);
+  assert.ok(Math.abs(apex.pose.y - authored.centerY) < 0.04, `centerline ${apex.pose.y}`);
   const outer = tallestOuter(apex);
-  assert.ok(Math.abs(outer.sample.y - 0.9) < 0.02, `outer lip ${outer.sample.y}`);
+  assert.ok(Math.abs(outer.sample.y - lip) < 0.04, `outer lip ${outer.sample.y}`);
   const rx = Math.cos(outer.pose.heading);
   const rz = -Math.sin(outer.pose.heading);
   const tilt = outer.sample.normal.x * rx + outer.sample.normal.z * rz;
@@ -147,21 +151,49 @@ test('the bank apex lifts the outer lip and leaves the infield on the inner lip'
 });
 
 test('a seeded point on the asphalt stays on the asphalt', () => {
+  let ruled = 0;
   for (let i = 0; i < 120; i++) {
     const t = i / 120;
     const pose = poseAt(t);
+    const left = sampleTrack(...offsetBy(pose, pose.halfWidth * -0.8), t);
+    const right = sampleTrack(...offsetBy(pose, pose.halfWidth * 0.8), t);
+    assert.equal(left.surface, 'asphalt', `left shoulder at ${t}`);
+    assert.equal(right.surface, 'asphalt', `right shoulder at ${t}`);
     for (const frac of [-0.92, -0.4, 0, 0.4, 0.92]) {
       const [x, z] = offsetBy(pose, pose.halfWidth * frac);
       const hit = sampleTrack(x, z, t);
       if (Math.abs(hit.lateral) > hit.halfWidth + 1e-3) continue;
       assert.equal(hit.surface, 'asphalt', `t ${t} frac ${frac} lateral ${hit.lateral}`);
-      const ruled = poseAt(hit.progress);
-      const outer = sampleTrack(...offsetBy(ruled, ruled.halfWidth), hit.progress);
-      const bank = outer.y - ruled.y;
-      const expected = ruled.y + bank * (hit.lateral / hit.halfWidth);
-      assert.ok(Math.abs(hit.y - expected) < 0.03, `y ${hit.y} vs ruled ${expected}`);
+      // A point exactly at the lip can land on the next chord. The ruled check
+      // stays on samples that share this edge.
+      if (!sameProgress(left.progress, hit.progress) || !sameProgress(right.progress, hit.progress)) {
+        continue;
+      }
+      const span = right.lateral - left.lateral;
+      const expected = left.y + (right.y - left.y) * ((hit.lateral - left.lateral) / span);
+      assert.ok(Math.abs(hit.y - expected) < 1e-4, `y ${hit.y} vs ruled ${expected} at ${t}`);
+      ruled += 1;
     }
   }
+  assert.ok(ruled > 400, `ruled samples ${ruled}`);
+});
+
+test('the west kink crests, and the centerline grade stays a ramp', () => {
+  let crest = 0;
+  for (let i = 0; i < 360; i++) {
+    const pose = poseAt(i / 360);
+    if (pose.halfWidth < poseAt(0).halfWidth + 0.5 && pose.y > crest) crest = pose.y;
+  }
+  assert.ok(crest > 0.5, `crest ${crest}`);
+  let worst = 0;
+  const steps = 240;
+  for (let i = 0; i < steps; i++) {
+    const a = poseAt(i / steps);
+    const b = poseAt((i + 1) / steps);
+    const ds = Math.hypot(b.x - a.x, b.z - a.z);
+    worst = Math.max(worst, Math.abs(b.y - a.y) / ds);
+  }
+  assert.ok(worst < 0.06, `grade ${worst}`);
 });
 
 test('a flat straight reports y 0 and an upward normal', () => {
@@ -194,6 +226,11 @@ function tallestOuter(apex) {
     if (!best || sample.y > best.sample.y) best = { pose, sample, t };
   }
   return best;
+}
+
+function sameProgress(a, b) {
+  const dp = Math.abs(a - b);
+  return Math.min(dp, 1 - dp) < 0.0005;
 }
 
 function offsetBy(pose, lateral) {

@@ -121,7 +121,7 @@ test('a shell stays on wide asphalt and retires off the road', () => {
   applyUseItem(race, { playerId: 'p' });
   const shell = race.entities.find((entity) => entity.kind === 'shell');
   const apex = apexPose();
-  const lateral = 7.5;
+  const lateral = (luigi.HALF + apex.halfWidth) / 2;
   shell.x = apex.x + Math.cos(apex.heading) * lateral;
   shell.z = apex.z - Math.sin(apex.heading) * lateral;
   shell.progress = apex.t;

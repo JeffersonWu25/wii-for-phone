@@ -36,5 +36,5 @@ Preconditions:
 - `select-kart` only proves the main menu and `Look at the TV`. This feature starts after that menu and must pass character pick, track, ready, and Start Race.
 - A mouse click on the stick does not hold capture the way these pointer events do. Use the CDP expression, not `browser_click`, for steer.
 - Host fiber reads are advisory. Mutating `kart.steer` on the host is not proof. The phone stick path is.
-- Luigi Circuit is roughly 190–245 m. At race speed one lap is often under a minute when the steer loop stays on asphalt. If `completedLaps` stays 0 past two minutes, doctor the instance and check that `phase` is `racing` and the stick expression returns `ok`.
+- Luigi Circuit is roughly 245–305 m. At race speed one lap is often under a minute when the steer loop stays on asphalt. If `completedLaps` stays 0 past two minutes, doctor the instance and check that `phase` is `racing` and the stick expression returns `ok`.
 - Crossing the line updates `completedLaps` only after every checkpoint gate in order. Spawning past the line or teleporting progress is not this feature.
