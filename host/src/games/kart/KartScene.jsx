@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { HALF, poseAt } from './track.js';
+import { EDGE, GRASS_OUT, GROUND, HALF, PERIM, poseAt, surfaceY } from './track.js';
 import { viewports } from './layout.js';
 import { driftView } from './race.js';
 
@@ -11,36 +11,92 @@ const LOOK_Y = 0.7;
 const FOV = 58;
 const PIVOT_Y = 0.42;
 const TRACK_HALF = 0.58;
+const ROAD = 0xd2b48c;
+const SAND = 0xe4d5b5;
+const CURB = 0xf0ebe0;
+const GRASS = 0x45b34f;
+const SHOULDER_STEPS = 8;
 
-function ribbon(halfWidth, y, color) {
-  const n = 180;
-  const positions = [];
-  const indices = [];
-  for (let i = 0; i <= n; i++) {
-    const pose = poseAt(i / n);
-    const rx = Math.cos(pose.heading);
-    const rz = -Math.sin(pose.heading);
-    positions.push(
-      pose.x + rx * halfWidth, y, pose.z + rz * halfWidth,
-      pose.x - rx * halfWidth, y, pose.z - rz * halfWidth,
-    );
+// Lateral layout of the terrain strip, from the centerline outward. A repeated
+// offset marks a color edge, so every band keeps a hard boundary.
+const SIDE = (() => {
+  const out = [
+    { o: 0, c: ROAD },
+    { o: HALF, c: ROAD },
+    { o: HALF, c: SAND },
+    { o: HALF + 0.35, c: SAND },
+    { o: HALF + 0.35, c: CURB },
+    { o: EDGE, c: CURB },
+    { o: EDGE, c: GRASS },
+  ];
+  for (let k = 1; k <= SHOULDER_STEPS; k++) {
+    out.push({ o: EDGE + ((GRASS_OUT - EDGE) * k) / SHOULDER_STEPS, c: GRASS });
   }
-  for (let i = 0; i < n; i++) {
-    const a = i * 2;
-    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  return out;
+})();
+const LATERAL = [
+  ...SIDE.slice(1).reverse().map(({ o, c }) => ({ o: -o, c })),
+  ...SIDE,
+];
+
+const TRACK_BOUNDS = (() => {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < 1000; i++) {
+    const pose = poseAt(i / 1000);
+    minX = Math.min(minX, pose.x);
+    maxX = Math.max(maxX, pose.x);
+    minZ = Math.min(minZ, pose.z);
+    maxZ = Math.max(maxZ, pose.z);
+  }
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const radius = Math.hypot(maxX - cx, maxZ - cz) + GRASS_OUT;
+  return { cx, cz, radius };
+})();
+
+// One mesh for the road, curb, sand, and grass, so the bands share edges and
+// nothing sits coplanar with anything else.
+function terrainStrip() {
+  const rings = Math.round(PERIM);
+  const perRing = LATERAL.length;
+  const positions = [];
+  const colors = [];
+  const color = new THREE.Color();
+  for (let i = 0; i < rings; i++) {
+    const pose = poseAt(i / rings);
+    const nx = Math.cos(pose.heading);
+    const nz = -Math.sin(pose.heading);
+    for (const { o, c } of LATERAL) {
+      positions.push(pose.x + nx * o, surfaceY(pose.y, pose.bank, o), pose.z + nz * o);
+      color.setHex(c);
+      colors.push(color.r, color.g, color.b);
+    }
+  }
+  const indices = [];
+  for (let i = 0; i < rings; i++) {
+    const next = (i + 1) % rings;
+    for (let j = 0; j < perRing - 1; j++) {
+      const a = i * perRing + j;
+      const c = next * perRing + j;
+      indices.push(a, c, a + 1, a + 1, c, c + 1);
+    }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
-  const mat = new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
   mesh.receiveShadow = true;
   return mesh;
 }
 
 function makeRacer(character) {
   const group = new THREE.Group();
+  group.rotation.order = 'YXZ';
   const body = new THREE.Group();
   body.position.y = PIVOT_Y;
   group.add(body);
@@ -122,17 +178,18 @@ function makeRacer(character) {
 function addScenery(scene) {
   const hedgeMat = new THREE.MeshLambertMaterial({ color: 0x2f8f3a });
   const flowerMat = new THREE.MeshLambertMaterial({ color: 0xd94b4b });
-  for (let i = 0; i < 18; i++) {
-    const pose = poseAt((i + 0.12) / 18);
+  const count = 30;
+  for (let i = 0; i < count; i++) {
+    const pose = poseAt((i + 0.12) / count);
     const rx = Math.cos(pose.heading);
     const rz = -Math.sin(pose.heading);
     const side = i % 2 === 0 ? 1 : -1;
-    const dist = HALF + 2.4 + (i % 3) * 0.35;
+    const lateral = side * (HALF + 2.4 + (i % 3) * 0.35);
     const hedge = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 0.7), hedgeMat);
     hedge.position.set(
-      pose.x + rx * side * dist,
-      0.55,
-      pose.z + rz * side * dist,
+      pose.x + rx * lateral,
+      surfaceY(pose.y, pose.bank, lateral) + 0.55,
+      pose.z + rz * lateral,
     );
     hedge.rotation.y = pose.heading;
     hedge.castShadow = true;
@@ -141,49 +198,51 @@ function addScenery(scene) {
     if (i % 3 === 0) {
       const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), flowerMat);
       bloom.position.copy(hedge.position);
-      bloom.position.y = 1.2;
+      bloom.position.y += 0.65;
       scene.add(bloom);
     }
   }
 }
 
 function addTrack(scene) {
+  const { cx, cz, radius } = TRACK_BOUNDS;
   scene.background = new THREE.Color(0x7ec8f5);
-  scene.fog = new THREE.Fog(0x7ec8f5, 70, 160);
+  scene.fog = new THREE.Fog(0x7ec8f5, radius * 0.9, radius * 2);
 
   const hemi = new THREE.HemisphereLight(0xfff2d4, 0x3a7a3a, 0.85);
   scene.add(hemi);
 
   const sun = new THREE.DirectionalLight(0xfff1c8, 1.35);
-  sun.position.set(40, 55, 18);
+  sun.position.set(cx + 40, 55, cz + 18);
+  sun.target.position.set(cx, 0, cz);
+  scene.add(sun.target);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 5;
-  sun.shadow.camera.far = 160;
-  sun.shadow.camera.left = -70;
-  sun.shadow.camera.right = 70;
-  sun.shadow.camera.top = 70;
-  sun.shadow.camera.bottom = -70;
+  sun.shadow.camera.far = radius * 2.5;
+  sun.shadow.camera.left = -radius;
+  sun.shadow.camera.right = radius;
+  sun.shadow.camera.top = radius;
+  sun.shadow.camera.bottom = -radius;
   scene.add(sun);
 
   const grass = new THREE.Mesh(
-    new THREE.CircleGeometry(95, 64),
-    new THREE.MeshLambertMaterial({ color: 0x45b34f }),
+    new THREE.CircleGeometry(radius * 2, 64),
+    new THREE.MeshLambertMaterial({ color: GRASS }),
   );
   grass.rotation.x = -Math.PI / 2;
+  grass.position.set(cx, GROUND - 0.02, cz);
   grass.receiveShadow = true;
   scene.add(grass);
 
-  scene.add(ribbon(HALF + 1.15, 0.02, 0xf0ebe0));
-  scene.add(ribbon(HALF + 0.35, 0.04, 0xe4d5b5));
-  scene.add(ribbon(HALF, 0.07, 0xd2b48c));
+  scene.add(terrainStrip());
 
   const start = poseAt(0);
   const checker = new THREE.Mesh(
     new THREE.BoxGeometry(HALF * 2, 0.06, 1.1),
     new THREE.MeshLambertMaterial({ color: 0xf7f7f7 }),
   );
-  checker.position.set(start.x, 0.11, start.z);
+  checker.position.set(start.x, start.y + 0.11, start.z);
   checker.rotation.y = start.heading;
   checker.receiveShadow = true;
   scene.add(checker);
@@ -196,12 +255,12 @@ function placeCamera(camera, kart, travel) {
   const backZ = Math.cos(travel);
   camera.position.set(
     kart.x - backX * CAM_DIST,
-    CAM_HEIGHT,
+    kart.y + CAM_HEIGHT,
     kart.z - backZ * CAM_DIST,
   );
   camera.lookAt(
     kart.x + backX * LOOK_AHEAD,
-    LOOK_Y,
+    kart.y + LOOK_Y,
     kart.z + backZ * LOOK_AHEAD,
   );
   camera.up.set(0, 1, 0);
@@ -213,8 +272,8 @@ function placeRacer(mesh, kart) {
   const body = mesh.userData.body;
   const sparks = mesh.userData.sparks;
   const glow = mesh.userData.glow;
-  mesh.position.set(kart.x, 0, kart.z);
-  mesh.rotation.set(0, view.facing, 0);
+  mesh.position.set(kart.x, kart.y, kart.z);
+  mesh.rotation.set(kart.pitch, view.facing, kart.roll);
   body.position.y = PIVOT_Y + Math.abs(view.roll) * TRACK_HALF;
   body.rotation.set(0, 0, view.roll);
   sparks.material.opacity = view.charge;
