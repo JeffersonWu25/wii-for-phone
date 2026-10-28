@@ -32,7 +32,7 @@ No colored name-pill strip across the top of each pane. Pane borders are thin/da
 
 ## World / track contract (this project)
 
-Keep the existing oval loop geometry. Match MK8 *feel*, not Royal Raceway geometry.
+The circuit is the Luigi Circuit from Mario Kart Wii, built from straights and arcs in `track.js`. Its layout follows the course order on MarioWiki: start straight, right turn, short straight, gentle left, right U-turn, longer straight with a gentle left, then the large banked turn back to the start. Elevation is subtle, and the big turn banks with its outside edge higher. Match MK8 *feel*, not Royal Raceway geometry.
 
 - Road: light sandy/tan asphalt (not dark gray).
 - Soft white/light curb outside the driveable ribbon.

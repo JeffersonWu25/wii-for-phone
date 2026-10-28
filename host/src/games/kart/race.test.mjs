@@ -32,14 +32,12 @@ test('centerline pose stays on the track and progress matches', () => {
   }
 });
 
-test('a point outside the right straight is past the wall', () => {
-  const sample = sampleTrack(RC_OUT(), 0);
+test('a point past the curb is off the track', () => {
+  const pose = poseAt(0);
+  const reach = HALF + 3;
+  const sample = sampleTrack(pose.x + Math.cos(pose.heading) * reach, pose.z - Math.sin(pose.heading) * reach);
   assert.ok(sample.lateral > HALF);
 });
-
-function RC_OUT() {
-  return 16 + HALF + 3;
-}
 
 test('crossing the start line opens checkpoint 1 and does not finish a lap', () => {
   const kart = freshKart();
@@ -88,9 +86,10 @@ test('gas on the straight builds speed without leaving the track', () => {
   race.phase = 'racing';
   race.startedAt = 0;
   const kart = race.karts[0];
-  kart.x = 16;
-  kart.z = -10;
-  kart.facing = 0;
+  const start = poseAt(0.005);
+  kart.x = start.x;
+  kart.z = start.z;
+  kart.facing = start.heading;
   let now = 0;
   for (let i = 0; i < 30; i++) {
     now += 50;
@@ -100,7 +99,7 @@ test('gas on the straight builds speed without leaving the track', () => {
   const sample = sampleTrack(kart.x, kart.z);
   assert.ok(kart.speed > 20, `speed ${kart.speed}`);
   assert.ok(Math.abs(sample.lateral) < 0.5, `lateral ${sample.lateral}`);
-  assert.ok(kart.z > -10);
+  assert.ok(sample.progress > 0.005);
 });
 
 test('a drift release adds a boost', () => {
@@ -500,4 +499,54 @@ test('straight up on the rim does not charge', () => {
   }
   assert.equal(driftView(kart).phase, 'idle');
   assert.equal(driftView(kart).charge, 0);
+});
+
+function gradeExtremes() {
+  let up = { t: 0, grade: -Infinity };
+  let down = { t: 0, grade: Infinity };
+  for (let i = 0; i < 2000; i++) {
+    const t = i / 2000;
+    const pose = poseAt(t);
+    const { grade } = sampleTrack(pose.x, pose.z);
+    if (grade > up.grade) up = { t, grade };
+    if (grade < down.grade) down = { t, grade };
+  }
+  return { up, down };
+}
+
+function speedAfterHillRun(t) {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  race.phase = 'racing';
+  race.startedAt = 0;
+  const kart = race.karts[0];
+  const pose = poseAt(t);
+  kart.x = pose.x;
+  kart.z = pose.z;
+  kart.facing = pose.heading;
+  kart.speed = 20;
+  let now = 0;
+  for (let i = 0; i < 10; i++) {
+    now += 50;
+    applyDrive(race, { playerId: 'p1', steer: 0, gas: false, drift: false, seq: i + 1 }, now);
+    stepRace(race, 0.05, now);
+  }
+  return kart.speed;
+}
+
+test('coasting uphill slows the kart more than coasting downhill', () => {
+  const { up, down } = gradeExtremes();
+  assert.ok(up.grade > 0 && down.grade < 0, `grades ${up.grade} ${down.grade}`);
+  assert.ok(speedAfterHillRun(up.t) < speedAfterHillRun(down.t));
+});
+
+test('a kart on a hill pitches its nose along the slope', () => {
+  const race = createRace([{ playerId: 'p1', name: 'A' }], 0);
+  const kart = race.karts[0];
+  const { up } = gradeExtremes();
+  const pose = poseAt(up.t);
+  kart.x = pose.x;
+  kart.z = pose.z;
+  kart.facing = pose.heading;
+  stepRace(race, 0.05, 0);
+  assert.ok(kart.pitch < 0, `pitch ${kart.pitch}`);
 });

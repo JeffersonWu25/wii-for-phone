@@ -9,6 +9,7 @@ const GATE_WINDOW = 0.15;
 
 const ACCEL = 22;
 const COAST = 14;
+const GRAVITY = 20;
 const MAX_SPEED = 32;
 const BOOST_SPEED = 42;
 const BOOST_GAP = BOOST_SPEED - MAX_SPEED;
@@ -94,6 +95,22 @@ function rollOf(slip, charge) {
   const lean = 0.55 + 0.45 * clamp(charge, 0, 1);
   const roll = -slip * (ROLL_AT_FULL_SLIP / SLIP_MAX) * lean;
   return clamp(roll, -ROLL_CLAMP, ROLL_CLAMP);
+}
+
+// Sets the ground height and attitude the kart rides at. The grade is taken along
+// the travel direction, so a drift still feels the hill it is climbing.
+function setSurface(kart, sample) {
+  const slip = kart.driftPhase?.slip || 0;
+  const travel = travelOf(kart.facing, slip);
+  const fwdX = Math.sin(kart.facing);
+  const fwdZ = Math.cos(kart.facing);
+  const sideX = Math.cos(kart.facing);
+  const sideZ = -Math.sin(kart.facing);
+  const { grade, bank, tx, tz, normalX, normalZ } = sample;
+  kart.y = sample.y;
+  kart.grade = grade * (Math.sin(travel) * tx + Math.cos(travel) * tz);
+  kart.pitch = -Math.atan(grade * (tx * fwdX + tz * fwdZ) + bank * (normalX * fwdX + normalZ * fwdZ));
+  kart.roll = Math.atan(grade * (tx * sideX + tz * sideZ) + bank * (normalX * sideX + normalZ * sideZ));
 }
 
 function speedCap(phase, scales) {
@@ -220,12 +237,16 @@ export function createRace(players, now) {
   const karts = players.map((player, index) => {
     const pose = gridPose(index);
     const sample = sampleTrack(pose.x, pose.z);
-    return {
+    const kart = {
       playerId: player.playerId,
       name: player.name,
       character: characterFor(index),
       x: pose.x,
       z: pose.z,
+      y: 0,
+      pitch: 0,
+      roll: 0,
+      grade: 0,
       facing: pose.facing,
       speed: 0,
       steer: 0,
@@ -246,6 +267,8 @@ export function createRace(players, now) {
       itemPrimary: null,
       itemSecondary: null,
     };
+    setSurface(kart, sample);
+    return kart;
   });
   return {
     phase: 'countdown',
@@ -380,6 +403,7 @@ function stepKart(kart, input, dt, tuning) {
   const target = input.gas ? preCap : 0;
   if (kart.speed < target) kart.speed = Math.min(target, kart.speed + ACCEL * scales.speed * dt);
   else kart.speed = Math.max(target, kart.speed - COAST * dt);
+  kart.speed = Math.max(0, kart.speed - GRAVITY * kart.grade * dt);
 
   const pace = clamp(kart.speed / Math.max(preCap, 1e-6), 0, 1);
   const cornerTurn = (kart.speed / HOLD_RADIUS) * scales.turn;
@@ -497,6 +521,7 @@ export function stepRace(race, dt, now) {
     stepKart(kart, liveInput(kart, now), step, race.tuning);
     let sample = sampleTrack(kart.x, kart.z);
     sample = contain(kart, sample);
+    setSurface(kart, sample);
     const onTrack = sample.lateral > -HALF - 0.8 && sample.lateral < HALF + 1.6;
     noteProgress(kart, sample.progress, onTrack, race.timeMs);
     kart.progress = sample.progress;
