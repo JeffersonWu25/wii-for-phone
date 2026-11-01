@@ -1,0 +1,6 @@
+- heading "4 pins knocked down" [level=1]
+- paragraph: Speed 24 km/h
+- paragraph: Angle Straight
+- paragraph: Curve Straight
+- paragraph: "Score: 0"
+- paragraph: Tap anywhere to dismiss

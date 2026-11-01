@@ -1,0 +1,8 @@
+- button "MOVE"
+- button "AIM"
+- button "◀"
+- button "▶"
+- text: LEVEL
+- paragraph: Hold and swing to bowl!
+- button "BOWL"
+- paragraph

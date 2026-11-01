@@ -1,0 +1,58 @@
+{
+  "feature": "join-lobby",
+  "passed": true,
+  "finishedAt": "2026-11-01T13:49:57.116Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "host lobby QR points at the local phone URL with this session",
+      "ok": true,
+      "detail": "session 32a65d"
+    },
+    {
+      "name": "host lobby starts with no players",
+      "ok": true,
+      "detail": "(0)"
+    },
+    {
+      "name": "phone opens on the name screen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "empty name does not join",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "phone shows the waiting screen after joining",
+      "ok": true,
+      "detail": "Waiting for host to select a game..."
+    },
+    {
+      "name": "host lists Ada, trimmed, and counts one player",
+      "ok": true,
+      "detail": "Ada"
+    },
+    {
+      "name": "duplicate name is refused with the message",
+      "ok": true,
+      "detail": "That name is already taken. Choose another."
+    },
+    {
+      "name": "duplicate name is not added to the host",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "second player joins after a rename",
+      "ok": true,
+      "detail": "Ada,Grace"
+    },
+    {
+      "name": "relay logged two joins",
+      "ok": true,
+      "detail": "[relay] Player joined: Ada (8b040464) | [relay] Player joined: Grace (b3dc8395)"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{"at":"2026-11-01T13:49:57.693Z","page":"host","dir":"in","msg":{"type":"session_created","sessionId":"d4afe2"}}
+{"at":"2026-11-01T13:49:57.700Z","page":"host","dir":"out","msg":{"type":"feel","speed":1,"tilt":1.75,"curve":1.6,"maxCurve":0.65}}
+{"at":"2026-11-01T13:49:57.908Z","page":"phone:Ada","dir":"out","msg":{"type":"join","name":"Ada"}}
+{"at":"2026-11-01T13:49:57.908Z","page":"phone:Ada","dir":"in","msg":{"type":"joined","playerId":"14e25b3d"}}
+{"at":"2026-11-01T13:49:57.908Z","page":"host","dir":"in","msg":{"type":"player_joined","playerId":"14e25b3d","name":"Ada"}}
+{"at":"2026-11-01T13:49:58.007Z","page":"phone:Ada","dir":"in","msg":{"type":"session_ended"}}

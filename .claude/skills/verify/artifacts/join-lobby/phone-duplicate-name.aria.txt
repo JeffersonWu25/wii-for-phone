@@ -1,0 +1,5 @@
+- heading "Wii Playground" [level=1]
+- paragraph: Enter your name to join
+- textbox "Your name"
+- paragraph: That name is already taken. Choose another.
+- button "Join Game"
