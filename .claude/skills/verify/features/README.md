@@ -39,9 +39,8 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [Join the lobby](./join-lobby.md) covers the host lobby and QR, the phone's name entry, empty and duplicate names, and players appearing on the host.
-- [Select a game](./select-game.md) covers the game hub, with Bowling and Mario Kart enabled and the unbuilt games disabled.
+- [Select a game](./select-game.md) covers the game hub, with Bowling enabled and the unbuilt games disabled.
 - [Bowl a throw](./bowling-throw.md) covers starting Bowling, the phone's turn screen, a hold-and-release throw, the result, and the host scoreboard.
-- [Race Mario Kart](./mario-kart-race.md) covers the rules and controls, and a full three-lap race played by the driver's pilot to the finish table.
 
 ## Not mapped yet
 
@@ -49,7 +48,6 @@ These paths exist in the source and are not verified by any feature above. Add a
 
 - Two or more players in bowling: turn rotation after each throw, and the frame and game-over flow.
 - Bowling's 10th frame and scoring rules beyond the first roll.
-- Mario Kart items (`use_item`), drifting (the stick's rim band), and a multi-kart race with places between karts.
-- Phone disconnect and rejoin during a turn or a race, and skipping a disconnected player.
+- Phone disconnect and rejoin during a turn, and skipping a disconnected player.
 - Host leaving mid-game (the phone's `Session Ended` screen).
 - The iOS motion-permission path (`requestPermission` denied, or granted on Safari).

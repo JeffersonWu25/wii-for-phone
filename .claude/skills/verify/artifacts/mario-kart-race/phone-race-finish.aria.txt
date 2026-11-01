@@ -1,6 +1,0 @@
-- paragraph: Mario
-- paragraph: Race over
-- paragraph: P1
-- paragraph: Lap 3 / 3
-- button "Use item"
-- text: P1

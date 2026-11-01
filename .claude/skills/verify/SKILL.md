@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Drive the Wii Bowling web app (host TV screen in host/, phone controller in phone/, and the relay in relay/) to prove the lobby join, game selection, a bowling throw, and a Mario Kart race, using real Chrome and real WebSocket traffic. Use after changes to host, phone, or relay, or when asked to prove a user-facing flow works.
+description: Drive the Wii Bowling web app (host TV screen in host/, phone controller in phone/, and the relay in relay/) to prove the lobby join, game selection, and a bowling throw, using real Chrome and real WebSocket traffic. Use after changes to host, phone, or relay, or when asked to prove a user-facing flow works.
 ---
 
 # Verify Wii Bowling
@@ -55,7 +55,6 @@ Each feature is one script, run against the live instance:
 node .claude/skills/verify/scripts/drive.mjs join-lobby
 node .claude/skills/verify/scripts/drive.mjs select-game
 node .claude/skills/verify/scripts/drive.mjs bowling-throw
-node .claude/skills/verify/scripts/drive.mjs mario-kart-race
 ```
 
 Set `HEADED=1` to watch it run. Exit 0 means every check passed. Each check prints `PASS` or `FAIL` with the observed value.
@@ -69,14 +68,10 @@ Stable handles, from the source:
 - Phone: `#screen-permission` and `#btn-permission` (motion permission), `#screen-name`, `#input-name`, `#btn-join`, `.input-error`, `#screen-waiting` and `#waiting-label`.
 - Phone bowling: `#screen-bowl`, `#btn-bowl` (hold for a throw), `#screen-result`.
 - Host bowling scoreboard: `.scoreboard-player`, `.roll-cell`.
-- Phone kart: `#kart-stick`, `#kart-place`, `#kart-lap`.
-- Host kart: `.kart-layout`, `.kart-pane`, `.kart-countdown`, `.kart-lap-count`.
 
 Motion permission: Chrome on desktop exposes `DeviceMotionEvent.requestPermission`, so the controller opens on the permission screen. The driver clicks the real button, and Chrome grants it. This is not a stub. The iOS Safari grant path is not exercised here.
 
 Bowling motion: the throw is driven by `devicemotion` events dispatched on `window`, with the BOWL button getting real `touchstart` and `touchend` events. The phone's own listener, sample buffer, throw composition, and relay send all run unchanged. The input is synthetic acceleration, not an arm swing, so the throw speed is not a proof of how a human swing feels.
-
-Kart racing: `scripts/kart-pilot.mjs` plays a full three-lap race as a player would. It reads the road from the host's own `track.js` centerline, the kart's position from `race_status`, and steers the stick with real pointer events. Stick-right is negative steer (`steer.js`). The pilot is documented in `features/mario-kart-race.md`, including the rules of the race.
 
 ## Evidence
 
@@ -113,6 +108,5 @@ If a launch or drive fails partway, run cleanup before retrying so the ports are
 | Check PIDs, ports, commands, and documents | `node .claude/skills/verify/scripts/instance.mjs doctor` |
 | Stop the recorded processes and delete `run/` | `node .claude/skills/verify/scripts/instance.mjs cleanup` |
 | Run one mapped feature with proof | `node .claude/skills/verify/scripts/drive.mjs <feature-id>` |
-| Driver policy for racing a kart (imported by `drive.mjs`, not run directly) | `scripts/kart-pilot.mjs` |
 
 The feature map is in `features/README.md`. It lists what is covered and what is not.

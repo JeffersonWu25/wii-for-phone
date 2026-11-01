@@ -1,6 +1,6 @@
 ---
 name: verify-wildhacks-arcade
-description: Drive the WildHacks Arcade host and phone web apps (on-screen title Wii Playground) against a local relay to prove lobby join, game selection (bowling and Mario Kart), bowling controls, a simulated bowl, two frames with two players, disconnect, and session end. Use when verifying UI behavior, after changes to host, phone, or relay, or when asked to prove a user-facing flow.
+description: Drive the WildHacks Arcade host and phone web apps (on-screen title Wii Playground) against a local relay to prove lobby join, game selection (bowling), bowling controls, a simulated bowl, two frames with two players, disconnect, and session end. Use when verifying UI behavior, after changes to host, phone, or relay, or when asked to prove a user-facing flow.
 ---
 
 # Verify WildHacks Arcade

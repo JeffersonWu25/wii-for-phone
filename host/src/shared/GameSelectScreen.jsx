@@ -3,7 +3,6 @@
 
 const GAMES = [
   { id: 'bowling',      label: 'Bowling',      emoji: '🎳', built: true  },
-  { id: 'kart',         label: 'Mario Kart',   emoji: '🏎️', built: true  },
   { id: 'wizard-duel',  label: 'Wizard Duel',  emoji: '🧙', built: false },
   { id: '3pt-contest',  label: '3PT Contest',  emoji: '🏀', built: false },
   { id: 'tennis',       label: 'Tennis',       emoji: '🎾', built: false },

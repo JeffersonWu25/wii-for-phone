@@ -1,5 +1,0 @@
-- paragraph: Mario
-- paragraph: Ada
-- paragraph: P1
-- paragraph: Lap 1 / 3
-- button "Use item"

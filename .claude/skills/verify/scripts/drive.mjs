@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw, mario-kart-race.
+// Feature ids: join-lobby, select-game, bowling-throw.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -13,7 +13,6 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { PORTS, REPO, RUN_DIR, SKILL_DIR, URLS, doctor } from './instance.mjs';
-import { steerCommand, stickOffsetFor } from './kart-pilot.mjs';
 
 const require = createRequire(path.join(REPO, 'host/package.json'));
 const { chromium } = require('playwright-core');
@@ -234,8 +233,7 @@ async function selectGameFeature(run) {
   );
   const byLabel = Object.fromEntries(cards.map((c) => [c.label, c]));
   run.check('Bowling card is enabled', byLabel.Bowling?.enabled === true);
-  run.check('Mario Kart card is enabled', byLabel['Mario Kart']?.enabled === true);
-  const unbuilt = cards.filter((c) => c.label !== 'Bowling' && c.label !== 'Mario Kart');
+  const unbuilt = cards.filter((c) => c.label !== 'Bowling');
   run.check(
     'unbuilt games are disabled Coming Soon cards',
     unbuilt.length > 0 && unbuilt.every((c) => !c.enabled && c.soon),
@@ -299,99 +297,10 @@ async function bowlingThrow(run) {
   run.check('dismissing the result returns the phone to waiting', (await phone.textContent('#waiting-label')).includes('next turn'));
 }
 
-async function marioKartRace(run) {
-  const phone = await lobbyWithPlayer(run, 'Ada');
-  await selectGame(run, 'Mario Kart');
-  await run.host.waitForSelector('.kart-layout', { timeout: 15_000 });
-  await run.host.waitForSelector('.kart-pane', { timeout: 15_000 });
-  run.check('host shows one kart pane for one player', (await run.host.locator('.kart-pane').count()) === 1);
-
-  await phone.waitForSelector('#kart-stick', { timeout: 15_000 });
-  const gotGo = await run.waitForFrame('phone:Ada', 'race_go');
-  run.check('phone received the countdown and the go signal from the host',
-    gotGo && run.frames.filter((f) => f.page === 'phone:Ada' && f.msg.type === 'race_countdown').length === 3,
-    `race_go ${gotGo ? 'seen' : 'missing'}`);
-  await run.capture(run.host, 'host-race-start');
-  await run.capture(phone, 'phone-race-start');
-
-  // Play the whole race: steer the stick to follow the road until the kart finishes.
-  const myId = run.frames.find((f) => f.page === 'phone:Ada' && f.dir === 'in' && f.msg.type === 'joined').msg.playerId;
-  const box = await phone.locator('#kart-stick').boundingBox();
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  const radius = box.width / 2;
-
-  const laps = [];
-  const track = [];
-  let seen = 0;
-  let prev = null;
-  let cur = null;
-  let lastLap = null;
-  let stuckSince = Date.now();
-  let lastProgress = -1;
-  const raceStart = Date.now();
-  const RACE_LIMIT_MS = 180_000;
-
-  await phone.mouse.move(cx, cy);
-  await phone.mouse.down();
-  try {
-    while (Date.now() - raceStart < RACE_LIMIT_MS) {
-      for (; seen < run.frames.length; seen++) {
-        const f = run.frames[seen];
-        if (f.page !== 'phone:Ada' || f.dir !== 'in' || f.msg.type !== 'race_status') continue;
-        const me = f.msg.players.find((p) => p.playerId === myId);
-        if (!me) continue;
-        prev = cur;
-        cur = { t: Date.parse(f.at), x: me.x, z: me.z, progress: me.progress, lap: me.lap, finished: me.finished };
-        track.push({ t: Date.now() - raceStart, place: me.place, lap: me.lap, progress: +me.progress.toFixed(3) });
-        if (me.lap !== lastLap) {
-          laps.push({ lap: me.lap, atMs: Date.now() - raceStart });
-          lastLap = me.lap;
-        }
-        if (me.progress !== lastProgress) {
-          lastProgress = me.progress;
-          stuckSince = Date.now();
-        }
-      }
-      if (cur?.finished) break;
-      if (Date.now() - stuckSince > 20_000) throw new Error('kart made no progress for 20s; the pilot is stuck');
-
-      const wheel = steerCommand(prev, cur, Date.now());
-      await phone.mouse.move(cx + stickOffsetFor(wheel, radius), cy);
-      await phone.waitForTimeout(40);
-    }
-  } finally {
-    await phone.mouse.up();
-  }
-
-  // The lap counter starts at 1 and steps up each time the kart completes a lap.
-  run.check('lap counter went 1 → 2 → 3 while racing', laps.map((l) => l.lap).join() === '1,2,3',
-    laps.map((l) => `${l.lap}@${(l.atMs / 1000).toFixed(1)}s`).join(' '));
-  run.check('race_status reports the kart finished', cur?.finished === true);
-  fs.writeFileSync(path.join(run.dir, 'pilot-track.json'), JSON.stringify({ laps, samples: track }, null, 2));
-
-  const finishFrame = run.frames.find((f) => f.page === 'phone:Ada' && f.dir === 'in' && f.msg.type === 'race_finished');
-  run.check('phone received race_finished', Boolean(finishFrame));
-  await phone.waitForFunction(() => document.getElementById('kart-sub')?.textContent === 'Race over', null, { timeout: 10_000 });
-  run.check('phone banner shows P1 for the solo finish',
-    (await phone.textContent('#kart-banner')).trim() === 'P1', await phone.textContent('#kart-banner'));
-
-  await run.host.waitForSelector('.kart-results', { timeout: 20_000 });
-  const row = (await run.host.locator('.kart-results li').first().textContent()).replace(/\s+/g, ' ').trim();
-  run.check('host shows the finish table with Ada timed, not DNF', row.includes('Ada') && /\d+\.\d\ds/.test(row) && !row.includes('DNF'), row);
-  await run.capture(run.host, 'host-race-finish');
-  await run.capture(phone, 'phone-race-finish');
-
-  const drives = run.frames.filter((f) => f.page === 'phone:Ada' && f.dir === 'out' && f.msg.type === 'drive');
-  const steered = drives.filter((f) => f.msg.steer !== 0).length;
-  run.check('the stick was used during the race', steered > 100, `non-zero drive packets ${steered} of ${drives.length}`);
-}
-
 const FEATURES = {
   'join-lobby': joinLobby,
   'select-game': selectGameFeature,
   'bowling-throw': bowlingThrow,
-  'mario-kart-race': marioKartRace,
 };
 
 async function main() {
