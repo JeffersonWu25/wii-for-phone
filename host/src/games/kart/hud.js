@@ -8,12 +8,18 @@ const PALETTE = [0xe8423a, 0x3a7be8, 0xf2c230, 0x3fb55a, 0x9b5de5, 0xff8c1a, 0xf
 export const cssColor = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
 export const playerColor = (i) => PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length];
 
-export const ordinal = (n) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+const ordinalSuffix = (n) => (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+
+export const ordinal = (n) => `${n}${ordinalSuffix(n)}`;
+
+// The big digits and the small suffix are styled apart in the HUD.
+export const placeParts = (n) => ({ num: String(n), suffix: ordinalSuffix(n) });
 
 // ── Split screen ─────────────────────────────────────────────────────────────
 
 // Pane rectangles for 1..4 racers in screen fractions (y from the top), plus where the shared minimap goes.
 // 3p leaves the bottom-right quadrant for a large map (mapRect); other counts overlay a small one.
+// mapTall: the map is turned upright, for the narrow strip of 1p and the divider of 2p.
 export function splitLayout(n) {
   const count = Math.max(1, Math.min(4, Math.round(n) || 1));
   const cols = count === 1 ? 1 : 2;
@@ -23,7 +29,7 @@ export function splitLayout(n) {
     return { slot, x: col / cols, y: Math.floor(slot / cols) / rows, w: 1 / cols, h: 1 / rows, side: col === 0 ? 'left' : 'right' };
   });
   const map = count === 1 ? 'side' : count === 3 ? 'quadrant' : 'center';
-  return { views, map, mapRect: count === 3 ? { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } : null };
+  return { views, map, mapTall: count <= 2, mapRect: count === 3 ? { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } : null };
 }
 
 // ── Countdown ────────────────────────────────────────────────────────────────
@@ -44,28 +50,37 @@ export function countdownLabel(race) {
 
 // ── Minimap ──────────────────────────────────────────────────────────────────
 
-// Fits the centerline into a width x height box (y flipped is not needed: +z is down-screen, matching top-down).
-export function fitMinimap(samples, width, height, pad = 12, step = 8) {
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const p of samples) {
-    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-    minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
-  }
-  const scale = Math.min((width - 2 * pad) / (maxX - minX), (height - 2 * pad) / (maxZ - minZ));
-  const offX = (width - (maxX - minX) * scale) / 2 - minX * scale;
-  const offZ = (height - (maxZ - minZ) * scale) / 2 - minZ * scale;
-  const project = (x, z) => [x * scale + offX, z * scale + offZ];
-  const pts = [];
-  for (let i = 0; i < samples.length; i += step) pts.push(project(samples[i].x, samples[i].z));
-  const path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join('') + 'Z';
+// Fits the centerline into a width x height box (+z is down-screen, matching top-down).
+// `rotate` turns the map a quarter turn so a wide track fills a tall box.
+export function fitMinimap(samples, width, height, pad = 12, step = 8, rotate = false) {
+  const turn = (x, z) => (rotate ? [-z, x] : [x, z]);
+  const pts = samples.map((p) => turn(p.x, p.z));
+  const minU = Math.min(...pts.map((p) => p[0])), maxU = Math.max(...pts.map((p) => p[0]));
+  const minV = Math.min(...pts.map((p) => p[1])), maxV = Math.max(...pts.map((p) => p[1]));
+  const scale = Math.min((width - 2 * pad) / (maxU - minU), (height - 2 * pad) / (maxV - minV));
+  const offU = (width - (maxU - minU) * scale) / 2 - minU * scale;
+  const offV = (height - (maxV - minV) * scale) / 2 - minV * scale;
+  const project = (x, z) => {
+    const [u, v] = turn(x, z);
+    return [u * scale + offU, v * scale + offV];
+  };
+  const path = samples
+    .filter((_, i) => i % step === 0)
+    .map((p, i) => {
+      const [x, y] = project(p.x, p.z);
+      return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join('') + 'Z';
   return { project, path, scale };
 }
 
-// Perpendicular tick across the start line (samples[0] heads along its h).
+// Perpendicular tick across the start line (samples[0] heads along its h), in projected pixels.
 export function startTick(project, sample, half = 6) {
   const [x, y] = project(sample.x, sample.z);
-  const rx = -Math.sin(sample.h) * half;
-  const ry = Math.cos(sample.h) * half;
+  const [ex, ey] = project(sample.x - Math.sin(sample.h), sample.z + Math.cos(sample.h));
+  const len = Math.hypot(ex - x, ey - y);
+  const rx = ((ex - x) / len) * half;
+  const ry = ((ey - y) / len) * half;
   return [x - rx, y - ry, x + rx, y + ry];
 }
 

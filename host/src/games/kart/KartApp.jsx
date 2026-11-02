@@ -5,11 +5,13 @@ import { createKartScene } from './scene/createKartScene.js';
 import {
   buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, splitLayout, startTick, statusKey,
 } from './hud.js';
+import { Minimap, Pane } from './Hud.jsx';
 
 const STATUS_INTERVAL_MS = 250; // 4 Hz; the relay allows the host 60 msgs/s
 const HUD_INTERVAL_MS = 100;
 const RESULTS_AUTO_EXIT_MS = 10_000;
-const MAP_SIZE = 190;
+const MAP_LONG = 260;
+const MAP_SHORT = 150;
 const MAX_RACERS = 4;
 const DEBUG_ENTRANT = { id: 'debug', name: 'Debug' };
 const DRIVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
@@ -52,9 +54,11 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     scene.setViews(split.views.map((v) => ({ id: entrants[v.slot].id, x: v.x, y: v.y, w: v.w, h: v.h })));
     setLayout({ ...split, entrants: entrants.map((e, slot) => ({ id: e.id, name: e.name, slot, css: cssById[e.id] })) });
 
-    const fit = fitMinimap(track.samples, MAP_SIZE, MAP_SIZE, 14);
+    const mapW = split.mapTall ? MAP_SHORT : MAP_LONG;
+    const mapH = split.mapTall ? MAP_LONG : MAP_SHORT;
+    const fit = fitMinimap(track.samples, mapW, mapH, 14, 8, split.mapTall);
     const tick = startTick(fit.project, track.samples[0]);
-    setMap({ path: fit.path, tick, entrants: entrants.map((e) => ({ id: e.id, css: cssById[e.id] })) });
+    setMap({ path: fit.path, tick, w: mapW, h: mapH, entrants: entrants.map((e) => ({ id: e.id, name: e.name, css: cssById[e.id] })) });
     resultsShownRef.current = false;
     setResults(null);
 
@@ -121,6 +125,14 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     let disposed = false;
     const inputs = {};
 
+    const hudSnapshot = () => ({
+      slots: entrants.map((e) => {
+        const k = race.karts.find((r) => r.id === e.id);
+        return { lap: Math.min(k.lap + 1, race.laps), laps: race.laps, place: k.place, wrongWay: k.wrongWay };
+      }),
+    });
+    setHud(hudSnapshot());
+
     function publish(now) {
       const status = buildStatus(race, cssById);
       const key = statusKey(status);
@@ -131,13 +143,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       }
       if (now - hudAt >= HUD_INTERVAL_MS) {
         hudAt = now;
-        setHud({
-          total: race.karts.length,
-          slots: entrants.map((e) => {
-            const k = race.karts.find((r) => r.id === e.id);
-            return { lap: Math.min(k.lap + 1, race.laps), laps: race.laps, place: k.place, wrongWay: k.wrongWay };
-          }),
-        });
+        setHud(hudSnapshot());
       }
     }
 
@@ -170,8 +176,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
         const dot = dotRefs.current[k.id];
         if (dot) {
           const [px, py] = fit.project(k.x, k.z);
-          dot.setAttribute('cx', px.toFixed(1));
-          dot.setAttribute('cy', py.toFixed(1));
+          dot.setAttribute('transform', `translate(${px.toFixed(1)} ${py.toFixed(1)})`);
         }
       }
 
@@ -221,27 +226,12 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
   return (
     <div className="kart-app" data-players={layout?.entrants.length}>
       <div className="kart-canvas" ref={containerRef} />
-      {hud && (
-        <>
-          <div className="kart-panel kart-lap">LAP <b>{hud.slots[0].lap}</b>/{hud.slots[0].laps}</div>
-          <div className="kart-place">
-            <span className="kart-place-big">{ordinal(hud.slots[0].place)}</span>
-            <span className="kart-place-total">/{hud.total}</span>
-          </div>
-          {hud.slots[0].wrongWay && <div className="kart-wrongway">WRONG WAY</div>}
-        </>
-      )}
-      {map && (
-        <svg className="kart-minimap" viewBox={`0 0 ${MAP_SIZE} ${MAP_SIZE}`}>
-          <path d={map.path} className="kart-map-outline" />
-          <path d={map.path} className="kart-map-road" />
-          <line x1={map.tick[0]} y1={map.tick[1]} x2={map.tick[2]} y2={map.tick[3]} className="kart-map-start" />
-          {map.entrants.map((e) => (
-            <circle key={e.id} ref={(el) => { dotRefs.current[e.id] = el; }} r="5" fill={e.css} className="kart-map-dot" />
-          ))}
-        </svg>
-      )}
-      {label && <div className={`kart-countdown${label === 'GO!' ? ' go' : ''}`} key={label}>{label}</div>}
+      {layout?.views.map((v) => (
+        <Pane key={v.slot} view={v} racer={hud?.slots[v.slot]} label={label} />
+      ))}
+      {map && (layout.map === 'quadrant'
+        ? <div className="kart-map-quadrant"><Minimap map={map} dotRefs={dotRefs} /></div>
+        : <Minimap map={map} dotRefs={dotRefs} />)}
       <button className="kart-quit" onClick={onAbandon}>Quit</button>
       {results && (
         <div className="kart-results">

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, splitLayout, startTick, statusKey } from './hud.js';
+import { buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, placeParts, playerColor, splitLayout, startTick, statusKey } from './hud.js';
 
 test('player colors are distinct and wrap', () => {
   const colors = Array.from({ length: 8 }, (_, i) => playerColor(i));
@@ -11,6 +11,8 @@ test('player colors are distinct and wrap', () => {
 
 test('ordinals', () => {
   assert.deepEqual([1, 2, 3, 4].map(ordinal), ['1st', '2nd', '3rd', '4th']);
+  assert.deepEqual([11, 12, 13, 21, 22].map(ordinal), ['11th', '12th', '13th', '21st', '22nd']);
+  assert.deepEqual(placeParts(19), { num: '19', suffix: 'th' });
 });
 
 test('split layout tiles the screen for each racer count', () => {
@@ -60,6 +62,16 @@ test('start tick is perpendicular to the heading', () => {
   const [x1, y1, x2, y2] = startTick((x, z) => [x, z], { x: 10, z: 10, h: 0 }, 5);
   assert.deepEqual([x1, x2], [10, 10]);
   assert.equal(Math.abs(y2 - y1), 10);
+});
+
+test('rotated minimap turns a wide track upright inside a tall box', () => {
+  const samples = [{ x: 0, z: 0 }, { x: 100, z: 0 }, { x: 100, z: 50 }, { x: 0, z: 50 }];
+  const { project } = fitMinimap(samples, 100, 200, 10, 1, true);
+  const [a, b] = [project(0, 0), project(100, 0)];
+  assert.equal(a[0], b[0]); // the long x axis now runs down the screen
+  assert.equal(Math.abs(b[1] - a[1]), 160);
+  const [, y1, , y2] = startTick(project, { x: 0, z: 0, h: 0 }, 5);
+  assert.equal(y1, y2); // a start line along z now lies level
 });
 
 function fakeRace() {
