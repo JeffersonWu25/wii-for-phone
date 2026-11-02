@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildWorld } from './world.js';
 import { createKartMesh, updateKartMesh } from './kartMesh.js';
 import { shotCamera } from '../shots.js';
+import { viewFov, viewRect } from './views.js';
 
 // ── Chase camera ─────────────────────────────────────────────────────────────
 
@@ -11,7 +12,6 @@ const CHASE_UP = 2.4;
 const CHASE_LOOK_AHEAD = 6;
 const POS_LAG = 5; // 1/s, higher = stiffer
 const LOOK_LAG = 9;
-const FOV = 60;
 const SUN_OFFSET = new THREE.Vector3(120, 180, 60);
 
 export function createKartScene(container, track) {
@@ -24,7 +24,6 @@ export function createKartScene(container, track) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 0.6, 3200);
   const world = buildWorld(track, renderer);
   scene.add(world.group);
   if (world.background) scene.background = world.background;
@@ -32,12 +31,11 @@ export function createKartScene(container, track) {
 
   window.__kartInfo = renderer.info; // dev-only: lets screenshot tooling read draw calls / triangles
   const meshes = new Map();
-  let followId = null;
+  let views = [];
   let shotName = null;
   let time = 0;
-  const camPos = new THREE.Vector3();
-  const camLook = new THREE.Vector3();
-  let camReady = false;
+  let width = 1;
+  let height = 1;
 
   function setKarts(list) {
     for (const m of meshes.values()) scene.remove(m);
@@ -48,25 +46,37 @@ export function createKartScene(container, track) {
       scene.add(m);
       meshes.set(k.id, m);
     }
-    followId ??= list[0]?.id ?? null;
   }
 
-  function setFollow(id) {
-    followId = id;
-    camReady = false;
+  // Each view is a screen rectangle in fractions (y from the top) with its own chase camera following kart `id`.
+  function setViews(list) {
+    views = list.map((v) => ({
+      ...v,
+      camera: new THREE.PerspectiveCamera(60, 16 / 9, 0.6, 3200),
+      camPos: new THREE.Vector3(),
+      camLook: new THREE.Vector3(),
+      ready: false,
+    }));
+    views.forEach(fitCamera);
   }
 
   function setShot(name) {
     shotName = name || null;
-    camReady = false;
+    for (const v of views) v.ready = false;
+  }
+
+  function fitCamera(v) {
+    const aspect = (v.w * width) / (v.h * height);
+    v.camera.aspect = aspect;
+    v.camera.fov = viewFov(aspect);
+    v.camera.updateProjectionMatrix();
   }
 
   function resize() {
-    const w = container.clientWidth || window.innerWidth;
-    const h = container.clientHeight || window.innerHeight;
-    renderer.setSize(w, h);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    width = container.clientWidth || window.innerWidth;
+    height = container.clientHeight || window.innerHeight;
+    renderer.setSize(width, height);
+    views.forEach(fitCamera);
   }
 
   function syncKarts(race, dt) {
@@ -79,8 +89,9 @@ export function createKartScene(container, track) {
     }
   }
 
-  function placeCamera(race, dt) {
-    if (shotName) {
+  function placeCamera(v, race, dt, useShot) {
+    const { camera } = v;
+    if (useShot) {
       const shot = shotCamera(track, shotName);
       if (shot) {
         camera.position.set(shot.position.x, shot.position.y, shot.position.z);
@@ -88,7 +99,7 @@ export function createKartScene(container, track) {
         return;
       }
     }
-    const kart = race.karts.find((k) => k.id === followId) ?? race.karts[0];
+    const kart = race.karts.find((k) => k.id === v.id) ?? race.karts[0];
     if (!kart) return;
     const fx = Math.cos(kart.h);
     const fz = Math.sin(kart.h);
@@ -98,37 +109,48 @@ export function createKartScene(container, track) {
     const wantPos = new THREE.Vector3(kart.x - fx * back, kart.y + CHASE_UP + (grid ? 3.6 : 0), kart.z - fz * back);
     wantPos.y = Math.max(wantPos.y, track.terrainHeight(wantPos.x, wantPos.z) + 1);
     const wantLook = new THREE.Vector3(kart.x + fx * CHASE_LOOK_AHEAD, kart.y + (grid ? 2.4 : 1), kart.z + fz * CHASE_LOOK_AHEAD);
-    if (!camReady) {
-      camPos.copy(wantPos);
-      camLook.copy(wantLook);
-      camReady = true;
+    if (!v.ready) {
+      v.camPos.copy(wantPos);
+      v.camLook.copy(wantLook);
+      v.ready = true;
     } else {
-      camPos.lerp(wantPos, 1 - Math.exp(-POS_LAG * dt));
-      camLook.lerp(wantLook, 1 - Math.exp(-LOOK_LAG * dt));
+      v.camPos.lerp(wantPos, 1 - Math.exp(-POS_LAG * dt));
+      v.camLook.lerp(wantLook, 1 - Math.exp(-LOOK_LAG * dt));
     }
-    camera.position.copy(camPos);
-    camera.lookAt(camLook);
+    camera.position.copy(v.camPos);
+    camera.lookAt(v.camLook);
+  }
+
+  // The shadow map re-renders on every render call, so the sun follows the view being drawn.
+  function focusSun(v, useShot) {
+    if (!world.sun) return;
+    // Chase: tight frustum around the followed kart. Overview shot: wide frustum over the whole infield.
+    const wide = useShot && shotName === 'overview';
+    const focus = wide ? new THREE.Vector3(world.center.x, 0, world.center.z) : useShot ? v.camera.position : meshes.get(v.id)?.position ?? v.camera.position;
+    const ext = wide ? 230 : 45;
+    const cam = world.sun.shadow.camera;
+    if (cam.right !== ext) {
+      Object.assign(cam, { left: -ext, right: ext, top: ext, bottom: -ext });
+      cam.updateProjectionMatrix();
+    }
+    world.sun.target.position.copy(focus);
+    world.sun.position.copy(focus).add(SUN_OFFSET);
   }
 
   function update(race, dt) {
     time += dt;
     syncKarts(race, dt);
-    placeCamera(race, dt);
-    world.tick?.(time, camera);
-    if (world.sun) {
-      // Chase: tight frustum around the followed kart. Overview shot: wide frustum over the whole infield.
-      const wide = shotName === 'overview';
-      const focus = wide ? new THREE.Vector3(world.center.x, 0, world.center.z) : shotName ? camera.position : meshes.get(followId)?.position ?? camera.position;
-      const ext = wide ? 230 : 45;
-      const cam = world.sun.shadow.camera;
-      if (cam.right !== ext) {
-        Object.assign(cam, { left: -ext, right: ext, top: ext, bottom: -ext });
-        cam.updateProjectionMatrix();
-      }
-      world.sun.target.position.copy(focus);
-      world.sun.position.copy(focus).add(SUN_OFFSET);
-    }
-    renderer.render(scene, camera);
+    renderer.setScissorTest(true);
+    views.forEach((v, i) => {
+      const useShot = !!shotName && i === 0; // debug shots take over the first view only
+      placeCamera(v, race, dt, useShot);
+      world.tick?.(time, v.camera);
+      focusSun(v, useShot);
+      const { x, y, w, h } = viewRect(v, width, height);
+      renderer.setViewport(x, y, w, h);
+      renderer.setScissor(x, y, w, h);
+      renderer.render(scene, v.camera); // autoClear clears just this scissored pane
+    });
   }
 
   function dispose() {
@@ -142,5 +164,5 @@ export function createKartScene(container, track) {
   }
 
   resize();
-  return { setKarts, update, setFollow, setShot, resize, dispose, setStartLights: (n) => world.setStartLights?.(n), renderer };
+  return { setKarts, update, setViews, setShot, resize, dispose, setStartLights: (n) => world.setStartLights?.(n), renderer };
 }

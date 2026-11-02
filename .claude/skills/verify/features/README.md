@@ -42,6 +42,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Select a game](./select-game.md) covers the game hub, with Bowling and Kart Racer enabled and the unbuilt games disabled.
 - [Bowl a throw](./bowling-throw.md) covers starting Bowling, the phone's turn screen, a hold-and-release throw, the result, and the host scoreboard.
 - [Race Kart Racer](./kart-race.md) covers starting Kart Racer with two phones, the countdown, a full 3-lap drive with the real phone controls, boost pads, the corridor wall, the results card, and returning to the hub.
+- [Kart Racer split screen](./kart-split.md) covers one view per racer for 1 to 4 players, the pane layout and per-pane HUD, the shared minimap, and the cap at 4 racers.
 
 ## Not mapped yet
 

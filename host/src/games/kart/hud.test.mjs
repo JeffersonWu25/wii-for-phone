@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, startTick, statusKey } from './hud.js';
+import { buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, placeParts, playerColor, splitLayout, startTick, statusKey } from './hud.js';
 
 test('player colors are distinct and wrap', () => {
   const colors = Array.from({ length: 8 }, (_, i) => playerColor(i));
@@ -11,6 +11,25 @@ test('player colors are distinct and wrap', () => {
 
 test('ordinals', () => {
   assert.deepEqual([1, 2, 3, 4].map(ordinal), ['1st', '2nd', '3rd', '4th']);
+  assert.deepEqual([11, 12, 13, 21, 22].map(ordinal), ['11th', '12th', '13th', '21st', '22nd']);
+  assert.deepEqual(placeParts(19), { num: '19', suffix: 'th' });
+});
+
+test('split layout tiles the screen for each racer count', () => {
+  const rects = (n) => splitLayout(n).views.map(({ x, y, w, h }) => [x, y, w, h]);
+  assert.deepEqual(rects(1), [[0, 0, 1, 1]]);
+  assert.deepEqual(rects(2), [[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]]);
+  assert.deepEqual(rects(3), [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5]]);
+  assert.deepEqual(rects(4), [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]]);
+  for (const n of [1, 2, 3, 4]) assert.deepEqual(splitLayout(n).views.map((v) => v.slot), [...Array(n).keys()]);
+});
+
+test('split layout sides, map placement and clamping', () => {
+  assert.deepEqual(splitLayout(1).views.map((v) => v.side), ['left']);
+  assert.deepEqual(splitLayout(4).views.map((v) => v.side), ['left', 'right', 'left', 'right']);
+  assert.deepEqual([1, 2, 3, 4].map((n) => splitLayout(n).map), ['side', 'center', 'quadrant', 'center']);
+  assert.equal(splitLayout(0).views.length, 1);
+  assert.equal(splitLayout(9).views.length, 4);
 });
 
 test('countdown lights fill 0..5 over three seconds, then go, then off', () => {
@@ -41,6 +60,24 @@ test('start tick is perpendicular to the heading', () => {
   const [x1, y1, x2, y2] = startTick((x, z) => [x, z], { x: 10, z: 10, h: 0 }, 5);
   assert.deepEqual([x1, x2], [10, 10]);
   assert.equal(Math.abs(y2 - y1), 10);
+});
+
+test('rotated minimap turns a wide track upright inside a tall box', () => {
+  const samples = [{ x: 0, z: 0 }, { x: 100, z: 0 }, { x: 100, z: 50 }, { x: 0, z: 50 }];
+  const { project } = fitMinimap(samples, 100, 200, 10, 1, true);
+  const [a, b] = [project(0, 0), project(100, 0)];
+  assert.equal(a[0], b[0]); // the long x axis now runs down the screen
+  assert.equal(Math.abs(b[1] - a[1]), 160);
+  const pts = samples.map((p) => project(p.x, p.z));
+  for (const [x, y] of pts) assert.ok(x >= 10 - 1e-9 && x <= 90 + 1e-9 && y >= 10 - 1e-9 && y <= 190 + 1e-9);
+  const [, y1, , y2] = startTick(project, { x: 0, z: 0, h: 0 }, 5);
+  assert.equal(y1, y2); // a start line along z now lies level
+});
+
+test('start tick stays perpendicular on a rotated map', () => {
+  const { project } = fitMinimap([{ x: 0, z: 0 }, { x: 100, z: 50 }], 100, 200, 10, 1, true);
+  const [x1, y1, x2, y2] = startTick(project, { x: 0, z: 0, h: 0 }, 5);
+  assert.ok(Math.abs(y2 - y1) < 1e-9 && Math.abs(Math.abs(x2 - x1) - 10) < 1e-9);
 });
 
 function fakeRace() {

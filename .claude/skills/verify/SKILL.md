@@ -19,7 +19,7 @@ The instance uses fixed ports and refuses to start if one is taken:
 | host | 15173 | `http://127.0.0.1:15173` |
 | phone | 15174 | `http://127.0.0.1:15174` |
 
-Two instances cannot run side by side. Do not attach to a dev server already on 5173, 5174, or 8080, and do not kill whatever holds a port. Stop and report.
+Two instances in the same checkout cannot run side by side. The `run/` folder is per checkout, so two checkouts or worktrees can each run an instance at once by shifting the ports. Set `VERIFY_PORT_OFFSET` (an integer, default 0) to add the same number to all three ports: with `VERIFY_PORT_OFFSET=100` the relay is 18180, the host 15273, and the phone 15274. Export it for every command (launch, doctor, cleanup, drive) of that instance, because each command computes its ports from the variable. Do not attach to a dev server already on 5173, 5174, or 8080, and do not kill whatever holds a port. Stop and report.
 
 The launcher writes its own Vite configs to `run/` instead of using `host/vite.config.js` and `phone/vite.config.js`. Those add HTTPS whenever `certs/` exists, and this relay URL is `ws://`, so HTTPS would break the instance. The repo's `.env` points at the hosted relay. The launcher overrides `VITE_RELAY_URL` and `VITE_PHONE_URL` in the child environment, which take precedence over `.env`. Doctor confirms the lobby QR URL points at the local phone port.
 
@@ -56,6 +56,7 @@ node .claude/skills/verify/scripts/drive.mjs join-lobby
 node .claude/skills/verify/scripts/drive.mjs select-game
 node .claude/skills/verify/scripts/drive.mjs bowling-throw
 node .claude/skills/verify/scripts/drive.mjs kart-race   # about 2.5 minutes
+node .claude/skills/verify/scripts/drive.mjs kart-split  # about 2 minutes
 ```
 
 Set `HEADED=1` to watch it run. Exit 0 means every check passed. Each check prints `PASS` or `FAIL` with the observed value.
@@ -69,7 +70,7 @@ Stable handles, from the source:
 - Phone: `#screen-permission` and `#btn-permission` (motion permission), `#screen-name`, `#input-name`, `#btn-join`, `.input-error`, `#screen-waiting` and `#waiting-label`.
 - Phone bowling: `#screen-bowl`, `#btn-bowl` (hold for a throw), `#screen-result`.
 - Host bowling scoreboard: `.scoreboard-player`, `.roll-cell`.
-- Phone kart: `#screen-kart`, `#kart-zone` (joystick area), `#kart-joystick`, `#btn-gas`, `#kart-finish`. Host kart: `.kart-canvas canvas`, `.kart-lap`, `.kart-timer`, `.kart-results`, `.kart-countdown`; debug reads `window.__kartState` and `window.__kartTrack`.
+- Phone kart: `#screen-kart`, `#kart-zone` (joystick area), `#kart-joystick`, `#btn-gas`, `#kart-finish`. Host kart: `.kart-canvas canvas`, `.kart-app[data-players]`, `.kart-pane[data-slot][data-side]` (with `.kart-item-slot.main` and `.reserve`, `.kart-coins`, `.kart-lapcount`, `.kart-place`), `.kart-minimap` with `.kart-map-marker`, `.kart-map-quadrant`, `.kart-results`, `.kart-countdown` (one per pane, read `.first()`); debug reads `window.__kartState` and `window.__kartTrack`.
 
 Motion permission: Chrome on desktop exposes `DeviceMotionEvent.requestPermission`, so the controller opens on the permission screen. The driver clicks the real button, and Chrome grants it. This is not a stub. The iOS Safari grant path is not exercised here.
 

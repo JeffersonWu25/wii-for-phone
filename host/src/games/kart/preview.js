@@ -2,11 +2,13 @@
 //   /kart-preview.html                 drive kart 0 with arrows / WASD, others idle on the grid
 //   /kart-preview.html?shot=<name>     fixed debug camera (see shots.js); karts are placed around the shot
 //   /kart-preview.html?ai=1            karts 1-3 drive themselves
+//   /kart-preview.html?views=N         split screen with one view per kart, N = 1..4
 import { buildTrack } from './track.js';
 import { createRace, stepRace } from './race.js';
 import { createKartScene } from './scene/createKartScene.js';
 import { SHOTS } from './shots.js';
 import { autopilotInput } from './autopilot.js';
+import { splitLayout } from './hud.js';
 
 const params = new URLSearchParams(location.search);
 const track = buildTrack();
@@ -21,7 +23,7 @@ const race = createRace(track, entrants);
 const container = document.getElementById('app');
 const scene = createKartScene(container, track);
 scene.setKarts(entrants);
-scene.setFollow('p1');
+scene.setViews(splitLayout(Number(params.get('views')) || 1).views.map((v) => ({ id: entrants[v.slot].id, x: v.x, y: v.y, w: v.w, h: v.h })));
 window.addEventListener('resize', () => scene.resize());
 
 // Park the karts around a shot's target so the camera has something to frame.
