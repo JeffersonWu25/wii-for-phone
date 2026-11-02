@@ -38,3 +38,57 @@ Build:
 7. Keep `createKartMesh(color)` and `updateKartMesh(mesh, kart, dt)` signatures; `kart.drift` may be missing on old state, treat it as idle.
 
 Evidence: launch your instance (offset 100) and run, from your worktree root, `node .claude/runs/kart-controls-rework/pose-shots.mjs http://127.0.0.1:15273 .claude/runs/kart-controls-rework/evidence/p3-a`. Look at every screenshot critically next to the reference, iterate until it holds up, then commit the final screenshots with your code. List the screenshot paths in your report.
+
+---
+
+## Final report (unedited)
+
+Candidate A (textured sprite sparks) is built and committed. Tests pass (47 pass, 0 fail) and I checked the screenshots against the reference.
+
+Worktree: /Users/jeffersonwu/Desktop/projects/wii-for-phone/.claude/worktrees/agent-a8a8f93332db70de8
+Branch: worktree-agent-a8a8f93332db70de8
+Commit: 5dbb40b
+
+**Setup undone as you asked.** I reverted the files I had wrongly copied in and removed the copied `.claude/runs`. I then merged `feat/kart-controls-rework`, which brought in the preview poses, shots and split-screen code. The commit contains only my two owned files plus the evidence screenshots. The node_modules symlinks are untracked and not committed.
+
+**Files changed**
+- `host/src/games/kart/scene/driftSparks.js` (new): the spark rig. It exports `LEVEL_COLORS`, `createDriftSparks()` and `updateDriftSparks(rig, drift, dt)`.
+- `host/src/games/kart/scene/kartMesh.js`: the kart body now sits in an inner group that yaws and leans into a drift, and it calls the spark rig. Boost flames take the level color and scale with level.
+
+**How it works**
+- **Textures:** All spark textures are drawn once on a canvas: a soft radial glow, three jagged bolt shapes (each with a wide soft halo and a thin white core), and a streak. The shapes come from a seeded random generator, so they are the same on every load.
+- **Pool per rear wheel:**
+  - Sparks sit on the ground just outside each rear tire.
+  - A glow and a hot flash.
+  - Up to 4 bolts, each a halo sprite plus a near-white core sprite.
+  - Up to 7 short streaks that fly back and outward.
+- **Colors:** The halo and the streaks use exactly `#fff4d6`, `#2f8cff`, `#ff8a1f` and `#c040ff`. The core is the same color mixed 75% toward white, so there is a near-white core at every level.
+- **Growth:** Per level, the number of bolts and streaks, bolt length, streak length, streak speed, and glow size and opacity all rise. The four levels are told apart by size and count, not just color.
+- **Motion:** Bolts re-roll their shape, direction, length and root offset every 40 to 100 ms. Glow and flash flicker every frame, and streaks age and respawn on `dt`.
+- **Drift body:** The body eases toward `drift.dir` with a yaw of 0.22 rad (about 12.6 degrees) and a roll of 0.1 rad away from the turn, at a rate of 9 per second. It is mirrored for `dir = -1`. A missing `kart.drift` is treated as idle.
+- **Boost flames:** Level 0 keeps `0xffa020`. Levels 1 to 3 use the level color, scaled 1.1, 1.25 and 1.45. They show only while `kart.boost > 0`.
+- **Hygiene:**
+  - No geometry, material or texture is created per frame.
+  - The flame geometry is shared at module scope.
+  - Spark materials are per sprite, so the scene's dispose pass frees them. Textures and the shared sprite quad live at module scope.
+  - All sparks are hidden unless `drift.sliding`.
+
+**Decisions**
+- **Camera-facing rotation:** Sprites can only rotate in screen space. Each directional sprite sets its own rotation in `onBeforeRender`, so every split-screen camera sees the bolts and streaks pointing back and outward. This also keeps `updateKartMesh(mesh, kart, dt)` and `createKartScene.js` untouched.
+- **Ground glow without depth test:** The ground glow has `depthTest` off. With it on, the camera-facing quad cut a hard line where it crossed the road. The kart body can therefore be lightly washed by the glow, which looks close to the reference. Bolts and streaks keep the depth test.
+- **Sparks inside the body group:** They follow the yawed wheels.
+- **Tuning from screenshots:** After the first look the bolts were too large and too regular. I made them finer and shorter at level 3 (1.55 m long), widened and softened the glow, and cut the halo alpha so the colors stay saturated.
+
+**Evidence** (all under `.claude/runs/kart-controls-rework/evidence/p3-a/`, committed). `drift3-rear.png` and `drift3-rear-100ms.png` are the pair for checking that frames differ. I viewed these screenshots myself:
+- `drift0-rear.png` to `drift3-rear.png`
+- `drift0-quarter.png` to `drift3-quarter.png`
+- `drift3-left-rear.png`
+- `boost1-rear.png` to `boost3-rear.png`
+- `drift3-chase.png`
+- `drift3-chase-4up.png`
+- `drift3-rear-100ms.png`
+
+**Uncertain**
+- In the 4-way split screen the level-3 sparks are visible but small, as the karts are small there.
+- The level-3 purple reads a little pink-white at the core because of additive blending, which is similar to the reference.
+- Pixel cost with 4 karts is unmeasured. I expect up to about 30 additive sprites per kart.

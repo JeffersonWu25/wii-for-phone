@@ -38,3 +38,55 @@ Build:
 7. Keep `createKartMesh(color)` and `updateKartMesh(mesh, kart, dt)` signatures; `kart.drift` may be missing on old state, treat it as idle.
 
 Evidence: launch your instance (offset 200) and run, from your worktree root, `node .claude/runs/kart-controls-rework/pose-shots.mjs http://127.0.0.1:15373 .claude/runs/kart-controls-rework/evidence/p3-b`. Look at every screenshot critically next to the reference, iterate until it holds up, then commit the final screenshots with your code. List the screenshot paths in your report.
+
+---
+
+## Final report (unedited)
+
+Candidate B (procedural lightning geometry) is done and committed. Worktree: /Users/jeffersonwu/Desktop/projects/wii-for-phone/.claude/worktrees/agent-a5dc0ee0da23fba7b, branch worktree-agent-a5dc0ee0da23fba7b, commit 7533d62. Unit tests: 47 pass, 0 fail. The 14 pose screenshots ran from my offset-200 instance with no page errors, and the instance is cleaned up. The node_modules symlinks are untracked and not committed.
+
+**Worktree setup you should know about**
+- The brief says the shared tools are committed in the worktree, but my worktree started at 07f8950 without them or the preview poses. I fast-forwarded the branch to `feat/kart-controls-rework`. That was needed for the `?drift=` / `?boost=` poses and the `driftRear` / `driftQuarter` shots.
+
+**Files changed**
+- `host/src/games/kart/scene/driftSparks.js` (new): spark rig for one kart, built by `createDriftSparks()` and driven by `updateDriftSparks(rig, drift, dt)`. It also exports `LEVEL_COLORS`.
+- `host/src/games/kart/scene/kartMesh.js`: body moved into an inner group, drift yaw and lean added, flames colored by `boostLevel`, spark rig attached.
+- `.claude/runs/kart-controls-rework/evidence/p3-b/*.png`: the 14 pose screenshots, plus `drift3-rear-100ms.png`.
+
+**How it works and why**
+- **Arcs:** each arc is a 9-point polyline in a preallocated buffer, re-randomised by 3 midpoint-displacement passes every 35 to 85 ms, so it crackles instead of flickering every frame.
+- **Crossed ribbons:** each polyline is drawn as two crossed ribbons, one vertical and one flat. `updateKartMesh` has no camera, so true billboarding wasn't possible, and this stays visible from rear and quarter views.
+- **Two passes:** a wide colored pass fades from a hot tint at the root to the level color at the tip. A thin near-white core pass sits inside it at every level.
+- **Streaks:** a pool of 20 per wheel is thrown back and outward with gravity and fades out. Each is white at the head and saturated at the tail.
+- **One draw call:** arcs, cores and streaks share one additive vertex-colored mesh per kart. A second mesh holds the two ground glow quads, which use one shared radial-gradient canvas texture. Materials, glow texture and index buffer are built once at module scope.
+- **Growth per level** (per wheel):
+
+| Level | Arcs | Reach (m) | Streaks/s | Brightness |
+|---|---|---|---|---|
+| 0 | 1 | 0.5 | 7 | faint |
+| 1 | 2 | 1.0 | 20 | brighter |
+| 2 | 3 | 1.4 | 42 | brighter |
+| 3 | 4 | 1.9 | 75 | brightest |
+
+  Arc width and glow size also grow each level.
+- **Colors:** exactly the contract colors.
+- **Hidden when idle:** the rig is hidden when `kart.drift` is missing or `sliding` is false.
+- **Drift body:** the visible kart sits in an inner group. It eases a yaw of about 12.5 degrees toward `drift.dir` and a lean of about 5 degrees outward, mirrored for `dir = -1`. The ease rate is 9/s.
+- **Boost flames:** four shared level materials, with level 0 keeping the orange `0xffa020`. Scale grows about 18% in width and 12% in length per level. The cone geometry is shared at module scope.
+- **Hygiene:** no per-frame allocation (I removed a per-frame `corners` array). Disposal works through the existing scene traversal. Shared materials are reused after dispose, the same way `shadowMat` already is.
+- **Reading the contract:** the renderer only reads `kart.drift`, `kart.boost`, `kart.boostLevel`, `kart.steerVis` and `kart.speed`.
+
+**Evidence**
+- Screenshots are in `/Users/jeffersonwu/Desktop/projects/wii-for-phone/.claude/worktrees/agent-a5dc0ee0da23fba7b/.claude/runs/kart-controls-rework/evidence/p3-b/`:
+  - `drift0-rear` through `drift3-rear`, and `drift0-quarter` through `drift3-quarter`
+  - `drift3-left-rear`
+  - `boost1-rear` through `boost3-rear`
+  - `drift3-chase` and `drift3-chase-4up`
+  - `drift3-rear-100ms`, a second frame 100 ms after `drift3-rear`, for the motion check
+- I iterated twice. The first pass blew out to flat white and fat ribbons, from overlapping additive layers. I cut widths and gains, shortened arc reach, and lowered the displacement amplitude.
+
+**Uncertain or weak**
+- The ground glow bloom is barely visible on the dark asphalt, even after raising its gain. The ref's pink bloom is mostly missing, and the arcs and streaks carry the look.
+- At level 3 the white core dominates, so the purple reads as pale magenta edges. Level 2 reads as pale orange edges. Color fidelity is moderate, and level 1 (blue) is the most saturated.
+- In the 4-up screenshot the level 3 sparks are visible but small.
+- I did not check the left (`dir = -1`) yaw and lean sign by eye in detail. It is mirrored by construction.
