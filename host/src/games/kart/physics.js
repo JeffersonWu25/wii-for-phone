@@ -23,6 +23,19 @@ export const WALL_SPEED_LOSS = 0.35;
 export const WALL_RESTITUTION = 0.3;
 export const ATTITUDE_RATE = 12; // 1/s smoothing for pitch / roll
 
+// Drift: travel direction and body heading are tracked apart while sliding.
+export const DRIFT_MIN_STEER = 0.3; // |steer| needed to start a slide
+export const DRIFT_MIN_SPEED = 8; // m/s needed to start and keep a slide
+export const DRIFT_TURN = 1.1; // rad/s the travel direction swings into the turn
+export const DRIFT_STEER_MOD = 0.4; // steering into the turn adds up to this much, out of it removes it
+export const DRIFT_SLIP = 0.52; // rad (30 deg) the body points past the travel direction
+export const DRIFT_SLIP_IN = 9; // 1/s slip eases in on drift start
+export const DRIFT_SLIP_OUT = 7; // 1/s slip eases out after the slide ends
+export const DRIFT_DRAG = 1.2; // m/s^2 lost while sliding
+export const DRIFT_LEVEL_TIMES = [1, 2, 3]; // s of sliding to reach levels 1, 2, 3
+export const DRIFT_BOOST_TIME = [0.7, 1.3, 2]; // s of boost on release at level 1, 2, 3
+export const DRIFT_BOOST_TOP = [1.3, 1.45, 1.6]; // top speed multiplier per level
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -51,44 +64,93 @@ export function createKart({ id, color, slot } = {}) {
     roll: 0, // right side down positive
     surface: 'road',
     boost: 0,
+    boostLevel: 0, // level of the drift boost running, 0 for pads or no boost
+    drift: { sliding: false, dir: 0, charge: 0, level: 0 },
+    slip: 0, // rad, heading minus travel direction while sliding, eased out after
     airborne: false,
     steerVis: 0,
   };
 }
 
+// Slide state machine. A slide needs drift held, enough steer and speed, ground contact and no
+// brake; the direction locks at the start. Charging pauses off-road, a wall hit only costs speed.
+// Releasing the button at level 1+ grants the boost; a brake cancel or running out of speed
+// grants nothing. Holding drift after a cancel starts a new slide once the conditions hold again.
+function updateDrift(kart, input, steer, brake, offroad, dt) {
+  const d = kart.drift;
+  const held = !!input.drift;
+  if (d.sliding) {
+    const released = !held;
+    if (released && brake === 0 && kart.speed >= DRIFT_MIN_SPEED && d.level >= 1) {
+      kart.boost = Math.max(kart.boost, DRIFT_BOOST_TIME[d.level - 1]);
+      kart.boostLevel = d.level;
+    }
+    if (released || brake > 0 || kart.speed < DRIFT_MIN_SPEED) Object.assign(d, { sliding: false, dir: 0, charge: 0, level: 0 });
+  } else if (held && brake === 0 && Math.abs(steer) >= DRIFT_MIN_STEER && kart.speed >= DRIFT_MIN_SPEED && !kart.airborne) {
+    Object.assign(d, { sliding: true, dir: Math.sign(steer), charge: 0, level: 0 });
+    // Start from the slip the kart already has so the body does not snap.
+    if (Math.hypot(kart.vx, kart.vz) > 0.5) kart.slip = wrapAngle(kart.h - Math.atan2(kart.vz, kart.vx));
+  }
+  if (!d.sliding) return;
+  if (!offroad) d.charge += dt;
+  d.level = DRIFT_LEVEL_TIMES.filter((t) => d.charge >= t).length;
+}
+
 export function stepKart(kart, input, dt, track) {
   const steer = clamp(input.steer || 0, -1, 1);
-  const gas = !!input.gas;
-  const brake = !!input.brake;
+  const throttle = clamp(input.throttle ?? 1, 0, 1);
+  const brake = clamp(input.brake || 0, 0, 1);
   const offroad = kart.surface === 'grass' || kart.surface === 'sand';
-  const top = TOP_SPEED * (offroad ? OFFROAD_TOP : 1) * (kart.boost > 0 ? BOOST_TOP : 1);
 
-  // Speed along the heading.
+  updateDrift(kart, input, steer, brake, offroad, dt);
+  const sliding = kart.drift.sliding;
+  const boostTop = kart.boostLevel > 0 ? DRIFT_BOOST_TOP[kart.boostLevel - 1] : BOOST_TOP;
+  const top = TOP_SPEED * (offroad ? OFFROAD_TOP : 1) * (kart.boost > 0 ? boostTop : 1);
+
+  // Speed along the heading. Brake overrides throttle.
   let v = kart.speed;
-  if (brake && !gas) {
-    v = v > 0 ? Math.max(0, v - BRAKE * dt) : Math.max(-REVERSE_TOP, v - BRAKE * 0.4 * dt);
-  } else if (gas) {
+  if (brake > 0) {
+    v = v > 0 ? Math.max(0, v - BRAKE * brake * dt) : Math.max(-REVERSE_TOP, v - BRAKE * 0.4 * brake * dt);
+  } else if (throttle > 0) {
     if (v < 0) v = Math.min(0, v + BRAKE * dt);
-    else if (v < top) v = Math.min(top, v + (kart.boost > 0 ? BOOST_ACCEL_RATE : ACCEL_RATE) * (top * 1.05 - v) * dt);
+    else if (v < top) v = Math.min(top, v + (kart.boost > 0 ? BOOST_ACCEL_RATE : ACCEL_RATE) * throttle * (top * 1.05 - v) * dt);
   } else if (v !== 0) {
     const drag = (COAST_BASE + COAST_PROP * Math.abs(v)) * dt;
     v = Math.abs(v) <= drag ? 0 : v - Math.sign(v) * drag;
   }
+  if (sliding) v = Math.max(0, v - DRIFT_DRAG * dt);
   if (v > top) v = Math.max(top, v - (OVERSPEED_DRAG + 2.5 * (v - top)) * dt);
-
-  // Heading.
-  const turn = (TURN_RATE / (1 + (Math.abs(v) / TURN_FALLOFF) ** 2)) * Math.min(1, Math.abs(v) / 3);
-  kart.h += steer * turn * Math.sign(v) * dt;
   kart.steerVis += (steer - kart.steerVis) * (1 - Math.exp(-10 * dt));
 
-  // Velocity vector lags the heading; slip scrubs speed.
-  const fx = Math.cos(kart.h);
-  const fz = Math.sin(kart.h);
-  const catchUp = 1 - Math.exp(-(offroad ? GRIP_OFFROAD : GRIP_ROAD) * dt);
-  kart.vx += (fx * v - kart.vx) * catchUp;
-  kart.vz += (fz * v - kart.vz) * catchUp;
-  const vmag = Math.hypot(kart.vx, kart.vz);
-  if (vmag > 1) v *= Math.max(0, 1 - (SCRUB * Math.abs(kart.vx * fz - kart.vz * fx) * dt) / vmag);
+  if (sliding) {
+    // Travel direction swings into the turn; the body points past it by the slip angle.
+    const { dir } = kart.drift;
+    const moving = Math.hypot(kart.vx, kart.vz) > 0.5;
+    let travel = moving ? Math.atan2(kart.vz, kart.vx) : kart.h - kart.slip;
+    travel += dir * DRIFT_TURN * Math.max(0.2, 1 + DRIFT_STEER_MOD * steer * dir) * dt;
+    kart.slip += (dir * DRIFT_SLIP - kart.slip) * (1 - Math.exp(-DRIFT_SLIP_IN * dt));
+    kart.h = travel + kart.slip;
+    kart.vx = Math.cos(travel) * v;
+    kart.vz = Math.sin(travel) * v;
+  } else {
+    // Heading.
+    const turn = (TURN_RATE / (1 + (Math.abs(v) / TURN_FALLOFF) ** 2)) * Math.min(1, Math.abs(v) / 3);
+    kart.h += steer * turn * Math.sign(v) * dt;
+    if (kart.slip !== 0) {
+      const eased = Math.abs(kart.slip) < 0.005 ? 0 : kart.slip * Math.exp(-DRIFT_SLIP_OUT * dt);
+      kart.h += eased - kart.slip;
+      kart.slip = eased;
+    }
+
+    // Velocity vector lags the heading; slip scrubs speed.
+    const fx = Math.cos(kart.h);
+    const fz = Math.sin(kart.h);
+    const catchUp = 1 - Math.exp(-(offroad ? GRIP_OFFROAD : GRIP_ROAD) * dt);
+    kart.vx += (fx * v - kart.vx) * catchUp;
+    kart.vz += (fz * v - kart.vz) * catchUp;
+    const vmag = Math.hypot(kart.vx, kart.vz);
+    if (vmag > 1) v *= Math.max(0, 1 - (SCRUB * Math.abs(kart.vx * fz - kart.vz * fx) * dt) / vmag);
+  }
   kart.speed = v;
 
   kart.x += kart.vx * dt;
@@ -137,13 +199,17 @@ export function stepKart(kart, input, dt, track) {
   kart.pitch += (Math.atan(gx * Math.cos(kart.h) + gz * Math.sin(kart.h)) - kart.pitch) * k;
   kart.roll += (Math.atan(-(gx * -Math.sin(kart.h) + gz * Math.cos(kart.h))) - kart.roll) * k;
 
-  // Boost pads.
+  // Boost pads. A pad never shortens a running boost; once it takes over the boost reads level 0.
   kart.boost = Math.max(0, kart.boost - dt);
   for (const pad of track.boostPads) {
     let ds = kart.s - pad.s;
     ds -= track.length * Math.round(ds / track.length);
-    if (Math.abs(ds) <= pad.length / 2 && Math.abs(kart.lateral - pad.lateral) <= pad.width / 2 + 0.5) kart.boost = BOOST_TIME;
+    if (Math.abs(ds) <= pad.length / 2 && Math.abs(kart.lateral - pad.lateral) <= pad.width / 2 + 0.5 && kart.boost < BOOST_TIME) {
+      kart.boost = BOOST_TIME;
+      kart.boostLevel = 0;
+    }
   }
+  if (kart.boost === 0) kart.boostLevel = 0;
 }
 
 // ── Kart-vs-kart ─────────────────────────────────────────────────────────────

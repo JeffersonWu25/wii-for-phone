@@ -6,5 +6,5 @@ export function autopilotInput(track, kart, { lookAhead = 10, lookSpeed = 0.5, l
   const tx = fr.x + fr.rx * lateral;
   const tz = fr.z + fr.rz * lateral;
   const diff = wrapAngle(Math.atan2(tz - kart.z, tx - kart.x) - kart.h);
-  return { steer: Math.max(-1, Math.min(1, diff * 2.2)), gas: true };
+  return { steer: Math.max(-1, Math.min(1, diff * 2.2)) };
 }
