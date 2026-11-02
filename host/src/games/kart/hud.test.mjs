@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, startTick, statusKey } from './hud.js';
+import { buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, splitLayout, startTick, statusKey } from './hud.js';
 
 test('player colors are distinct and wrap', () => {
   const colors = Array.from({ length: 8 }, (_, i) => playerColor(i));
@@ -11,6 +11,25 @@ test('player colors are distinct and wrap', () => {
 
 test('ordinals', () => {
   assert.deepEqual([1, 2, 3, 4].map(ordinal), ['1st', '2nd', '3rd', '4th']);
+});
+
+test('split layout tiles the screen for each racer count', () => {
+  const rects = (n) => splitLayout(n).views.map(({ x, y, w, h }) => [x, y, w, h]);
+  assert.deepEqual(rects(1), [[0, 0, 1, 1]]);
+  assert.deepEqual(rects(2), [[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]]);
+  assert.deepEqual(rects(3), [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5]]);
+  assert.deepEqual(rects(4), [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]]);
+  for (const n of [1, 2, 3, 4]) assert.deepEqual(splitLayout(n).views.map((v) => v.slot), [...Array(n).keys()]);
+});
+
+test('split layout sides, map placement and clamping', () => {
+  assert.deepEqual(splitLayout(1).views.map((v) => v.side), ['left']);
+  assert.deepEqual(splitLayout(4).views.map((v) => v.side), ['left', 'right', 'left', 'right']);
+  assert.deepEqual([1, 2, 3, 4].map((n) => splitLayout(n).map), ['side', 'center', 'quadrant', 'center']);
+  assert.deepEqual(splitLayout(3).mapRect, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
+  assert.equal(splitLayout(4).mapRect, null);
+  assert.equal(splitLayout(0).views.length, 1);
+  assert.equal(splitLayout(9).views.length, 4);
 });
 
 test('countdown lights fill 0..5 over three seconds, then go, then off', () => {

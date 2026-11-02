@@ -3,13 +3,14 @@ import { buildTrack } from './track.js';
 import { createRace, stepRace, formatTime } from './race.js';
 import { createKartScene } from './scene/createKartScene.js';
 import {
-  buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, startTick, statusKey,
+  buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, splitLayout, startTick, statusKey,
 } from './hud.js';
 
 const STATUS_INTERVAL_MS = 250; // 4 Hz; the relay allows the host 60 msgs/s
 const HUD_INTERVAL_MS = 100;
 const RESULTS_AUTO_EXIT_MS = 10_000;
 const MAP_SIZE = 190;
+const MAX_RACERS = 4;
 const DEBUG_ENTRANT = { id: 'debug', name: 'Debug' };
 const DRIVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
 
@@ -19,6 +20,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
   const [label, setLabel] = useState(null);
   const [results, setResults] = useState(null);
   const [map, setMap] = useState(null);
+  const [layout, setLayout] = useState(null);
 
   const containerRef = useRef(null);
   const dotRefs = useRef({});
@@ -37,7 +39,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     }
 
     // ── Setup ─────────────────────────────────────────────────────────────────
-    const lobby = players.length ? players.map((p) => ({ id: p.playerId, name: p.name })) : [DEBUG_ENTRANT];
+    const lobby = players.length ? players.slice(0, MAX_RACERS).map((p) => ({ id: p.playerId, name: p.name })) : [DEBUG_ENTRANT];
     const entrants = lobby.map((p, i) => ({ ...p, color: playerColor(i) }));
     const cssById = Object.fromEntries(entrants.map((e) => [e.id, cssColor(e.color)]));
     const followId = entrants[0].id;
@@ -46,7 +48,9 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     const race = createRace(track, entrants);
     const scene = createKartScene(containerRef.current, track);
     scene.setKarts(entrants);
-    scene.setFollow(followId);
+    const split = splitLayout(entrants.length);
+    scene.setViews(split.views.map((v) => ({ id: entrants[v.slot].id, x: v.x, y: v.y, w: v.w, h: v.h })));
+    setLayout({ ...split, entrants: entrants.map((e, slot) => ({ id: e.id, name: e.name, slot, css: cssById[e.id] })) });
 
     const fit = fitMinimap(track.samples, MAP_SIZE, MAP_SIZE, 14);
     const tick = startTick(fit.project, track.samples[0]);
@@ -118,7 +122,6 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     const inputs = {};
 
     function publish(now) {
-      const f = race.karts.find((k) => k.id === followId);
       const status = buildStatus(race, cssById);
       const key = statusKey(status);
       if (key !== lastStatusKey && now - statusAt >= STATUS_INTERVAL_MS) {
@@ -129,13 +132,11 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       if (now - hudAt >= HUD_INTERVAL_MS) {
         hudAt = now;
         setHud({
-          lap: Math.min(f.lap + 1, race.laps),
-          laps: race.laps,
-          time: race.time,
-          place: f.place,
           total: race.karts.length,
-          wrongWay: f.wrongWay,
-          standings: race.standings.map((id) => ({ id, name: race.karts.find((k) => k.id === id).name, css: cssById[id] })),
+          slots: entrants.map((e) => {
+            const k = race.karts.find((r) => r.id === e.id);
+            return { lap: Math.min(k.lap + 1, race.laps), laps: race.laps, place: k.place, wrongWay: k.wrongWay };
+          }),
         });
       }
     }
@@ -218,22 +219,16 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="kart-app">
+    <div className="kart-app" data-players={layout?.entrants.length}>
       <div className="kart-canvas" ref={containerRef} />
       {hud && (
         <>
-          <div className="kart-panel kart-lap">LAP <b>{hud.lap}</b>/{hud.laps}</div>
-          <div className="kart-panel kart-timer">{formatTime(hud.time)}</div>
+          <div className="kart-panel kart-lap">LAP <b>{hud.slots[0].lap}</b>/{hud.slots[0].laps}</div>
           <div className="kart-place">
-            <span className="kart-place-big">{ordinal(hud.place)}</span>
+            <span className="kart-place-big">{ordinal(hud.slots[0].place)}</span>
             <span className="kart-place-total">/{hud.total}</span>
           </div>
-          <ol className="kart-standings">
-            {hud.standings.map((s) => (
-              <li key={s.id}><span className="kart-dot" style={{ background: s.css }} />{s.name}</li>
-            ))}
-          </ol>
-          {hud.wrongWay && <div className="kart-wrongway">WRONG WAY</div>}
+          {hud.slots[0].wrongWay && <div className="kart-wrongway">WRONG WAY</div>}
         </>
       )}
       {map && (

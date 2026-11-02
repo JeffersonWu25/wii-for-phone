@@ -10,6 +10,22 @@ export const playerColor = (i) => PALETTE[((i % PALETTE.length) + PALETTE.length
 
 export const ordinal = (n) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
 
+// ── Split screen ─────────────────────────────────────────────────────────────
+
+// Pane rectangles for 1..4 racers in screen fractions (y from the top), plus where the shared minimap goes.
+// 3p leaves the bottom-right quadrant for a large map (mapRect); other counts overlay a small one.
+export function splitLayout(n) {
+  const count = Math.max(1, Math.min(4, Math.round(n) || 1));
+  const cols = count === 1 ? 1 : 2;
+  const rows = count <= 2 ? 1 : 2;
+  const views = Array.from({ length: count }, (_, slot) => {
+    const col = slot % cols;
+    return { slot, x: col / cols, y: Math.floor(slot / cols) / rows, w: 1 / cols, h: 1 / rows, side: col === 0 ? 'left' : 'right' };
+  });
+  const map = count === 1 ? 'side' : count === 3 ? 'quadrant' : 'center';
+  return { views, map, mapRect: count === 3 ? { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } : null };
+}
+
 // ── Countdown ────────────────────────────────────────────────────────────────
 
 // Start-light state for scene.setStartLights: 0..5 lit, 'go', or null once the lights go out.
