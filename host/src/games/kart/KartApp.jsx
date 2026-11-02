@@ -14,7 +14,10 @@ const MAP_LONG = 260;
 const MAP_SHORT = 150;
 const MAX_RACERS = 4;
 const DEBUG_ENTRANT = { id: 'debug', name: 'Debug' };
-const DRIVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
+// Gas is always on: a racer with no phone input yet still drives, a disconnected one coasts.
+const IDLE = { steer: 0, brake: 0, drift: false };
+const COAST = { steer: 0, brake: 0, drift: false, throttle: 0 };
+const DRIVE_KEYS = ['ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'];
 
 // Self-contained Kart Racer host component. Props mirror BowlingApp.
 export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon }) {
@@ -72,7 +75,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       if (msg.type !== 'drive' || !cssById[msg.playerId]) return;
       phoneInputs[msg.playerId] = {
         steer: Math.max(-1, Math.min(1, Number(msg.steer) || 0)),
-        gas: msg.gas === true,
+        brake: Math.max(0, Math.min(1, Number(msg.brake) || 0)),
+        drift: msg.drift === true,
       };
     }
     ws?.addEventListener('message', onMessage);
@@ -99,8 +103,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       if (!keys.size) return null;
       return {
         steer: (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0),
-        gas: keys.has('ArrowUp') || keys.has('KeyW'),
-        brake: keys.has('ArrowDown') || keys.has('KeyS'),
+        brake: keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0,
+        drift: keys.has('Space') || keys.has('ShiftLeft') || keys.has('ShiftRight'),
       };
     }
 
@@ -153,7 +157,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       last = now;
 
       for (const k of race.karts) {
-        inputs[k.id] = disconnectedRef.current.has(k.id) ? { steer: 0, gas: false } : phoneInputs[k.id] ?? { steer: 0, gas: false };
+        inputs[k.id] = disconnectedRef.current.has(k.id) ? COAST : phoneInputs[k.id] ?? IDLE;
       }
       const kb = keyboardInput();
       if (kb) inputs[keyboardId] = kb;
