@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Drive the Wii Bowling web app (host TV screen in host/, phone controller in phone/, and the relay in relay/) to prove the lobby join, game selection, and a bowling throw, using real Chrome and real WebSocket traffic. Use after changes to host, phone, or relay, or when asked to prove a user-facing flow works.
+description: Drive the Wii Bowling web app (host TV screen in host/, phone controller in phone/, and the relay in relay/) to prove the lobby join, game selection, a bowling throw, and a full Kart Racer race, using real Chrome and real WebSocket traffic. Use after changes to host, phone, or relay, or when asked to prove a user-facing flow works.
 ---
 
 # Verify Wii Bowling
@@ -55,6 +55,7 @@ Each feature is one script, run against the live instance:
 node .claude/skills/verify/scripts/drive.mjs join-lobby
 node .claude/skills/verify/scripts/drive.mjs select-game
 node .claude/skills/verify/scripts/drive.mjs bowling-throw
+node .claude/skills/verify/scripts/drive.mjs kart-race   # about 2.5 minutes
 ```
 
 Set `HEADED=1` to watch it run. Exit 0 means every check passed. Each check prints `PASS` or `FAIL` with the observed value.
@@ -68,6 +69,7 @@ Stable handles, from the source:
 - Phone: `#screen-permission` and `#btn-permission` (motion permission), `#screen-name`, `#input-name`, `#btn-join`, `.input-error`, `#screen-waiting` and `#waiting-label`.
 - Phone bowling: `#screen-bowl`, `#btn-bowl` (hold for a throw), `#screen-result`.
 - Host bowling scoreboard: `.scoreboard-player`, `.roll-cell`.
+- Phone kart: `#screen-kart`, `#kart-zone` (joystick area), `#kart-joystick`, `#btn-gas`, `#kart-finish`. Host kart: `.kart-canvas canvas`, `.kart-lap`, `.kart-timer`, `.kart-results`, `.kart-countdown`; debug reads `window.__kartState` and `window.__kartTrack`.
 
 Motion permission: Chrome on desktop exposes `DeviceMotionEvent.requestPermission`, so the controller opens on the permission screen. The driver clicks the real button, and Chrome grants it. This is not a stub. The iOS Safari grant path is not exercised here.
 

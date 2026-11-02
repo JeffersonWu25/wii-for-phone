@@ -38,6 +38,11 @@ async function loadAndMountGame(gameId) {
       mountFn = mod.mount;
       break;
     }
+    case 'kart': {
+      const mod = await import('./games/kart/index.js');
+      mountFn = mod.mount;
+      break;
+    }
     default:
       console.warn(`[phone] Unknown game: ${gameId}`);
       gameLoading = false;

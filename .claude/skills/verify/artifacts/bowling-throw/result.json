@@ -1,7 +1,7 @@
 {
   "feature": "bowling-throw",
   "passed": true,
-  "finishedAt": "2026-11-01T13:50:05.146Z",
+  "finishedAt": "2026-11-02T15:05:26.222Z",
   "error": null,
   "checks": [
     {
@@ -27,7 +27,7 @@
     {
       "name": "phone streamed pos packets while held",
       "ok": true,
-      "detail": "pos frames 10"
+      "detail": "pos frames 9"
     },
     {
       "name": "host received the throw through the relay",

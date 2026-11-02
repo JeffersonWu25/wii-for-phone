@@ -1,0 +1,138 @@
+{
+  "feature": "kart-race",
+  "passed": true,
+  "finishedAt": "2026-11-02T15:07:56.325Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "both phones show #screen-kart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "host shows the canvas and the HUD",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "GAS touch registers on the phone (button pressed)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "race starts in the countdown with the kart on the grid",
+      "ok": true,
+      "detail": "phase countdown, s 799.9"
+    },
+    {
+      "name": "GO! label shows right after the lights",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Ada finished all 3 laps",
+      "ok": true,
+      "detail": "lap 3, race time 114.46s"
+    },
+    {
+      "name": "HUD lap counter showed 1, 2, 3 in order",
+      "ok": true,
+      "detail": "1>2>3"
+    },
+    {
+      "name": "completed-lap counter went 0>1>2>3 in order",
+      "ok": true,
+      "detail": "0>1>2>3"
+    },
+    {
+      "name": "three crossings after the grid start gave 3 plausible lap times (30-80 s)",
+      "ok": true,
+      "detail": "wraps at 1.1, 42.1, 78.3, 114.5; laps 41.1, 36.2, 36.1 s"
+    },
+    {
+      "name": "no respawn jumps (clean run)",
+      "ok": true,
+      "detail": "jumps 0"
+    },
+    {
+      "name": "no WRONG WAY state outside the wall test",
+      "ok": true,
+      "detail": "0 samples (3 during/after the wall test)"
+    },
+    {
+      "name": "kart stays inside the corridor (|lateral| <= limit)",
+      "ok": true,
+      "detail": "max overshoot -0.900 m over 2033 samples"
+    },
+    {
+      "name": "kart y within 5 cm of heightAt(s, lateral)",
+      "ok": true,
+      "detail": "max error 0.00 cm"
+    },
+    {
+      "name": "boost pad 1 hit, speed after > 22 m/s",
+      "ok": true,
+      "detail": "passes 3, max speed after 31.9 m/s"
+    },
+    {
+      "name": "boost pad 2 hit, speed after > 22 m/s",
+      "ok": true,
+      "detail": "passes 3, max speed after 31.9 m/s"
+    },
+    {
+      "name": "wall test: lateral clamps at the corridor limit",
+      "ok": true,
+      "detail": "ok; max |lateral| 19.10 vs limit 20.00"
+    },
+    {
+      "name": "wall test: speed drops on contact",
+      "ok": true,
+      "detail": "speed 30.3 -> min -1.7 m/s"
+    },
+    {
+      "name": "wall test: kart recovered to finish the race",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "portrait phone shows the rotate prompt",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "results card lists both players with Ada 1st and a time",
+      "ok": true,
+      "detail": "1stAda1:54.46best 0:36.15 | 2ndBoDNF"
+    },
+    {
+      "name": "Ada's phone shows Finished! 1st",
+      "ok": true,
+      "detail": "Finished!1st"
+    },
+    {
+      "name": "phones received kart_status frames",
+      "ok": true,
+      "detail": "Ada 6, Bo 6"
+    },
+    {
+      "name": "phones received kart_results frames",
+      "ok": true,
+      "detail": "Ada 1, Bo 1"
+    },
+    {
+      "name": "Ada's drive frames carried gas and varied steer",
+      "ok": true,
+      "detail": "2977 frames, 125 distinct steer values"
+    },
+    {
+      "name": "Back to games returns the host to game select",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "both phones return to the waiting screen",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -39,8 +39,9 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [Join the lobby](./join-lobby.md) covers the host lobby and QR, the phone's name entry, empty and duplicate names, and players appearing on the host.
-- [Select a game](./select-game.md) covers the game hub, with Bowling enabled and the unbuilt games disabled.
+- [Select a game](./select-game.md) covers the game hub, with Bowling and Kart Racer enabled and the unbuilt games disabled.
 - [Bowl a throw](./bowling-throw.md) covers starting Bowling, the phone's turn screen, a hold-and-release throw, the result, and the host scoreboard.
+- [Race Kart Racer](./kart-race.md) covers starting Kart Racer with two phones, the countdown, a full 3-lap drive with the real phone controls, boost pads, the corridor wall, the results card, and returning to the hub.
 
 ## Not mapped yet
 

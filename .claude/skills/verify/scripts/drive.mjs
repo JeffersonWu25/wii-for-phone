@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw.
+// Feature ids: join-lobby, select-game, bowling-throw, kart-race.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -48,8 +48,8 @@ class Run {
     console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
   }
 
-  async openHost() {
-    const ctx = await this.browser.newContext({ viewport: HOST_VIEWPORT });
+  async openHost({ viewport = HOST_VIEWPORT } = {}) {
+    const ctx = await this.browser.newContext({ viewport });
     this.contexts.push(ctx);
     const page = await ctx.newPage();
     this.tapFrames(page, 'host');
@@ -61,8 +61,8 @@ class Run {
     return page;
   }
 
-  async openPhone(name, { join = true } = {}) {
-    const ctx = await this.browser.newContext({ viewport: PHONE_VIEWPORT, hasTouch: true });
+  async openPhone(name, { join = true, viewport = PHONE_VIEWPORT, isMobile = false } = {}) {
+    const ctx = await this.browser.newContext({ viewport, hasTouch: true, isMobile });
     this.contexts.push(ctx);
     const page = await ctx.newPage();
     this.tapFrames(page, `phone:${name}`);
@@ -233,7 +233,8 @@ async function selectGameFeature(run) {
   );
   const byLabel = Object.fromEntries(cards.map((c) => [c.label, c]));
   run.check('Bowling card is enabled', byLabel.Bowling?.enabled === true);
-  const unbuilt = cards.filter((c) => c.label !== 'Bowling');
+  run.check('Kart Racer card is enabled', byLabel['Kart Racer']?.enabled === true);
+  const unbuilt = cards.filter((c) => c.label !== 'Bowling' && c.label !== 'Kart Racer');
   run.check(
     'unbuilt games are disabled Coming Soon cards',
     unbuilt.length > 0 && unbuilt.every((c) => !c.enabled && c.soon),
@@ -297,10 +298,273 @@ async function bowlingThrow(run) {
   run.check('dismissing the result returns the phone to waiting', (await phone.textContent('#waiting-label')).includes('next turn'));
 }
 
+// ── Kart Racer ────────────────────────────────────────────────────────────────
+
+const KART_PHONE_VIEWPORT = { width: 844, height: 390 };
+const KART_HOST_VIEWPORT = { width: 1280, height: 720 };
+const JOYSTICK_DEAD_ZONE = 0.12; // phone/src/games/kart/index.js DEAD_ZONE
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Closed-loop steering, self-contained so it can be shipped into the host page.
+// Reads the kart and the track geometry only. Aims at frameAt(s + lookahead), offset to the
+// boost pad's lateral while one is ahead. Returns steer -1..1 (+1 = right).
+function computeSteer(track, kart, force) {
+  const wrap = (a) => a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
+  const L = track.length;
+  let aim = 0;
+  for (const pad of track.boostPads) {
+    let d = pad.s - kart.s;
+    d -= L * Math.round(d / L);
+    if (d > -pad.length / 2 - 1 && d < 38) aim = pad.lateral;
+  }
+  const fr = track.frameAt(kart.s + 5 + kart.speed * 0.4);
+  const diff = wrap(Math.atan2(fr.z + fr.rz * aim - kart.z, fr.x + fr.rx * aim - kart.x) - kart.h);
+  const steer = force == null ? Math.max(-1, Math.min(1, diff * 2.2)) : force;
+  return { steer, aim };
+}
+
+// Reads the host's debug snapshot (read-only) and returns the controller output plus
+// what the checks need: state, corridor limits, and the road height under the kart.
+function hostTick([coreSrc, force]) {
+  const st = window.__kartState;
+  const track = window.__kartTrack;
+  if (!st || !track) return null;
+  const k = st.karts[0];
+  const core = new Function(`return ${coreSrc}`)();
+  const { steer } = core(track, k, force);
+  const surf = track.surfaceAt(k.s, k.lateral);
+  return {
+    steer,
+    phase: st.phase, time: st.time, countdown: st.countdown,
+    s: k.s, lateral: k.lateral, y: k.y, speed: k.speed, lap: k.lap, finished: k.finished,
+    surface: k.surface, wrongWay: k.wrongWay,
+    limitL: surf.limitL, limitR: surf.limitR, hy: track.heightAt(k.s, k.lateral),
+  };
+}
+
+async function kartRace(run) {
+  const host = await run.openHost({ viewport: KART_HOST_VIEWPORT });
+  const phoneOpts = { viewport: KART_PHONE_VIEWPORT, isMobile: true };
+  const ada = await run.openPhone('Ada', phoneOpts);
+  await waitForWaitingLabel(ada);
+  await host.waitForSelector('.player-item:has-text("Ada")', { timeout: 10_000 });
+  const bo = await run.openPhone('Bo', phoneOpts);
+  await waitForWaitingLabel(bo);
+  await host.waitForSelector('.player-item:has-text("Bo")', { timeout: 10_000 });
+
+  await selectGame(run, 'Kart Racer');
+  await ada.waitForSelector('#screen-kart', { timeout: 15_000 });
+  await bo.waitForSelector('#screen-kart', { timeout: 15_000 });
+  await host.waitForSelector('.kart-canvas canvas', { timeout: 15_000 });
+  await host.waitForSelector('.kart-lap', { timeout: 15_000 });
+  run.check('both phones show #screen-kart', (await ada.isVisible('#screen-kart')) && (await bo.isVisible('#screen-kart')));
+  run.check('host shows the canvas and the HUD', (await host.isVisible('.kart-canvas canvas')) && (await host.isVisible('.kart-lap')) && (await host.isVisible('.kart-timer')) && (await host.isVisible('.kart-minimap')));
+
+  // Real controls: a CDP touch on #btn-gas and a second touch on the joystick zone.
+  // Chrome turns these into the pointer events the phone listens for.
+  const rect = (sel) => ada.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+  const gasAt = await rect('#btn-gas');
+  const zoneAt = await rect('#kart-zone');
+  const radius = await ada.evaluate(() => (document.getElementById('kart-joystick').offsetWidth - document.getElementById('kart-knob').offsetWidth) / 2);
+  const cdp = await ada.context().newCDPSession(ada);
+  const GAS_ID = 1;
+  const STEER_ID = 2;
+  let steerX = zoneAt.x;
+  const points = () => [{ x: gasAt.x, y: gasAt.y, id: GAS_ID }, { x: steerX, y: zoneAt.y, id: STEER_ID }];
+  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  await touch('touchStart', [{ x: gasAt.x, y: gasAt.y, id: GAS_ID }]);
+  await touch('touchStart', points());
+  const setSteer = (steer) => {
+    // Invert steerFromOffset: output 0 inside the dead zone, then linear to +/-1 at the radius.
+    const n = steer === 0 ? 0 : JOYSTICK_DEAD_ZONE + Math.abs(steer) * (1 - JOYSTICK_DEAD_ZONE);
+    steerX = zoneAt.x + Math.sign(steer) * n * radius;
+    return touch('touchMove', points());
+  };
+  const pressed = await ada.evaluate(() => document.getElementById('btn-gas').classList.contains('pressed'));
+  run.check('GAS touch registers on the phone (button pressed)', pressed);
+
+  // Countdown and GO.
+  const shots = [];
+  const shoot = (name) => shots.push(host.screenshot({ path: path.join(run.dir, `${name}.png`) }).catch(() => {}));
+  const coreSrc = computeSteer.toString();
+  const tick = (force) => host.evaluate(hostTick, [coreSrc, force]);
+  let t0 = await tick(null);
+  run.check('race starts in the countdown with the kart on the grid', t0?.phase === 'countdown' && t0.s > 0, `phase ${t0?.phase}, s ${t0?.s?.toFixed(1)}`);
+  await host.screenshot({ path: path.join(run.dir, '01-grid.png') });
+  await host.waitForFunction(() => window.__kartState.phase === 'countdown' && window.__kartState.countdown < 1.2, null, { polling: 30, timeout: 8000 }).catch(() => {});
+  await host.screenshot({ path: path.join(run.dir, '02-countdown-lights.png') });
+  await host.waitForFunction(() => window.__kartState.phase === 'racing', null, { polling: 30, timeout: 8000 });
+  await host.waitForSelector('.kart-countdown.go', { timeout: 3000 }).catch(() => {});
+  await host.screenshot({ path: path.join(run.dir, '03-go.png') });
+  run.check('GO! label shows right after the lights', (await host.locator('.kart-countdown').textContent().catch(() => '')).includes('GO'));
+
+  // ── Drive 3 laps ──
+  const track = await host.evaluate(() => {
+    const t = window.__kartTrack;
+    const r = (tag) => t.pieceRange(tag);
+    return {
+      length: t.length,
+      ranges: Object.fromEntries(['start', 't1', 'short', 'sLeft', 'sRight', 'hill', 'back', 'sweeper', 'grid'].map((g) => [g, r(g)])),
+      pads: t.boostPads.map((p) => ({ s: p.s, lateral: p.lateral, length: p.length, width: p.width })),
+    };
+  });
+  const mid = (tag) => (track.ranges[tag].s0 + track.ranges[tag].s1) / 2;
+  const L = track.length;
+  // Lap-0 shots fire when the kart reaches `s` (within a 10 m window) on `lap` completed laps.
+  const sectionShots = [
+    { name: '04-t1', lap: 0, s: mid('t1') },
+    { name: '05-short', lap: 0, s: mid('short') },
+    { name: '06-sLeft-pond', lap: 0, s: mid('sLeft') },
+    { name: '07-sRight', lap: 0, s: mid('sRight') },
+    { name: '08-hill-mid', lap: 0, s: mid('hill') },
+    { name: '09-back-crest', lap: 0, s: track.ranges.back.s0 + 70, phone: true },
+    { name: '12-sweeper-mid', lap: 0, s: mid('sweeper') },
+    { name: '13-approach-finish', lap: 2, s: L - 14 },
+    { name: '14-line-lap2', lap: 1, s: 3 },
+  ].map((x) => ({ ...x, done: false }));
+  const padState = track.pads.map((p, i) => ({ i, ...p, hit: false, passed: false, maxAfter: 0, shot: false, entered: false, speedBefore: 0 }));
+  const sinceStart = Date.now();
+
+  const sec = {
+    laps: [], hudLaps: [], wrapTimes: [], maxAbsOverLimit: -Infinity, maxYErr: 0, samples: 0, badPlaces: 0,
+    wrongWay: 0, wrongWayAfterWall: 0, maxLateralMargin: Infinity,
+  };
+  const wall = { state: 'idle', from: 0, maxLat: 0, limit: 0, speedStart: 0, minSpeed: Infinity, clampSeen: 0, note: '' };
+  let prev = null;
+  let last = null;
+  let portraitDone = false;
+  let phoneShot = false;
+  let tickNo = 0;
+  const raceDeadline = Date.now() + 6 * 60_000;
+
+  while (Date.now() < raceDeadline) {
+    const loopStart = Date.now();
+    // Wall test: lap 1, back straight, after pad 1. Steer hard left until the clamp is seen.
+    let force = null;
+    if (wall.state === 'active') force = -1;
+    last = await tick(force);
+    if (!last) break;
+    if (last.phase === 'finished' || last.finished) break;
+
+    if (wall.state === 'idle' && last.lap === 0 && last.s > track.ranges.back.s0 + 46 && last.s < track.ranges.back.s0 + 60 && padState[0].passed) {
+      wall.state = 'active'; wall.from = Date.now(); wall.speedStart = last.speed;
+    }
+    if (wall.state === 'active') {
+      const margin = last.limitL - Math.abs(last.lateral);
+      wall.minSpeed = Math.min(wall.minSpeed, last.speed);
+      if (last.lateral < 0 && Math.abs(last.lateral) > wall.maxLat) { wall.maxLat = Math.abs(last.lateral); wall.limit = last.limitL; }
+      if (margin < 1.1) wall.clampSeen += 1;
+      if (wall.clampSeen === 1) wall.hitAt = Date.now();
+      if (wall.clampSeen > 0 && Date.now() - wall.hitAt > 1000) { wall.state = 'done'; wall.speedAfter = last.speed; wall.note = 'ok'; }
+      else if (Date.now() - wall.from > 9000) { wall.state = 'done'; wall.note = 'timeout'; }
+      if (wall.state === 'done') shoot('11-wall-test');
+    }
+    await setSteer(wall.state === 'active' ? -1 : last.steer);
+
+    // Corridor + ground checks on every sample.
+    sec.samples++;
+    sec.maxAbsOverLimit = Math.max(sec.maxAbsOverLimit, last.lateral < 0 ? -last.lateral - last.limitL : last.lateral - last.limitR);
+    sec.maxYErr = Math.max(sec.maxYErr, Math.abs(last.y - last.hy));
+    if (last.wrongWay) { if (wall.state === 'active' || wall.state === 'done') sec.wrongWayAfterWall++; else sec.wrongWay++; }
+    if (prev && prev.s > L - 60 && last.s < 60) sec.wrapTimes.push(last.time);
+    if (!sec.laps.length || sec.laps[sec.laps.length - 1] !== last.lap) sec.laps.push(last.lap);
+    if (prev && Math.abs(last.s - prev.s) > 30 && Math.abs(last.s - prev.s) < L - 60) sec.respawnJump = (sec.respawnJump || 0) + 1;
+
+    // Boost pads: record whether the kart drove over each and its speed after.
+    for (const p of padState) {
+      let d = last.s - p.s; d -= L * Math.round(d / L);
+      const onPad = Math.abs(d) <= p.length / 2 && Math.abs(last.lateral - p.lateral) <= p.width / 2 + 0.5;
+      if (onPad && !p.entered) { p.entered = true; p.hit = true; p.speedBefore = last.speed; p.passed = true; p.maxAfter = 0; }
+      if (p.entered && d > 0) p.maxAfter = Math.max(p.maxAfter, last.speed);
+      if (p.entered && d > p.length / 2 + 1 && !p.shot && wall.state !== 'active') { p.shot = true; shoot(`10-pad${p.i + 1}-boost`); }
+      if (p.entered && d > 30) { p.entered = false; p.final = p.maxAfter; p.finals = (p.finals || []).concat(p.maxAfter); }
+      if (!p.entered && d < -p.length) p.passed = p.passed;
+    }
+    // Section screenshots, once each.
+    for (const sh of sectionShots) {
+      if (!sh.done && last.lap === sh.lap && last.s >= sh.s && last.s < sh.s + 10 && last.phase === 'racing') {
+        sh.done = true;
+        shoot(sh.name);
+        if (sh.phone && !phoneShot) { phoneShot = true; shots.push(ada.screenshot({ path: path.join(run.dir, '15-phone-landscape-steering.png') }).catch(() => {})); }
+      }
+    }
+    if (!portraitDone && last.lap === 0 && last.s >= mid('short') && last.s < mid('short') + 10) {
+      portraitDone = true;
+      // Bo is idle, so rotating it only shows the rotate prompt.
+      await bo.setViewportSize({ width: 390, height: 844 });
+      await sleep(250);
+      await bo.screenshot({ path: path.join(run.dir, '16-phone-portrait-rotate.png') });
+      sec.rotateVisible = await bo.evaluate(() => { const el = document.getElementById('kart-rotate'); return !!el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0; });
+      await bo.setViewportSize(KART_PHONE_VIEWPORT);
+    }
+    if (tickNo++ % 10 === 0) {
+      const hud = await host.locator('.kart-lap').textContent().catch(() => '');
+      const m = hud.match(/LAP\s*(\d)\/(\d)/);
+      if (m && sec.hudLaps[sec.hudLaps.length - 1] !== m[1]) sec.hudLaps.push(m[1]);
+    }
+    prev = last;
+    const wait = 55 - (Date.now() - loopStart);
+    if (wait > 0) await sleep(wait);
+  }
+  await touch('touchEnd', []);
+  // The loop stops on the finishing sample, which is also the 3rd line crossing.
+  if (last?.finished) {
+    if (sec.laps[sec.laps.length - 1] !== last.lap) sec.laps.push(last.lap);
+    sec.wrapTimes.push(last.time);
+  }
+  const raceElapsed = (Date.now() - sinceStart) / 1000;
+  await Promise.all(shots);
+  console.log(`drive loop ended: phase ${last?.phase} finished ${last?.finished} race time ${last?.time?.toFixed(1)}s wall ${raceElapsed.toFixed(0)}s`);
+
+  // ── Checks ──
+  run.check('Ada finished all 3 laps', last?.finished === true, `lap ${last?.lap}, race time ${last?.time?.toFixed(2)}s`);
+  run.check('HUD lap counter showed 1, 2, 3 in order', sec.hudLaps.join('>') === '1>2>3', sec.hudLaps.join('>'));
+  run.check('completed-lap counter went 0>1>2>3 in order', sec.laps.join('>') === '0>1>2>3', sec.laps.join('>'));
+  const lapTimes = sec.wrapTimes.slice(1).map((t, i) => t - sec.wrapTimes[i]);
+  run.check('three crossings after the grid start gave 3 plausible lap times (30-80 s)', lapTimes.length === 3 && lapTimes.every((t) => t >= 30 && t <= 80), `wraps at ${sec.wrapTimes.map((t) => t.toFixed(1)).join(', ')}; laps ${lapTimes.map((t) => t.toFixed(1)).join(', ')} s`);
+  run.check('no respawn jumps (clean run)', !sec.respawnJump, `jumps ${sec.respawnJump || 0}`);
+  run.check('no WRONG WAY state outside the wall test', sec.wrongWay === 0, `${sec.wrongWay} samples (${sec.wrongWayAfterWall} during/after the wall test)`);
+  run.check('kart stays inside the corridor (|lateral| <= limit)', sec.maxAbsOverLimit <= 0, `max overshoot ${sec.maxAbsOverLimit.toFixed(3)} m over ${sec.samples} samples`);
+  run.check('kart y within 5 cm of heightAt(s, lateral)', sec.maxYErr <= 0.05, `max error ${(sec.maxYErr * 100).toFixed(2)} cm`);
+  for (const p of padState) {
+    const best = Math.max(...(p.finals || [0]), p.maxAfter);
+    run.check(`boost pad ${p.i + 1} hit, speed after > 22 m/s`, (p.finals || []).length > 0 && best > 22.2, `passes ${(p.finals || []).length}, max speed after ${best.toFixed(1)} m/s`);
+  }
+  run.check('wall test: lateral clamps at the corridor limit', wall.state === 'done' && wall.note === 'ok' && wall.maxLat <= wall.limit + 0.001 && wall.maxLat >= wall.limit - 1.2, `${wall.note}; max |lateral| ${wall.maxLat.toFixed(2)} vs limit ${wall.limit.toFixed(2)}`);
+  run.check('wall test: speed drops on contact', wall.minSpeed < wall.speedStart * 0.8, `speed ${wall.speedStart.toFixed(1)} -> min ${wall.minSpeed.toFixed(1)} m/s`);
+  run.check('wall test: kart recovered to finish the race', last?.finished === true);
+  run.check('portrait phone shows the rotate prompt', sec.rotateVisible === true);
+
+  // Wait for the race to end (Ada finished; Bo never moves, so the grace timer ends it).
+  await host.waitForSelector('.kart-results', { timeout: 60_000 });
+  await sleep(500);
+  await host.screenshot({ path: path.join(run.dir, 'results.png') });
+  const rows = await host.locator('.kart-results li').allTextContents();
+  const txt = rows.map((r) => r.replace(/\s+/g, ' ').trim());
+  run.check('results card lists both players with Ada 1st and a time', txt.length === 2 && /1st.*Ada.*\d:\d\d\.\d\d/.test(txt[0]) && txt[1].includes('Bo'), txt.join(' | '));
+  const adaFinish = await ada.textContent('#kart-finish');
+  run.check('Ada\'s phone shows Finished! 1st', adaFinish.includes('Finished') && adaFinish.includes('1st'), adaFinish.replace(/\s+/g, ' ').trim());
+  await run.capture(ada, 'phone-ada-finished');
+  const inFrames = (page, type) => run.frames.filter((f) => f.page === page && f.dir === 'in' && f.msg.type === type).length;
+  run.check('phones received kart_status frames', inFrames('phone:Ada', 'kart_status') > 5 && inFrames('phone:Bo', 'kart_status') > 5, `Ada ${inFrames('phone:Ada', 'kart_status')}, Bo ${inFrames('phone:Bo', 'kart_status')}`);
+  run.check('phones received kart_results frames', inFrames('phone:Ada', 'kart_results') >= 1 && inFrames('phone:Bo', 'kart_results') >= 1, `Ada ${inFrames('phone:Ada', 'kart_results')}, Bo ${inFrames('phone:Bo', 'kart_results')}`);
+  const drives = run.frames.filter((f) => f.page === 'phone:Ada' && f.dir === 'out' && f.msg.type === 'drive');
+  run.check('Ada\'s drive frames carried gas and varied steer', drives.some((f) => f.msg.gas === true) && new Set(drives.map((f) => f.msg.steer)).size > 10, `${drives.length} frames, ${new Set(drives.map((f) => f.msg.steer)).size} distinct steer values`);
+
+  await host.click('.kart-results .btn-start');
+  await host.waitForSelector('.game-select-screen', { timeout: 10_000 });
+  run.check('Back to games returns the host to game select', await host.isVisible('.game-select-screen'));
+  await ada.waitForSelector('#screen-waiting', { state: 'visible', timeout: 10_000 }).catch(() => {});
+  await bo.waitForSelector('#screen-waiting', { state: 'visible', timeout: 10_000 }).catch(() => {});
+  run.check('both phones return to the waiting screen', (await ada.isVisible('#screen-waiting')) && (await bo.isVisible('#screen-waiting')));
+  await run.capture(host, 'host-back-to-games');
+}
+
 const FEATURES = {
   'join-lobby': joinLobby,
   'select-game': selectGameFeature,
   'bowling-throw': bowlingThrow,
+  'kart-race': kartRace,
 };
 
 async function main() {

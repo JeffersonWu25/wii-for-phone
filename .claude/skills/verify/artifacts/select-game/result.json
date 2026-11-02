@@ -1,7 +1,7 @@
 {
   "feature": "select-game",
   "passed": true,
-  "finishedAt": "2026-11-01T13:49:58.063Z",
+  "finishedAt": "2026-11-02T15:05:19.069Z",
   "error": null,
   "checks": [
     {
@@ -10,7 +10,7 @@
       "detail": ""
     },
     {
-      "name": "Mario Kart card is enabled",
+      "name": "Kart Racer card is enabled",
       "ok": true,
       "detail": ""
     },
