@@ -1,7 +1,7 @@
 {
   "feature": "kart-split",
   "passed": true,
-  "finishedAt": "2026-11-02T22:04:41.373Z",
+  "finishedAt": "2026-11-02T22:10:24.521Z",
   "error": null,
   "checks": [
     {
@@ -122,7 +122,7 @@
     {
       "name": "N=2: 2 karts, each advanced along the track while racing",
       "ok": true,
-      "detail": "Ada +66.4 m, Bo +66.4 m"
+      "detail": "Ada +66.1 m, Bo +66.1 m"
     },
     {
       "name": "N=3: .kart-app[data-players] is 3",
@@ -307,7 +307,7 @@
     {
       "name": "N=5: 4 karts, each advanced along the track while racing",
       "ok": true,
-      "detail": "Ada +66.1 m, Bo +66.1 m, Cy +66.1 m, Di +66.1 m"
+      "detail": "Ada +66.4 m, Bo +66.4 m, Cy +66.4 m, Di +66.4 m"
     },
     {
       "name": "N=5: the 5th player is not in __kartState.karts",

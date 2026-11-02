@@ -1,13 +1,13 @@
 {
   "launch": {
-    "steer": 0.9032199624044793,
+    "steer": 0.9032199624117443,
     "phase": "racing",
-    "time": 0.7499649999999998,
-    "sm": 803.3835125769184,
-    "ps": -2.553074585535569,
+    "time": 0.7499650000000004,
+    "sm": 803.3835119168917,
+    "ps": -2.5530752455622405,
     "lap": 0,
     "lateral": -3.999999999999999,
-    "speed": 10.473155280954755,
+    "speed": 10.473155280747237,
     "boost": 0,
     "boostLevel": 0,
     "drift": {
@@ -22,9 +22,9 @@
     "limitR": 22
   },
   "rev": {
-    "min": -5.833149999999997,
+    "min": -5.833100000000005,
     "shot": true,
-    "speedAtPress": 10.473155280954755
+    "speedAtPress": 10.473155280747237
   },
   "drifts": {
     "t1": {
@@ -33,49 +33,49 @@
       "levels": [
         {
           "level": 0,
-          "charge": 0.067,
-          "sinceSlide": 0.067,
-          "wallMs": 100
+          "charge": 0.05,
+          "sinceSlide": 0.05,
+          "wallMs": 83
         },
         {
           "level": 1,
-          "charge": 1.017,
-          "sinceSlide": 1.017,
-          "wallMs": 1050
+          "charge": 1.067,
+          "sinceSlide": 1.067,
+          "wallMs": 1083
         }
       ],
       "dir": 1,
       "started": true,
-      "maxOver": -18.76695939392631,
-      "maxAbsLat": 0.6319132694539858,
+      "maxOver": -18.87951123919211,
+      "maxAbsLat": 0.7142169555954625,
       "slidingSamples": 22,
       "offroadSamples": 0,
       "entry": {
-        "ps": 103.37680375915033,
-        "speed": 21.986029954764994,
+        "ps": 103.63809939983946,
+        "speed": 21.98562692841263,
         "boost": 0,
-        "lateral": 0.1176097883456032
+        "lateral": 0.10579228544722652
       },
       "end": {
-        "ps": 131.11694441183317,
-        "speed": 21.7425765766258,
+        "ps": 131.32017571136385,
+        "speed": 21.74235951425855,
         "level": 1,
-        "charge": 1.2332849999999993,
+        "charge": 1.233285,
         "boost": 0
       },
       "stopReason": "release",
       "cancelPost": [],
       "release": {
-        "boost": 0.6499999999999999,
+        "boost": 0.6500049999999993,
         "boostLevel": 1,
-        "speed": 22.159701361847013,
-        "afterMs": 83
+        "speed": 22.159449877983945,
+        "afterMs": 82
       },
-      "postMaxSpeed": 27.66022477370686,
+      "postMaxSpeed": 27.616488805692985,
       "postMaxLevel": 1,
-      "slideStart": 8.849645000000015,
+      "slideStart": 8.799645000000012,
       "wallMs": {
-        "slideStart": 100
+        "slideStart": 83
       }
     },
     "sRight": {
@@ -84,34 +84,34 @@
       "levels": [
         {
           "level": 0,
-          "charge": 0.033,
-          "sinceSlide": 0.033,
+          "charge": 0.017,
+          "sinceSlide": 0.017,
           "wallMs": 82
         },
         {
           "level": 1,
           "charge": 1.033,
           "sinceSlide": 1.033,
-          "wallMs": 1065
+          "wallMs": 1080
         }
       ],
       "dir": 1,
       "started": true,
-      "maxOver": -19.176093522729598,
-      "maxAbsLat": 1.917258192244927,
+      "maxOver": -19.223838771908607,
+      "maxAbsLat": 1.7623196458925063,
       "slidingSamples": 23,
       "offroadSamples": 0,
       "entry": {
-        "ps": 232.4221409596836,
-        "speed": 21.4397363220436,
+        "ps": 233.12315091366543,
+        "speed": 21.475589788406214,
         "boost": 0,
-        "lateral": 1.5869442093517625
+        "lateral": 1.5969840962882653
       },
       "end": {
-        "ps": 261.461164978935,
-        "speed": 21.56553365741194,
+        "ps": 262.07375702680986,
+        "speed": 21.580645244679197,
         "level": 1,
-        "charge": 1.2499549999999982,
+        "charge": 1.2499449999999992,
         "boost": 0
       },
       "stopReason": "cancel",
@@ -119,10 +119,10 @@
         {
           "sliding": true,
           "level": 1,
-          "charge": 1.299954999999998,
+          "charge": 1.3166099999999963,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 21.566894010764265
+          "speed": 21.58165701133663
         },
         {
           "sliding": false,
@@ -130,7 +130,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 20.49866716604959
+          "speed": 21.015500522688832
         },
         {
           "sliding": false,
@@ -138,7 +138,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 17.054028069971427
+          "speed": 17.1392266817054
         },
         {
           "sliding": false,
@@ -146,7 +146,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 16.62729500053338
+          "speed": 16.72153808988905
         },
         {
           "sliding": false,
@@ -154,7 +154,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 15.429256363032563
+          "speed": 15.526256108842192
         },
         {
           "sliding": false,
@@ -162,7 +162,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 15.049574431765304
+          "speed": 15.526256108842192
         },
         {
           "sliding": false,
@@ -170,7 +170,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 13.929082263025878
+          "speed": 14.018645295310247
         },
         {
           "sliding": false,
@@ -178,7 +178,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 12.834126775727999
+          "speed": 12.920190345153161
         },
         {
           "sliding": false,
@@ -186,7 +186,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 11.392081724576899
+          "speed": 11.840518791319303
         },
         {
           "sliding": false,
@@ -194,7 +194,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 10.29559836830578
+          "speed": 10.383073414049738
         },
         {
           "sliding": false,
@@ -202,7 +202,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 8.818525863798522
+          "speed": 9.27713484896858
         },
         {
           "sliding": false,
@@ -210,7 +210,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 7.704413705146285
+          "speed": 8.164588133989445
         },
         {
           "sliding": false,
@@ -218,7 +218,7 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 6.588561351323685
+          "speed": 6.676934847733773
         },
         {
           "sliding": false,
@@ -226,22 +226,22 @@
           "charge": 0,
           "boost": 0,
           "boostLevel": 0,
-          "speed": 5.103180509126595
+          "speed": 5.562071868449146
         }
       ],
       "release": null,
       "postMaxSpeed": 0,
       "postMaxLevel": 0,
-      "slideStart": 14.916065000000112,
+      "slideStart": 14.882735000000103,
       "wallMs": {
         "slideStart": 82
       },
       "cancelPre": {
         "level": 1,
-        "charge": 1.2499549999999982,
+        "charge": 1.2499449999999992,
         "boost": 0,
         "boostLevel": 0,
-        "speed": 21.56553365741194
+        "speed": 21.580645244679197
       }
     },
     "sweeper": {
@@ -252,72 +252,72 @@
           "level": 0,
           "charge": 0.05,
           "sinceSlide": 0.05,
-          "wallMs": 83
+          "wallMs": 82
         },
         {
           "level": 1,
-          "charge": 1.05,
-          "sinceSlide": 1.05,
-          "wallMs": 1082
+          "charge": 1.017,
+          "sinceSlide": 1.017,
+          "wallMs": 1031
         },
         {
           "level": 2,
-          "charge": 2.067,
-          "sinceSlide": 2.067,
-          "wallMs": 2066
+          "charge": 2.033,
+          "sinceSlide": 2.033,
+          "wallMs": 2047
         },
         {
           "level": 3,
           "charge": 3.017,
           "sinceSlide": 3.017,
-          "wallMs": 3016
+          "wallMs": 3029
         }
       ],
       "dir": 1,
       "started": true,
-      "maxOver": -20.18011754807031,
-      "maxAbsLat": 1.0198824519296903,
-      "slidingSamples": 60,
+      "maxOver": -20.2034401756202,
+      "maxAbsLat": 0.9965598243797971,
+      "slidingSamples": 59,
       "offroadSamples": 0,
       "entry": {
-        "ps": 506.95183736401725,
-        "speed": 21.896707385761953,
+        "ps": 505.78783903117335,
+        "speed": 21.886206925404014,
         "boost": 0,
-        "lateral": 1.3084087616838387
+        "lateral": 1.286524845943611
       },
       "end": {
-        "ps": 583.6270131443526,
-        "speed": 21.61662461170183,
+        "ps": 582.4197580951719,
+        "speed": 21.615704702415787,
         "level": 3,
-        "charge": 3.5498600000000016,
+        "charge": 3.5165250000000023,
         "boost": 0
       },
       "stopReason": "release",
       "cancelPost": [],
       "release": {
-        "boost": 1.9500000000000002,
+        "boost": 1.9500049999999975,
         "boostLevel": 3,
-        "speed": 22.794745654023597,
-        "afterMs": 84
+        "speed": 22.79419126368372,
+        "afterMs": 83
       },
-      "postMaxSpeed": 35.15604611596256,
+      "postMaxSpeed": 35.15584686578114,
       "postMaxLevel": 3,
-      "slideStart": 28.64885499999935,
+      "slideStart": 28.532189999999346,
       "wallMs": {
-        "slideStart": 83
+        "slideStart": 82
       }
     }
   },
   "item": {
     "before": {
-      "steer": 0.036265239012170804,
+      "steer": 0.06399893059421649,
       "phase": "racing",
-      "time": 40.315054999999745,
-      "sm": 778.5400069200258,
-      "ps": 778.5400069200258,
+      "time": 40.165059999999706,
+      "sm": 777.2233722281125,
+      "ps": 777.2233722281125,
       "lap": 0,
-      "lateral": -0.6502559365281041,
-      "speed": 21.99978356842557,
+      "lateral": -0.7158314342028146,
+      "speed": 21.999757922887877,
       "boost": 0,
       "boostLevel": 0,
       "drift": {
@@ -332,14 +332,14 @@
       "limitR": 22
     },
     "after": {
-      "steer": -0.02432878202656671,
+      "steer": 0.01772885995251448,
       "phase": "racing",
-      "time": 40.88169499999979,
-      "sm": 791.000253423667,
-      "ps": 791.000253423667,
+      "time": 40.74836999999974,
+      "sm": 790.0528703785245,
+      "ps": 790.0528703785245,
       "lap": 0,
-      "lateral": -0.2697239535246044,
-      "speed": 21.999998680564694,
+      "lateral": -0.4250902765431423,
+      "speed": 21.999998729444652,
       "boost": 0,
       "boostLevel": 0,
       "drift": {

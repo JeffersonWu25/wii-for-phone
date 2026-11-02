@@ -3,8 +3,8 @@
 - paragraph: Scan to join on your phone
 - paragraph:
   - text: "Session:"
-  - strong: e15ef0
-- paragraph: http://127.0.0.1:15574?session=e15ef0
+  - strong: 1e13f3
+- paragraph: http://127.0.0.1:15174?session=1e13f3
 - heading "Players (1)" [level=2]
 - list:
   - listitem: ● Ada
