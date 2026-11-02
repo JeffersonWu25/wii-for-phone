@@ -1,7 +1,9 @@
-// Kart Racer phone controller: landscape joystick (steer) + GAS button.
+// Kart Racer phone controller: landscape free stick (X steers, pushing down brakes),
+// a hold DRIFT button and a placeholder USE ITEM button. The kart accelerates on its own.
+// Sends { type:'drive', steer, brake, drift } at 20 Hz and { type:'use_item' } on tap.
 // Exported mount(app, sendMsg, myPlayerId) returns { onMessage, onMotion, unmount }.
 
-import { steerFromOffset } from './joystick.js';
+import { stickFromOffset, clampToRadius } from './joystick.js';
 
 const SEND_HZ = 20;
 const DEAD_ZONE = 0.12;
@@ -12,9 +14,12 @@ const placeLabel = (n) => PLACES[n - 1] ?? `${n}th`;
 export function mount(app, sendMsg, myPlayerId) {
   // ── State ───────────────────────────────────────────────────────────────────
   let steer = 0;
-  let gas = false;
+  let brake = 0;
+  let drift = false;
   let steerPointer = null;
-  let gasPointer = null;
+  let driftPointer = null;
+  let itemPointer = null;
+  let itemTimer = null;
   let sendTimer = null;
   let wakeLock = null;
   let unmounted = false;
@@ -26,7 +31,8 @@ export function mount(app, sendMsg, myPlayerId) {
         <div class="kart-zone-left" id="kart-zone">
           <div id="kart-joystick"><div id="kart-knob"></div></div>
         </div>
-        <button id="btn-gas" type="button">GAS</button>
+        <button id="btn-item" type="button">ITEM</button>
+        <button id="btn-drift" type="button">DRIFT</button>
       </div>
       <div id="kart-finish"></div>
       <div id="kart-rotate"><div class="kart-phone-icon"></div><div>Rotate your phone</div></div>
@@ -37,28 +43,31 @@ export function mount(app, sendMsg, myPlayerId) {
   const zone = document.getElementById('kart-zone');
   const base = document.getElementById('kart-joystick');
   const knob = document.getElementById('kart-knob');
-  const gasBtn = document.getElementById('btn-gas');
+  const driftBtn = document.getElementById('btn-drift');
+  const itemBtn = document.getElementById('btn-item');
   const statusEl = document.getElementById('kart-status');
   const finishEl = document.getElementById('kart-finish');
 
   // ── Drive output ────────────────────────────────────────────────────────────
   const round2 = (v) => Math.round(v * 100) / 100 || 0;
   function sendDrive() {
-    sendMsg({ type: 'drive', steer: round2(steer), gas });
+    sendMsg({ type: 'drive', steer: round2(steer), brake: round2(brake), drift });
   }
 
   // ── Joystick ────────────────────────────────────────────────────────────────
   // The base re-centres under the finger so the first touch is always neutral.
   let baseCx = 0;
+  let baseCy = 0;
   let radius = 60; // travel of the knob centre; set from the base on touch
-  function moveSteer(clientX, clientY) {
-    const dx = Math.max(-radius, Math.min(radius, clientX - baseCx));
-    steer = steerFromOffset(dx, radius, DEAD_ZONE);
-    knob.style.transform = `translate(${dx}px, 0)`;
+  function moveStick(clientX, clientY) {
+    const { x, y } = clampToRadius(clientX - baseCx, clientY - baseCy, radius);
+    ({ steer, brake } = stickFromOffset(x, y, radius, DEAD_ZONE));
+    knob.style.transform = `translate(${x}px, ${y}px)`;
   }
-  function releaseSteer() {
+  function releaseStick() {
     steerPointer = null;
     steer = 0;
+    brake = 0;
     knob.style.transition = 'transform 0.12s ease-out';
     knob.style.transform = 'translate(0, 0)';
     base.style.left = '50%';
@@ -75,41 +84,58 @@ export function mount(app, sendMsg, myPlayerId) {
     const cx = Math.max(zr.left + half, Math.min(zr.right - half, e.clientX));
     const cy = Math.max(zr.top + half, Math.min(zr.bottom - half, e.clientY));
     baseCx = cx;
+    baseCy = cy;
     base.style.left = `${cx - zr.left}px`;
     base.style.top = `${cy - zr.top}px`;
     knob.style.transition = 'none';
-    moveSteer(e.clientX, e.clientY);
+    moveStick(e.clientX, e.clientY);
     e.preventDefault();
   });
   zone.addEventListener('pointermove', (e) => {
-    if (e.pointerId === steerPointer) moveSteer(e.clientX, e.clientY);
+    if (e.pointerId === steerPointer) moveStick(e.clientX, e.clientY);
   });
-  const endSteer = (e) => { if (e.pointerId === steerPointer) releaseSteer(); };
+  const endSteer = (e) => { if (e.pointerId === steerPointer) releaseStick(); };
   zone.addEventListener('pointerup', endSteer);
   zone.addEventListener('pointercancel', endSteer);
 
-  // ── Gas ─────────────────────────────────────────────────────────────────────
-  function setGas(on) {
-    if (gas === on) return;
-    gas = on;
-    gasBtn.classList.toggle('pressed', on);
+  // ── Drift ───────────────────────────────────────────────────────────────────
+  function setDrift(on) {
+    if (drift === on) return;
+    drift = on;
+    driftBtn.classList.toggle('pressed', on);
     if (on) { try { navigator.vibrate?.(15); } catch (_) {} }
     sendDrive();
   }
-  gasBtn.addEventListener('pointerdown', (e) => {
-    if (gasPointer !== null) return;
-    gasPointer = e.pointerId;
-    gasBtn.setPointerCapture(e.pointerId);
-    setGas(true);
+  driftBtn.addEventListener('pointerdown', (e) => {
+    if (driftPointer !== null) return;
+    driftPointer = e.pointerId;
+    driftBtn.setPointerCapture(e.pointerId);
+    setDrift(true);
     e.preventDefault();
   });
-  const endGas = (e) => {
-    if (e.pointerId !== gasPointer) return;
-    gasPointer = null;
-    setGas(false);
+  const endDrift = (e) => {
+    if (e.pointerId !== driftPointer) return;
+    driftPointer = null;
+    setDrift(false);
   };
-  gasBtn.addEventListener('pointerup', endGas);
-  gasBtn.addEventListener('pointercancel', endGas);
+  driftBtn.addEventListener('pointerup', endDrift);
+  driftBtn.addEventListener('pointercancel', endDrift);
+
+  // ── Use item (placeholder) ──────────────────────────────────────────────────
+  // One use_item per press; never touches driving state.
+  itemBtn.addEventListener('pointerdown', (e) => {
+    if (itemPointer !== null) return;
+    itemPointer = e.pointerId;
+    itemBtn.setPointerCapture(e.pointerId);
+    itemBtn.classList.add('pressed');
+    clearTimeout(itemTimer);
+    itemTimer = setTimeout(() => itemBtn.classList.remove('pressed'), 150);
+    sendMsg({ type: 'use_item' });
+    e.preventDefault();
+  });
+  const endItem = (e) => { if (e.pointerId === itemPointer) itemPointer = null; };
+  itemBtn.addEventListener('pointerup', endItem);
+  itemBtn.addEventListener('pointercancel', endItem);
 
   const block = (e) => e.preventDefault();
   root.addEventListener('contextmenu', block);
@@ -122,8 +148,8 @@ export function mount(app, sendMsg, myPlayerId) {
     root.classList.toggle('portrait', portraitMq.matches);
     if (portraitMq.matches) {
       // Don't leave a stuck input behind a hidden control.
-      if (steerPointer !== null) releaseSteer();
-      if (gasPointer !== null) { gasPointer = null; setGas(false); }
+      if (steerPointer !== null) releaseStick();
+      if (driftPointer !== null) { driftPointer = null; setDrift(false); }
     }
   }
   portraitMq.addEventListener('change', syncOrientation);
@@ -191,6 +217,7 @@ export function mount(app, sendMsg, myPlayerId) {
     unmount() {
       unmounted = true;
       clearInterval(sendTimer);
+      clearTimeout(itemTimer);
       portraitMq.removeEventListener('change', syncOrientation);
       document.removeEventListener('visibilitychange', onVisibility);
       if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }

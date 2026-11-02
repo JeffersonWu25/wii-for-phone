@@ -381,26 +381,45 @@ button:active {
   box-shadow: 0 6px 0 #b9c9e6, 0 10px 18px rgba(0, 20, 80, 0.4);
   will-change: transform;
 }
-#screen-kart #btn-gas {
+#screen-kart #btn-drift {
   position: absolute;
-  right: 9%; top: 50%;
-  width: 170px; max-width: none; height: 170px;
-  margin-top: -85px;
+  right: 9%; bottom: 14%;
+  width: 150px; max-width: none; height: 150px;
   padding: 0;
   border-radius: 50%;
   border: 6px solid #fff;
-  background: #1fb04a;
+  background: #ff8a1f;
   color: #fff;
-  font-size: 1.9rem;
+  font-size: 1.6rem;
   font-weight: 900;
   letter-spacing: 0.06em;
-  box-shadow: 0 10px 0 #0d6f2c, 0 16px 22px rgba(0, 20, 80, 0.4);
+  box-shadow: 0 10px 0 #a8500a, 0 16px 22px rgba(0, 20, 80, 0.4);
   transition: transform 0.05s, box-shadow 0.05s, background 0.05s;
 }
-#screen-kart #btn-gas.pressed {
-  background: #5dff7e;
+#screen-kart #btn-drift.pressed {
+  background: #ffc15e;
   transform: translateY(8px);
-  box-shadow: 0 2px 0 #0d6f2c, 0 0 34px 8px rgba(120, 255, 150, 0.8);
+  box-shadow: 0 2px 0 #a8500a, 0 0 34px 8px rgba(255, 190, 90, 0.8);
+}
+#screen-kart #btn-item {
+  position: absolute;
+  right: calc(9% + 150px + 14px); bottom: calc(14% + 96px);
+  width: 82px; max-width: none; height: 82px;
+  padding: 0;
+  border-radius: 50%;
+  border: 5px solid #fff;
+  background: #7a4bd8;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  box-shadow: 0 6px 0 #4a2a94, 0 12px 18px rgba(0, 20, 80, 0.4);
+  transition: transform 0.05s, box-shadow 0.05s, background 0.05s;
+}
+#screen-kart #btn-item.pressed {
+  background: #b58cff;
+  transform: translateY(5px);
+  box-shadow: 0 1px 0 #4a2a94, 0 0 24px 6px rgba(190, 150, 255, 0.8);
 }
 #screen-kart #kart-finish {
   position: absolute; inset: 0;
