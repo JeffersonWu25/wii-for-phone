@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { placeParts } from './hud.js';
 
 // One racer's overlay on their viewport; sized in container units so it scales with the pane.
@@ -39,19 +40,19 @@ export function Pane({ view, racer, label }) {
   );
 }
 
-// Translucent track (dark rim, light road band) over the 3D scene; markers are moved from the RAF loop through dotRefs.
-export function Minimap({ map, dotRefs }) {
+// Translucent track (dark rim, light road band) over the 3D scene; markers are moved from the RAF loop. Memoized so the markers' refs are not re-attached by HUD ticks.
+export const Minimap = memo(function Minimap({ map, dotRefs }) {
   return (
     <svg className="kart-minimap" viewBox={`0 0 ${map.w} ${map.h}`}>
       <path d={map.path} className="kart-map-shade" />
       <path d={map.path} className="kart-map-road" />
       <line x1={map.tick[0]} y1={map.tick[1]} x2={map.tick[2]} y2={map.tick[3]} className="kart-map-start" />
       {map.entrants.map((e, slot) => (
-        <g key={e.id} ref={(el) => { dotRefs.current[e.id] = el; }} className="kart-map-marker" data-slot={slot}>
+        <g key={e.id} ref={(el) => { dotRefs.current[e.id] = el; }} transform={`translate(${map.start[0].toFixed(1)} ${map.start[1].toFixed(1)})`} className="kart-map-marker" data-slot={slot}>
           <circle r="8" fill={e.css} />
-          <text y="3.4">{e.name.charAt(0).toUpperCase()}</text>
+          <text y="3.4">{[...e.name][0]?.toUpperCase() ?? '?'}</text>
         </g>
       ))}
     </svg>
   );
-}
+});

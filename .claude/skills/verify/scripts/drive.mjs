@@ -19,6 +19,8 @@ const { chromium } = require('playwright-core');
 
 const HOST_VIEWPORT = { width: 1280, height: 800 };
 const PHONE_VIEWPORT = { width: 390, height: 844 };
+const KART_PHONE_VIEWPORT = { width: 844, height: 390 };
+const KART_HOST_VIEWPORT = { width: 1280, height: 720 };
 const RELAY_WS_MARK = `127.0.0.1:${PORTS.relay}`;
 const RELAY_LOG = path.join(RUN_DIR, 'relay.log');
 
@@ -300,8 +302,6 @@ async function bowlingThrow(run) {
 
 // ── Kart Racer ────────────────────────────────────────────────────────────────
 
-const KART_PHONE_VIEWPORT = { width: 844, height: 390 };
-const KART_HOST_VIEWPORT = { width: 1280, height: 720 };
 const JOYSTICK_DEAD_ZONE = 0.12; // phone/src/games/kart/index.js DEAD_ZONE
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -694,6 +694,7 @@ async function splitRound(run, n) {
 
 async function kartSplit(run) {
   for (const n of [1, 2, 3, 4, 5]) await splitRound(run, n);
+  run.round = undefined;
 }
 
 const FEATURES = {

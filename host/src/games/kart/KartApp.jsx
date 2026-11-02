@@ -44,7 +44,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     const lobby = players.length ? players.slice(0, MAX_RACERS).map((p) => ({ id: p.playerId, name: p.name })) : [DEBUG_ENTRANT];
     const entrants = lobby.map((p, i) => ({ ...p, color: playerColor(i) }));
     const cssById = Object.fromEntries(entrants.map((e) => [e.id, cssColor(e.color)]));
-    const followId = entrants[0].id;
+    const keyboardId = entrants[0].id;
 
     const track = buildTrack();
     const race = createRace(track, entrants);
@@ -52,13 +52,13 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     scene.setKarts(entrants);
     const split = splitLayout(entrants.length);
     scene.setViews(split.views.map((v) => ({ id: entrants[v.slot].id, x: v.x, y: v.y, w: v.w, h: v.h })));
-    setLayout({ ...split, entrants: entrants.map((e, slot) => ({ id: e.id, name: e.name, slot, css: cssById[e.id] })) });
+    setLayout(split);
 
     const mapW = split.mapTall ? MAP_SHORT : MAP_LONG;
     const mapH = split.mapTall ? MAP_LONG : MAP_SHORT;
     const fit = fitMinimap(track.samples, mapW, mapH, 14, 8, split.mapTall);
     const tick = startTick(fit.project, track.samples[0]);
-    setMap({ path: fit.path, tick, w: mapW, h: mapH, entrants: entrants.map((e) => ({ id: e.id, name: e.name, css: cssById[e.id] })) });
+    setMap({ path: fit.path, tick, start: fit.project(track.samples[0].x, track.samples[0].z), w: mapW, h: mapH, entrants: entrants.map((e) => ({ id: e.id, name: e.name, css: cssById[e.id] })) });
     resultsShownRef.current = false;
     setResults(null);
 
@@ -156,7 +156,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
         inputs[k.id] = disconnectedRef.current.has(k.id) ? { steer: 0, gas: false } : phoneInputs[k.id] ?? { steer: 0, gas: false };
       }
       const kb = keyboardInput();
-      if (kb) inputs[followId] = kb;
+      if (kb) inputs[keyboardId] = kb;
 
       stepRace(race, inputs, dt, track);
       scene.update(race, dt);
@@ -224,7 +224,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="kart-app" data-players={layout?.entrants.length}>
+    <div className="kart-app" data-players={layout?.views.length}>
       <div className="kart-canvas" ref={containerRef} />
       {layout?.views.map((v) => (
         <Pane key={v.slot} view={v} racer={hud?.slots[v.slot]} label={label} />

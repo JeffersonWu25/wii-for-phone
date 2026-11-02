@@ -18,7 +18,7 @@ export const placeParts = (n) => ({ num: String(n), suffix: ordinalSuffix(n) });
 // ── Split screen ─────────────────────────────────────────────────────────────
 
 // Pane rectangles for 1..4 racers in screen fractions (y from the top), plus where the shared minimap goes.
-// 3p leaves the bottom-right quadrant for a large map (mapRect); other counts overlay a small one.
+// 3p leaves the bottom-right quadrant for a large map; other counts overlay a small one.
 // mapTall: the map is turned upright, for the narrow strip of 1p and the divider of 2p.
 export function splitLayout(n) {
   const count = Math.max(1, Math.min(4, Math.round(n) || 1));
@@ -29,7 +29,7 @@ export function splitLayout(n) {
     return { slot, x: col / cols, y: Math.floor(slot / cols) / rows, w: 1 / cols, h: 1 / rows, side: col === 0 ? 'left' : 'right' };
   });
   const map = count === 1 ? 'side' : count === 3 ? 'quadrant' : 'center';
-  return { views, map, mapTall: count <= 2, mapRect: count === 3 ? { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } : null };
+  return { views, map, mapTall: count <= 2 };
 }
 
 // ── Countdown ────────────────────────────────────────────────────────────────
@@ -55,8 +55,11 @@ export function countdownLabel(race) {
 export function fitMinimap(samples, width, height, pad = 12, step = 8, rotate = false) {
   const turn = (x, z) => (rotate ? [-z, x] : [x, z]);
   const pts = samples.map((p) => turn(p.x, p.z));
-  const minU = Math.min(...pts.map((p) => p[0])), maxU = Math.max(...pts.map((p) => p[0]));
-  const minV = Math.min(...pts.map((p) => p[1])), maxV = Math.max(...pts.map((p) => p[1]));
+  let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+  for (const [u, v] of pts) {
+    minU = Math.min(minU, u); maxU = Math.max(maxU, u);
+    minV = Math.min(minV, v); maxV = Math.max(maxV, v);
+  }
   const scale = Math.min((width - 2 * pad) / (maxU - minU), (height - 2 * pad) / (maxV - minV));
   const offU = (width - (maxU - minU) * scale) / 2 - minU * scale;
   const offV = (height - (maxV - minV) * scale) / 2 - minV * scale;

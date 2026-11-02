@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildWorld } from './world.js';
 import { createKartMesh, updateKartMesh } from './kartMesh.js';
 import { shotCamera } from '../shots.js';
+import { viewFov, viewRect } from './views.js';
 
 // ── Chase camera ─────────────────────────────────────────────────────────────
 
@@ -11,8 +12,6 @@ const CHASE_UP = 2.4;
 const CHASE_LOOK_AHEAD = 6;
 const POS_LAG = 5; // 1/s, higher = stiffer
 const LOOK_LAG = 9;
-const FOV = 60;
-const MIN_HFOV = 75; // narrow panes (2p halves) widen the vertical FOV so the sides of the road are not cropped
 const SUN_OFFSET = new THREE.Vector3(120, 180, 60);
 
 export function createKartScene(container, track) {
@@ -47,22 +46,19 @@ export function createKartScene(container, track) {
       scene.add(m);
       meshes.set(k.id, m);
     }
-    if (!views.length && list.length) setFollow(list[0].id);
   }
 
   // Each view is a screen rectangle in fractions (y from the top) with its own chase camera following kart `id`.
   function setViews(list) {
     views = list.map((v) => ({
       ...v,
-      camera: new THREE.PerspectiveCamera(FOV, 16 / 9, 0.6, 3200),
+      camera: new THREE.PerspectiveCamera(60, 16 / 9, 0.6, 3200),
       camPos: new THREE.Vector3(),
       camLook: new THREE.Vector3(),
       ready: false,
     }));
     views.forEach(fitCamera);
   }
-
-  const setFollow = (id) => setViews([{ id, x: 0, y: 0, w: 1, h: 1 }]);
 
   function setShot(name) {
     shotName = name || null;
@@ -71,9 +67,8 @@ export function createKartScene(container, track) {
 
   function fitCamera(v) {
     const aspect = (v.w * width) / (v.h * height);
-    const minHalf = Math.tan((MIN_HFOV * Math.PI) / 360);
     v.camera.aspect = aspect;
-    v.camera.fov = Math.max(FOV, (2 * Math.atan(minHalf / aspect) * 180) / Math.PI);
+    v.camera.fov = viewFov(aspect);
     v.camera.updateProjectionMatrix();
   }
 
@@ -151,12 +146,9 @@ export function createKartScene(container, track) {
       placeCamera(v, race, dt, useShot);
       world.tick?.(time, v.camera);
       focusSun(v, useShot);
-      const px = Math.round(v.x * width);
-      const py = Math.round(v.y * height);
-      const pw = Math.round((v.x + v.w) * width) - px;
-      const ph = Math.round((v.y + v.h) * height) - py;
-      renderer.setViewport(px, height - py - ph, pw, ph);
-      renderer.setScissor(px, height - py - ph, pw, ph);
+      const { x, y, w, h } = viewRect(v, width, height);
+      renderer.setViewport(x, y, w, h);
+      renderer.setScissor(x, y, w, h);
       renderer.render(scene, v.camera); // autoClear clears just this scissored pane
     });
   }
@@ -172,5 +164,5 @@ export function createKartScene(container, track) {
   }
 
   resize();
-  return { setKarts, update, setViews, setFollow, setShot, resize, dispose, setStartLights: (n) => world.setStartLights?.(n), renderer };
+  return { setKarts, update, setViews, setShot, resize, dispose, setStartLights: (n) => world.setStartLights?.(n), renderer };
 }

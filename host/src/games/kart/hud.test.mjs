@@ -28,8 +28,6 @@ test('split layout sides, map placement and clamping', () => {
   assert.deepEqual(splitLayout(1).views.map((v) => v.side), ['left']);
   assert.deepEqual(splitLayout(4).views.map((v) => v.side), ['left', 'right', 'left', 'right']);
   assert.deepEqual([1, 2, 3, 4].map((n) => splitLayout(n).map), ['side', 'center', 'quadrant', 'center']);
-  assert.deepEqual(splitLayout(3).mapRect, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
-  assert.equal(splitLayout(4).mapRect, null);
   assert.equal(splitLayout(0).views.length, 1);
   assert.equal(splitLayout(9).views.length, 4);
 });
