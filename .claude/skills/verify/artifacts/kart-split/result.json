@@ -1,7 +1,7 @@
 {
   "feature": "kart-split",
   "passed": true,
-  "finishedAt": "2026-11-02T16:29:18.693Z",
+  "finishedAt": "2026-11-02T16:45:36.191Z",
   "error": null,
   "checks": [
     {
@@ -67,7 +67,7 @@
     {
       "name": "N=1: 1 karts, each advanced along the track while racing",
       "ok": true,
-      "detail": "Ada +66.1 m"
+      "detail": "Ada +66.8 m"
     },
     {
       "name": "N=2: GAS touch registers on every racer's phone",
@@ -132,7 +132,7 @@
     {
       "name": "N=2: 2 karts, each advanced along the track while racing",
       "ok": true,
-      "detail": "Ada +66.4 m, Bo +66.4 m"
+      "detail": "Ada +66.1 m, Bo +66.1 m"
     },
     {
       "name": "N=3: GAS touch registers on every racer's phone",
@@ -202,7 +202,7 @@
     {
       "name": "N=3: 3 karts, each advanced along the track while racing",
       "ok": true,
-      "detail": "Ada +66.1 m, Bo +66.1 m, Cy +66.1 m"
+      "detail": "Ada +66.8 m, Bo +66.8 m, Cy +66.8 m"
     },
     {
       "name": "N=4: GAS touch registers on every racer's phone",
@@ -267,7 +267,7 @@
     {
       "name": "N=4: 4 karts, each advanced along the track while racing",
       "ok": true,
-      "detail": "Ada +66.1 m, Bo +66.1 m, Cy +66.1 m, Di +66.1 m"
+      "detail": "Ada +66.4 m, Bo +66.4 m, Cy +66.4 m, Di +66.4 m"
     },
     {
       "name": "N=5: GAS touch registers on every racer's phone",

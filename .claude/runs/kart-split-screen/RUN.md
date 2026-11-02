@@ -61,3 +61,19 @@ Only one part gets a competing run: the HUD look. The renderer is mechanical Thr
 - 18:07 G finished (Sonnet, ~6 min): kart-split 68/68, kart-race passed, 43 unit tests pass. Reviewed the host diff myself (Hud.jsx Pane/Minimap, KartApp wiring, rotated `fitMinimap`, projected `startTick`, `ordinal` 11–13 fix): matches the graft plan. Fast-forwarded the feature branch to a40c709, removed the G, B1 and B2 worktrees and the G/B1 branches; kept branch `worktree-agent-a2cf540c8e0e94e60` (losing B2) locally for reference, not pushed.
 - 18:09 Looked at n1/n2/n3-racing myself: placement matches the spec in each layout; 3p panel reads as a map panel; the 2p map markers overlap the right pane's kart near the start line (known, by design of a centred map). Starting code review.
 - 18:11 Started reviewer R (Sonnet, read-only, did not write any code). Brief: `briefs/06-review.md`.
+- 18:18 Reviewer R finished: no real bugs; 2 minor bugs (marker initial, marker first-frame position), dead code (mapRect, layout.entrants, setFollow), a rename, missing scene math tests, a memo, a fitMinimap spread, two harness tidy-ups. Decision: apply all except #11 (holdGas vs kart-race's inline touch is allowed by the one-user rule today) and #12 (no action). They span six files, so they go to one fixer subagent F (Sonnet, own worktree, offset 500). Brief: `briefs/07-review-fixes.md`.
+- 18:19 Started fixer F.
+- 18:27 F finished (Sonnet, ~3.5 min): 45 unit tests, build, kart-split all pass. Reviewed the diff myself; fast-forwarded to 50cbb08, removed its worktree. Filled in every Resolution line in `review.md`. Next: full validation on the main checkout.
+- 18:35 Main checkout: host 61, phone 18, relay 11 unit tests pass; host build passes. Instance launched, DOCTOR OK. join-lobby, select-game, bowling-throw, kart-split all FEATURE PASSED. kart-race running.
+- 18:37 Looked at the final screenshots myself. The countdown digit at `top: 34%` (G's fix for the 2p map) now covers the start lights on the gantry in 1p and 2p. The map sits on the divider, not the pane centre, so the pane centre clears both. Own edit: `.kart-countdown` top 34% → 50% in `host/src/style.css` (one line). Re-shoot after kart-race.
+- 18:45 kart-race FEATURE PASSED (26 checks); kart-split re-run after the countdown fix: 67/67. Countdown now clears both the lights and the map (n2/n4-countdown). Harness cleanup: fixed stale camera wording in `features/kart-race.md` (it said the TV follows the first player); no scratch scripts were left behind (`?views=N` on the dev preview is documented and kept). Discarded the interim artifacts; re-running every test and drive on the final code.
+- 18:58 Final run on the finished code: host 61, phone 18, relay 11 unit tests pass; join-lobby, select-game, bowling-throw, kart-split, kart-race all FEATURE PASSED; instance cleaned up (doctor reports no instance). Committed the regenerated `kart-split` and `kart-race` artifacts; reverted incidental re-runs of the other features' artifacts.
+- 18:59 Pushed `feat/kart-split-screen` and opened the PR.
+
+## Not verified / still rough
+
+- P1's place number is gold (spec) while P1's kart and map marker are red (kart palette). Needs the user's call: recolour karts to match the slot colours, or colour the numbers by kart.
+- In 2p and 4p the centred minimap's markers can sit over a kart in the pane next to the divider (inherent to a centred map; the references overlap the same way).
+- Players beyond 4 get no kart; their phones stay on "Get ready!" with no spectator message.
+- 4 views cost about 4x the draw calls; only smoke-tested in headless Chrome (vsync-capped), not on a real TV laptop.
+- Chrome only: Safari container-query and SVG rendering not checked.
