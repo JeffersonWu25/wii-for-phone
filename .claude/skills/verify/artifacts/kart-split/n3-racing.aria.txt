@@ -1,7 +1,0 @@
-- text: LAP 1/3 0:02.12 1st /3
-- list:
-  - listitem: Ada
-  - listitem: Bo
-  - listitem: Cy
-- img
-- button "Quit"
