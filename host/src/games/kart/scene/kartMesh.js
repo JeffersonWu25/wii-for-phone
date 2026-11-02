@@ -20,6 +20,7 @@ const IDLE_DRIFT = { sliding: false, dir: 0, charge: 0, level: 0 };
 export function createKartMesh(color) {
   const root = new THREE.Group();
   const group = new THREE.Group(); // visible body, yaws and leans into a drift
+  group.rotation.order = 'YXZ'; // yaw first, then lean about the turned axis
   const paint = toonMat({ color, rim: 0.4 });
   const white = toonMat({ color: 0xffffff, rim: 0.3 });
   const dark = toonMat({ color: 0x1b1c22, rim: 0.15 });
