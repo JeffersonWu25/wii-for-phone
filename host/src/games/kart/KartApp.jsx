@@ -193,6 +193,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
         o.x = k.x; o.y = k.y; o.z = k.z;
         o.speed = k.speed; o.lap = k.lap; o.place = k.place; o.finished = k.finished;
         o.surface = k.surface; o.wrongWay = k.wrongWay; o.nextCheckpoint = k.nextCheckpoint;
+        o.vx = k.vx; o.vz = k.vz; o.boost = k.boost; o.boostLevel = k.boostLevel;
+        o.drift = k.drift ? { ...k.drift } : null;
       });
 
       publish(now);
