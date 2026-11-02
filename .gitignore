@@ -21,3 +21,6 @@ certs/
 # Logs
 *.log
 npm-debug.log*
+
+# Verification instance scratch (artifacts under .claude/skills/verify/artifacts are kept)
+.claude/skills/verify/run/

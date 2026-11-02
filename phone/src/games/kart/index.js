@@ -1,308 +1,201 @@
-import { STICK, stickInput } from './steer.js';
+// Kart Racer phone controller: landscape joystick (steer) + GAS button.
+// Exported mount(app, sendMsg, myPlayerId) returns { onMessage, onMotion, unmount }.
 
-const STREAM_HZ = 20;
-const CENTER = stickInput(0, 0, 1);
+import { steerFromOffset } from './joystick.js';
+
+const SEND_HZ = 20;
+const DEAD_ZONE = 0.12;
+const PLACES = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+
+const placeLabel = (n) => PLACES[n - 1] ?? `${n}th`;
 
 export function mount(app, sendMsg, myPlayerId) {
-  let input = CENTER;
-  let stickPointer = null;
-  let stickRect = null;
-  let itemPointer = null;
-  let seq = 0;
+  // ── State ───────────────────────────────────────────────────────────────────
+  let steer = 0;
+  let gas = false;
+  let steerPointer = null;
+  let gasPointer = null;
+  let sendTimer = null;
   let wakeLock = null;
-  let seenRevision = -1;
-  let highlightId = null;
-  let stream = null;
-  let padReady = false;
+  let unmounted = false;
 
-  let youEl = null;
-  let subEl = null;
-  let placeEl = null;
-  let lapEl = null;
-  let stickEl = null;
-  let knobEl = null;
-  let itemEl = null;
-  let banner = null;
-
-  paintSplash();
-  navigator.wakeLock?.request('screen').then((lock) => { wakeLock = lock; }).catch(() => {});
-
-  function paintSplash() {
-    app.innerHTML = `
-      <div class="screen kart-screen kart-splash">
-        <h1>Mario Kart</h1>
-        <p>Look at the TV</p>
-      </div>
-    `;
-  }
-
-  function paintSurface(surface, msg, me) {
-    if (surface === 'pick') paintPick(msg);
-    else if (surface === 'holding') paintHolding(msg);
-    else if (surface === 'ready') paintReady(msg, me);
-    else paintSplash();
-  }
-
-  function paintPick(msg) {
-    app.innerHTML = `
-      <div class="screen kart-screen kart-pick">
-        <h1>Choose a racer</h1>
-        <div class="kart-characters" id="kart-characters"></div>
-        <button type="button" id="kart-confirm">Confirm</button>
-      </div>
-    `;
-    const list = document.getElementById('kart-characters');
-    for (const character of msg.catalog || []) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.id = `kart-character-${character.id}`;
-      button.className = character.id === highlightId ? 'kart-character is-picked' : 'kart-character';
-      button.style.background = character.css;
-      button.textContent = character.name;
-      button.addEventListener('click', () => {
-        highlightId = character.id;
-        paintPick(msg);
-      });
-      list.appendChild(button);
-    }
-    const confirm = document.getElementById('kart-confirm');
-    confirm.disabled = highlightId == null;
-    confirm.addEventListener('click', () => {
-      if (highlightId == null) return;
-      sendMsg({ type: 'kart_pick', characterId: highlightId });
-    });
-  }
-
-  function paintHolding(msg) {
-    app.innerHTML = `
-      <div class="screen kart-screen kart-holding">
-        <h1 id="kart-course"></h1>
-        <p id="kart-holding"></p>
-      </div>
-    `;
-    const course = msg.trackName || 'the course';
-    document.getElementById('kart-course').textContent = course;
-    document.getElementById('kart-holding').textContent = msg.phase === 'started'
-      ? `${course} is starting. Look at the TV.`
-      : `Watch the TV for ${course}.`;
-  }
-
-  function paintReady(msg, me) {
-    app.innerHTML = `
-      <div class="screen kart-screen kart-ready">
-        <h1>Ready?</h1>
-        <ul id="kart-roster"></ul>
-        <div class="kart-characters" id="kart-characters"></div>
-        <button type="button" id="kart-ready-toggle"></button>
-      </div>
-    `;
-    const roster = document.getElementById('kart-roster');
-    for (const racer of msg.racers || []) {
-      const row = document.createElement('li');
-      if (!racer.connected) row.className = 'is-disconnected';
-      const name = document.createElement('span');
-      name.textContent = racer.name;
-      const character = document.createElement('span');
-      character.textContent = racer.characterName || 'Choosing';
-      const flag = document.createElement('span');
-      flag.textContent = racer.ready ? 'Ready' : 'Not ready';
-      if (racer.ready) flag.className = 'is-ready';
-      row.append(name, character, flag);
-      roster.appendChild(row);
-    }
-    const list = document.getElementById('kart-characters');
-    for (const character of msg.catalog || []) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.id = `kart-character-${character.id}`;
-      button.className = character.id === (me && me.characterId) ? 'kart-character is-picked' : 'kart-character';
-      button.style.background = character.css;
-      button.textContent = character.name;
-      button.addEventListener('click', () => {
-        highlightId = character.id;
-        sendMsg({ type: 'kart_pick', characterId: character.id });
-      });
-      list.appendChild(button);
-    }
-    const toggle = document.getElementById('kart-ready-toggle');
-    toggle.textContent = me && me.ready ? 'Not ready' : 'Ready';
-    toggle.addEventListener('click', () => {
-      sendMsg({ type: 'kart_ready', ready: !(me && me.ready) });
-    });
-  }
-
-  function ensurePad() {
-    if (padReady) return;
-    padReady = true;
-    app.innerHTML = `
-      <div class="screen kart-screen">
-        <div class="kart-top">
-          <div>
-            <p class="kart-you" id="kart-you">Racer</p>
-            <p class="kart-sub" id="kart-sub">Waiting for the start</p>
-          </div>
-          <div class="kart-stats">
-            <p class="kart-place" id="kart-place">–</p>
-            <p class="kart-lap" id="kart-lap">Lap 1</p>
-          </div>
+  app.innerHTML = `
+    <div id="screen-kart">
+      <div id="kart-status">Get ready!</div>
+      <div class="kart-controls">
+        <div class="kart-zone-left" id="kart-zone">
+          <div id="kart-joystick"><div id="kart-knob"></div></div>
         </div>
-        <div class="kart-pad">
-          <button type="button" id="kart-item" class="kart-item">Use item</button>
-          <div class="kart-stick" id="kart-stick" style="--drift-at:${STICK.driftAt}">
-            <div class="kart-stick-knob" id="kart-knob"></div>
-          </div>
-        </div>
-        <div class="kart-banner" id="kart-banner" hidden></div>
+        <button id="btn-gas" type="button">GAS</button>
       </div>
-    `;
-    youEl = document.getElementById('kart-you');
-    subEl = document.getElementById('kart-sub');
-    placeEl = document.getElementById('kart-place');
-    lapEl = document.getElementById('kart-lap');
-    stickEl = document.getElementById('kart-stick');
-    knobEl = document.getElementById('kart-knob');
-    itemEl = document.getElementById('kart-item');
-    banner = document.getElementById('kart-banner');
-    bindStick();
-    bindItem();
+      <div id="kart-finish"></div>
+      <div id="kart-rotate"><div class="kart-phone-icon"></div><div>Rotate your phone</div></div>
+    </div>
+  `;
+
+  const root = document.getElementById('screen-kart');
+  const zone = document.getElementById('kart-zone');
+  const base = document.getElementById('kart-joystick');
+  const knob = document.getElementById('kart-knob');
+  const gasBtn = document.getElementById('btn-gas');
+  const statusEl = document.getElementById('kart-status');
+  const finishEl = document.getElementById('kart-finish');
+
+  // ── Drive output ────────────────────────────────────────────────────────────
+  const round2 = (v) => Math.round(v * 100) / 100 || 0;
+  function sendDrive() {
+    sendMsg({ type: 'drive', steer: round2(steer), gas });
   }
 
-  function bindStick() {
-    stickEl.addEventListener('pointerdown', (event) => {
-      if (stickPointer !== null) return;
-      event.preventDefault();
-      stickPointer = event.pointerId;
-      stickEl.setPointerCapture(stickPointer);
-      stickRect = stickEl.getBoundingClientRect();
-      follow(event);
-    });
-    stickEl.addEventListener('pointermove', (event) => {
-      if (event.pointerId === stickPointer) follow(event);
-    });
-    // lostpointercapture also fires after pointerup. The owner check makes release idempotent.
-    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-      stickEl.addEventListener(type, (event) => {
-        if (event.pointerId !== stickPointer) return;
-        stickPointer = null;
-        show(CENTER, 0);
-      });
+  // ── Joystick ────────────────────────────────────────────────────────────────
+  // The base re-centres under the finger so the first touch is always neutral.
+  let baseCx = 0;
+  let radius = 60; // travel of the knob centre; set from the base on touch
+  function moveSteer(clientX, clientY) {
+    const dx = Math.max(-radius, Math.min(radius, clientX - baseCx));
+    steer = steerFromOffset(dx, radius, DEAD_ZONE);
+    knob.style.transform = `translate(${dx}px, 0)`;
+  }
+  function releaseSteer() {
+    steerPointer = null;
+    steer = 0;
+    knob.style.transition = 'transform 0.12s ease-out';
+    knob.style.transform = 'translate(0, 0)';
+    base.style.left = '50%';
+    base.style.top = '50%';
+  }
+
+  zone.addEventListener('pointerdown', (e) => {
+    if (steerPointer !== null) return;
+    steerPointer = e.pointerId;
+    zone.setPointerCapture(e.pointerId);
+    const zr = zone.getBoundingClientRect();
+    radius = (base.offsetWidth - knob.offsetWidth) / 2;
+    const half = base.offsetWidth / 2;
+    const cx = Math.max(zr.left + half, Math.min(zr.right - half, e.clientX));
+    const cy = Math.max(zr.top + half, Math.min(zr.bottom - half, e.clientY));
+    baseCx = cx;
+    base.style.left = `${cx - zr.left}px`;
+    base.style.top = `${cy - zr.top}px`;
+    knob.style.transition = 'none';
+    moveSteer(e.clientX, e.clientY);
+    e.preventDefault();
+  });
+  zone.addEventListener('pointermove', (e) => {
+    if (e.pointerId === steerPointer) moveSteer(e.clientX, e.clientY);
+  });
+  const endSteer = (e) => { if (e.pointerId === steerPointer) releaseSteer(); };
+  zone.addEventListener('pointerup', endSteer);
+  zone.addEventListener('pointercancel', endSteer);
+
+  // ── Gas ─────────────────────────────────────────────────────────────────────
+  function setGas(on) {
+    if (gas === on) return;
+    gas = on;
+    gasBtn.classList.toggle('pressed', on);
+    if (on) { try { navigator.vibrate?.(15); } catch (_) {} }
+    sendDrive();
+  }
+  gasBtn.addEventListener('pointerdown', (e) => {
+    if (gasPointer !== null) return;
+    gasPointer = e.pointerId;
+    gasBtn.setPointerCapture(e.pointerId);
+    setGas(true);
+    e.preventDefault();
+  });
+  const endGas = (e) => {
+    if (e.pointerId !== gasPointer) return;
+    gasPointer = null;
+    setGas(false);
+  };
+  gasBtn.addEventListener('pointerup', endGas);
+  gasBtn.addEventListener('pointercancel', endGas);
+
+  const block = (e) => e.preventDefault();
+  root.addEventListener('contextmenu', block);
+  root.addEventListener('selectstart', block);
+  root.addEventListener('touchmove', block, { passive: false });
+
+  // ── Orientation ─────────────────────────────────────────────────────────────
+  const portraitMq = window.matchMedia('(orientation: portrait)');
+  function syncOrientation() {
+    root.classList.toggle('portrait', portraitMq.matches);
+    if (portraitMq.matches) {
+      // Don't leave a stuck input behind a hidden control.
+      if (steerPointer !== null) releaseSteer();
+      if (gasPointer !== null) { gasPointer = null; setGas(false); }
     }
   }
+  portraitMq.addEventListener('change', syncOrientation);
+  syncOrientation();
+  try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch (_) {}
 
-  function follow(event) {
-    const radius = stickRect.width / 2;
-    const dx = event.clientX - stickRect.left - radius;
-    const dy = event.clientY - stickRect.top - radius;
-    show(stickInput(dx, dy, radius), radius);
+  // ── Wake lock ───────────────────────────────────────────────────────────────
+  async function acquireWakeLock() {
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      if (unmounted) lock.release().catch(() => {});
+      else wakeLock = lock;
+    } catch (_) {}
   }
-
-  function show(next, radius) {
-    if (next.drift && !input.drift) buzz(12);
-    input = next;
-    stickEl.classList.toggle('is-drifting', next.drift);
-    knobEl.style.transform = `translate(${next.knobX * radius}px, ${next.knobY * radius}px)`;
+  function onVisibility() {
+    if (document.visibilityState === 'visible' && !wakeLock) acquireWakeLock();
+    if (document.visibilityState === 'hidden') wakeLock = null;
   }
+  document.addEventListener('visibilitychange', onVisibility);
+  acquireWakeLock();
 
-  function bindItem() {
-    itemEl.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      if (itemPointer !== null) return;
-      itemPointer = event.pointerId;
-      itemEl.setPointerCapture(itemPointer);
-      itemEl.classList.add('is-held');
-      sendMsg({ type: 'use_item' });
-      buzz(20);
-    });
-    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-      itemEl.addEventListener(type, (event) => {
-        if (event.pointerId !== itemPointer) return;
-        itemPointer = null;
-        itemEl.classList.remove('is-held');
-      });
-    }
+  // ── Host status ─────────────────────────────────────────────────────────────
+  function showStatus(me) {
+    if (!me) return;
+    root.style.setProperty('--kart-color', me.color || '#888');
+    const lap = Math.min(me.lap ?? 1, me.laps ?? 3);
+    statusEl.innerHTML = `<span class="kart-swatch" style="background:${me.color || '#888'}"></span>` +
+      `<span>LAP ${lap}/${me.laps ?? 3}</span><span>${me.place ? placeLabel(me.place) : ''}</span>`;
+    if (me.finished) showFinish(me.place);
   }
-
-  function buzz(ms) {
-    navigator.vibrate?.(ms);
-  }
-
-  function showBanner(text) {
-    banner.hidden = false;
-    banner.textContent = text;
-  }
-
-  function hideBanner() {
-    banner.hidden = true;
-  }
-
-  function mine(msg) {
-    return msg.players?.find((player) => player.playerId === myPlayerId) || null;
-  }
-
-  function paintRace(msg) {
-    if (msg.type === 'race_countdown') {
-      showBanner(String(msg.seconds));
-      subEl.textContent = 'Get ready';
-    } else if (msg.type === 'race_go') {
-      hideBanner();
-      subEl.textContent = 'Go';
-    } else if (msg.type === 'race_status') {
-      const me = mine(msg);
-      if (!me) return;
-      youEl.textContent = me.characterName;
-      youEl.style.color = me.color;
-      placeEl.textContent = `P${me.place}`;
-      lapEl.textContent = `Lap ${me.lap} / ${msg.lapsTotal}`;
-      if (msg.phase === 'racing') subEl.textContent = me.name;
-      itemEl.textContent = me.itemLabel || 'Use item';
-      itemEl.classList.toggle('is-armed', me.itemPrimary != null);
-      itemEl.classList.toggle('is-spinning', me.effect === 'spin');
-      itemEl.classList.toggle('is-star', me.effect === 'star');
-    } else if (msg.type === 'race_finished') {
-      const row = msg.results?.find((player) => player.playerId === myPlayerId);
-      showBanner(row ? `P${row.place}` : 'Finish');
-      subEl.textContent = 'Race over';
-    }
-  }
-
-  function startStream() {
-    if (stream !== null) return;
-    stream = setInterval(() => {
-      seq += 1;
-      sendMsg({ type: 'drive', steer: input.steer, gas: true, drift: input.drift, seq });
-    }, 1000 / STREAM_HZ);
+  function showFinish(place) {
+    finishEl.innerHTML = `<span>Finished!</span><b>${place ? placeLabel(place) : ''}</b>`;
+    finishEl.classList.add('show');
   }
 
   function onMessage(msg) {
-    if (msg.type === 'kart_lobby') {
-      if (padReady) return;
-      if (typeof msg.revision !== 'number' || msg.revision < seenRevision) return;
-      seenRevision = msg.revision;
-      const me = (msg.racers || []).find((racer) => racer.playerId === myPlayerId);
-      const next = me?.surface || 'splash';
-      if (next === 'pick' && highlightId == null && me?.characterId) highlightId = me.characterId;
-      paintSurface(next, msg, me);
-      return;
-    }
-    if (
-      msg.type === 'race_countdown'
-      || msg.type === 'race_go'
-      || msg.type === 'race_status'
-      || msg.type === 'race_finished'
-    ) {
-      ensurePad();
-      paintRace(msg);
-      if (msg.type === 'race_go') startStream();
+    switch (msg.type) {
+      case 'kart_status': {
+        showStatus(msg.players?.[myPlayerId]);
+        if (msg.phase === 'lobby' || msg.phase === 'countdown') finishEl.classList.remove('show');
+        break;
+      }
+      case 'kart_results': {
+        const mine = msg.players?.[myPlayerId];
+        const place = mine?.place
+          ?? (Array.isArray(msg.results) ? msg.results.findIndex((r) => (r.playerId ?? r.id) === myPlayerId) + 1 : 0);
+        showFinish(place || null);
+        break;
+      }
+      case 'game_started':
+        finishEl.classList.remove('show');
+        statusEl.textContent = 'Get ready!';
+        break;
+      default:
+        break;
     }
   }
 
+  // ── Stream ──────────────────────────────────────────────────────────────────
+  sendTimer = setInterval(sendDrive, 1000 / SEND_HZ);
+
   return {
     onMessage,
+    onMotion() {},
     unmount() {
-      if (stream !== null) clearInterval(stream);
-      stream = null;
-      if (wakeLock) wakeLock.release().catch(() => {});
-      wakeLock = null;
+      unmounted = true;
+      clearInterval(sendTimer);
+      portraitMq.removeEventListener('change', syncOrientation);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+      try { screen.orientation?.unlock?.(); } catch (_) {}
+      app.innerHTML = '';
     },
   };
 }

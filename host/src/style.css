@@ -679,248 +679,6 @@ html, body, #root {
   color: #fff;
 }
 
-.kart-layout {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  background: #7ec8f5;
-  overflow: hidden;
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-}
-
-.kart-canvas {
-  position: absolute;
-  inset: 0;
-}
-
-.kart-canvas canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.kart-hud {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.kart-pane {
-  position: absolute;
-  box-sizing: border-box;
-  border: 1px solid rgba(0, 0, 0, 0.18);
-}
-
-.kart-items {
-  position: absolute;
-  top: 3.5%;
-  left: 3%;
-  width: 5.6rem;
-  height: 5.6rem;
-}
-
-.kart-item {
-  position: absolute;
-  border-radius: 50%;
-  box-sizing: border-box;
-  background: rgba(12, 16, 28, 0.55);
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(255, 255, 255, 0.28);
-}
-
-.kart-item-primary {
-  width: 4.6rem;
-  height: 4.6rem;
-  right: 0;
-  bottom: 0;
-  border: 0.38rem solid #f5d400;
-}
-
-.kart-item-secondary {
-  width: 2.55rem;
-  height: 2.55rem;
-  left: 0;
-  top: 0;
-  border: 0.28rem solid #f5d400;
-  z-index: 1;
-}
-
-.kart-item-icon {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff8, transparent 45%), var(--item, #f0c419);
-}
-
-.kart-fx-star .kart-item-primary {
-  box-shadow: 0 0 18px #ffe566;
-  animation: kart-item-pulse 0.7s ease-in-out infinite;
-}
-
-.kart-fx-boost .kart-item-primary {
-  box-shadow: 0 0 14px #ffb15a;
-}
-
-.kart-fx-spin .kart-item-primary {
-  animation: kart-item-spin 0.18s linear infinite;
-}
-
-@keyframes kart-item-pulse {
-  50% { transform: scale(1.08); }
-}
-
-@keyframes kart-item-spin {
-  to { transform: rotate(18deg); }
-}
-
-.kart-place {
-  position: absolute;
-  right: 3%;
-  bottom: 2.5%;
-  font-size: clamp(2.8rem, 8vw, 5.2rem);
-  font-weight: 900;
-  line-height: 0.9;
-  letter-spacing: -0.04em;
-  -webkit-text-stroke: 0.08em #1a1206;
-  paint-order: stroke fill;
-  text-shadow: 0 0.08em 0 rgba(0, 0, 0, 0.35);
-}
-
-.kart-place-first {
-  color: #7ec8ff;
-}
-
-.kart-place-podium {
-  color: #ffe566;
-}
-
-.kart-place-field {
-  color: #ffd84a;
-}
-
-.kart-coinlap {
-  position: absolute;
-  left: 3%;
-  bottom: 3.5%;
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  color: #fff;
-  font-weight: 800;
-  font-size: clamp(1.05rem, 2.4vw, 1.45rem);
-  text-shadow: 0 2px 0 #14305a, 0 0 8px rgba(0, 0, 0, 0.35);
-}
-
-.kart-coin,
-.kart-lap {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.kart-coin-glyph {
-  width: 1.15em;
-  height: 1.15em;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #ffe56a, #e0a400 55%, #b07a00 100%);
-  box-shadow: inset 0 0 0 0.12em #f7d34a, 0 1px 0 #5a3a00;
-}
-
-.kart-lap-flag {
-  width: 1.1em;
-  height: 0.85em;
-  background:
-    linear-gradient(45deg, #111 25%, #fff 25%, #fff 50%, #111 50%, #111 75%, #fff 75%),
-    #fff;
-  background-size: 0.45em 0.45em;
-  border: 1px solid #111;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
-}
-
-.kart-minimap {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(22vw, 220px);
-  height: min(22vw, 220px);
-  z-index: 3;
-  pointer-events: none;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
-}
-
-.kart-minimap-svg {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.kart-countdown {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9rem;
-  font-weight: 900;
-  color: #fff;
-  text-shadow: 0 6px 0 #14305a;
-  z-index: 4;
-}
-
-.kart-results {
-  pointer-events: auto;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: #fff8e8;
-  color: #1a1206;
-  border-radius: 20px;
-  padding: 28px 32px;
-  min-width: 320px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-  z-index: 5;
-}
-
-.kart-results h2 {
-  margin: 0 0 12px;
-  font-size: 2rem;
-}
-
-.kart-results ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.kart-results li {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr auto;
-  gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid #ead9a8;
-  font-weight: 700;
-}
-
-.kart-results button,
-.kart-back,
-.kart-settings-toggle {
-  pointer-events: auto;
-  border: none;
-  border-radius: 999px;
-  background: #e52521;
-  color: #fff;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.kart-results button {
-  margin-top: 16px;
-  padding: 12px 18px;
-}
-
 .game-settings {
   position: absolute;
   top: 12px;
@@ -978,214 +736,6 @@ html, body, #root {
   width: 100%;
 }
 
-.kart-onboard {
-  height: 100%;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 20px;
-  padding: 28px 40px 32px;
-  box-sizing: border-box;
-  background: linear-gradient(#7ec8f5 0 68%, #45b34f 68% 100%);
-  color: #1a1206;
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-}
-
-.kart-stage-back,
-.kart-track-arrow {
-  justify-self: start;
-  width: fit-content;
-  border: 0;
-  border-radius: 999px;
-  background: #fff;
-  color: #1a1206;
-  font: inherit;
-  font-weight: 800;
-  padding: 10px 18px;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.16);
-  cursor: pointer;
-}
-
-.kart-track-arrow:disabled {
-  opacity: 0.45;
-  cursor: default;
-  box-shadow: none;
-}
-
-.kart-onboard-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-}
-
-.kart-menu {
-  text-align: center;
-}
-
-.kart-menu h1,
-.kart-track-card h1,
-.kart-lobby h1 {
-  margin: 0;
-  font-size: clamp(3.2rem, 8vw, 6.4rem);
-  font-weight: 900;
-  letter-spacing: -0.045em;
-  line-height: 0.92;
-  text-shadow: 0 5px 0 #fff;
-}
-
-.kart-menu p,
-.kart-track-card p,
-.kart-hint {
-  margin: 12px 0 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-}
-
-.kart-mirror {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  width: min(860px, 100%);
-}
-
-.kart-character {
-  min-height: 168px;
-  border-radius: 28px;
-  padding: 18px 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 4px;
-  color: #1a1206;
-  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.45), 0 8px 0 rgba(0, 0, 0, 0.16);
-}
-
-.kart-character.is-picked {
-  box-shadow: inset 0 0 0 7px #fff, 0 8px 0 rgba(0, 0, 0, 0.2);
-}
-
-.kart-character-name {
-  font-size: 2.1rem;
-  font-weight: 900;
-}
-
-.kart-character-pick {
-  font-weight: 800;
-  background: rgba(255, 255, 255, 0.72);
-  border-radius: 999px;
-  padding: 2px 10px;
-  width: fit-content;
-}
-
-.kart-track-preview {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-  width: min(920px, 100%);
-}
-
-.kart-track-card {
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 28px;
-  padding: 22px 24px 16px;
-  text-align: center;
-  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.12);
-}
-
-.kart-track-card h1 {
-  font-size: clamp(2.4rem, 5vw, 4rem);
-  text-shadow: none;
-}
-
-.kart-track-outline {
-  width: min(240px, 36vw);
-  height: auto;
-  margin-top: 8px;
-}
-
-.kart-track-outline path {
-  fill: none;
-  stroke: #1a1206;
-  stroke-width: 3.2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-
-.kart-lobby {
-  width: min(720px, 100%);
-}
-
-.kart-lobby h1 {
-  font-size: clamp(2.6rem, 6vw, 4.4rem);
-  margin-bottom: 16px;
-}
-
-.kart-lobby ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.kart-lobby-row {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr auto;
-  gap: 12px;
-  align-items: center;
-  background: #fff;
-  border-radius: 18px;
-  padding: 14px 18px;
-  font-size: 1.35rem;
-  font-weight: 800;
-  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.12);
-}
-
-.kart-lobby-row.is-disconnected {
-  opacity: 0.45;
-}
-
-.kart-lobby-ready.is-ready {
-  color: #1d7a32;
-}
-
-.kart-onboard-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.kart-primary {
-  min-width: 240px;
-  border: 0;
-  border-radius: 999px;
-  background: #f5d400;
-  color: #1a1206;
-  font: inherit;
-  font-size: 1.7rem;
-  font-weight: 900;
-  padding: 14px 36px;
-  box-shadow: 0 6px 0 #c9a400;
-  cursor: pointer;
-}
-
-.kart-primary:disabled {
-  background: rgba(255, 255, 255, 0.5);
-  color: rgba(26, 18, 6, 0.55);
-  box-shadow: none;
-  cursor: default;
-}
-
-.kart-hint {
-  margin: 0;
-  background: rgba(255, 255, 255, 0.82);
-  border-radius: 999px;
-  padding: 6px 14px;
-}
-
 .game-settings-action {
   border: none;
   border-radius: 999px;
@@ -1195,3 +745,234 @@ html, body, #root {
   font-weight: 800;
   cursor: pointer;
 }
+
+
+/* ── Kart Racer ──────────────────────────────────────────────── */
+
+.kart-app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #8fd3ff;
+  font-family: 'Trebuchet MS', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  font-weight: 900;
+  user-select: none;
+}
+
+.kart-canvas,
+.kart-canvas canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.kart-panel,
+.kart-place,
+.kart-standings,
+.kart-quit,
+.kart-countdown,
+.kart-wrongway {
+  position: absolute;
+  color: #fff;
+  text-shadow: 0 3px 0 #1d2a44, 2px 0 0 #1d2a44, -2px 0 0 #1d2a44, 0 -2px 0 #1d2a44;
+  pointer-events: none;
+}
+
+.kart-panel {
+  padding: 8px 20px;
+  border-radius: 18px;
+  border: 4px solid #fff;
+  box-shadow: 0 5px 0 rgba(29, 42, 68, 0.45);
+  font-size: 2rem;
+  letter-spacing: 0.02em;
+}
+
+.kart-lap {
+  top: 18px;
+  left: 18px;
+  background: #ff8c1a;
+}
+
+.kart-lap b {
+  font-size: 2.6rem;
+}
+
+.kart-timer {
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3a7be8;
+  font-variant-numeric: tabular-nums;
+}
+
+.kart-place {
+  top: 8px;
+  right: 24px;
+  display: flex;
+  align-items: baseline;
+}
+
+.kart-place-big {
+  font-size: 5.5rem;
+  line-height: 1;
+  color: #ffd23f;
+  -webkit-text-stroke: 4px #1d2a44;
+  paint-order: stroke fill;
+}
+
+.kart-place-total {
+  font-size: 2.4rem;
+}
+
+.kart-standings {
+  top: 112px;
+  left: 18px;
+  list-style: none;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: rgba(29, 42, 68, 0.55);
+  font-size: 1.15rem;
+  text-shadow: 0 2px 0 #1d2a44;
+}
+
+.kart-standings li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.kart-dot {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 0 rgba(29, 42, 68, 0.5);
+  flex: none;
+}
+
+.kart-minimap {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 190px;
+  height: 190px;
+  border-radius: 20px;
+  background: rgba(120, 190, 90, 0.85);
+  border: 4px solid #fff;
+  box-shadow: 0 5px 0 rgba(29, 42, 68, 0.45);
+  pointer-events: none;
+}
+
+.kart-map-outline,
+.kart-map-road {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.kart-map-outline { stroke: #fff; stroke-width: 11; }
+.kart-map-road { stroke: #2b3347; stroke-width: 6; }
+.kart-map-start { stroke: #ffd23f; stroke-width: 3; }
+.kart-map-dot { stroke: #fff; stroke-width: 2; }
+
+.kart-countdown {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12rem;
+  line-height: 1;
+  -webkit-text-stroke: 10px #1d2a44;
+  paint-order: stroke fill;
+  text-shadow: 0 8px 0 #1d2a44;
+  animation: kart-pop 0.9s ease-out;
+}
+
+.kart-countdown.go {
+  color: #5cff7a;
+}
+
+@keyframes kart-pop {
+  0% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+  25% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.85; }
+}
+
+.kart-wrongway {
+  top: 26%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 36px;
+  border-radius: 16px;
+  border: 4px solid #fff;
+  background: #e8423a;
+  font-size: 3rem;
+  animation: kart-blink 0.6s steps(2) infinite;
+}
+
+@keyframes kart-blink {
+  50% { opacity: 0.45; }
+}
+
+.kart-quit {
+  bottom: 18px;
+  left: 18px;
+  padding: 6px 16px;
+  border: 3px solid #fff;
+  border-radius: 12px;
+  background: rgba(29, 42, 68, 0.6);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.kart-results {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(29, 42, 68, 0.45);
+}
+
+.kart-results-card {
+  min-width: 520px;
+  padding: 24px 32px 28px;
+  border-radius: 28px;
+  border: 5px solid #fff;
+  background: #3a7be8;
+  box-shadow: 0 8px 0 rgba(29, 42, 68, 0.5);
+  color: #fff;
+  text-align: center;
+}
+
+.kart-results-card h1 {
+  margin-bottom: 14px;
+  font-size: 2.6rem;
+  text-shadow: 0 3px 0 #1d2a44;
+}
+
+.kart-results-card ol {
+  list-style: none;
+  margin-bottom: 20px;
+}
+
+.kart-results-card li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+  padding: 8px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 1.4rem;
+}
+
+.kart-res-place { width: 3.2rem; text-align: left; color: #ffd23f; }
+.kart-res-name { flex: 1; text-align: left; }
+.kart-res-time { font-variant-numeric: tabular-nums; }
+.kart-res-best { width: 8.5rem; font-size: 0.95rem; opacity: 0.85; text-align: right; }

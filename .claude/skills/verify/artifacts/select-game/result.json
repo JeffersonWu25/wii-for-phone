@@ -1,0 +1,23 @@
+{
+  "feature": "select-game",
+  "passed": true,
+  "finishedAt": "2026-11-02T15:16:00.237Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "Bowling card is enabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Kart Racer card is enabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unbuilt games are disabled Coming Soon cards",
+      "ok": true,
+      "detail": "Wizard Duel, 3PT Contest, Tennis, Golf, Piano Master"
+    }
+  ]
+}

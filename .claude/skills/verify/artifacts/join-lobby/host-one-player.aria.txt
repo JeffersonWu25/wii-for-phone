@@ -1,0 +1,11 @@
+- button "Settings"
+- heading "Wii Playground" [level=1]
+- paragraph: Scan to join on your phone
+- paragraph:
+  - text: "Session:"
+  - strong: f91820
+- paragraph: http://127.0.0.1:15174?session=f91820
+- heading "Players (1)" [level=2]
+- list:
+  - listitem: ● Ada
+- button "Select Game"

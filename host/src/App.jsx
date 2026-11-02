@@ -3,7 +3,7 @@ import { useRelay } from './shared/useRelay.js';
 import LobbyScreen from './shared/LobbyScreen.jsx';
 import GameSelectScreen from './shared/GameSelectScreen.jsx';
 import BowlingApp from './games/bowling/BowlingApp.jsx';
-import KartFlow from './games/kart/KartFlow.jsx';
+import KartApp from './games/kart/KartApp.jsx';
 import FeelSettings from './shared/FeelSettings.jsx';
 
 // ── App — thin 3-screen router ────────────────────────────────────────────────
@@ -102,12 +102,14 @@ export default function App() {
 
   if (screen === 'kart') {
     return (
-      <KartFlow
+      <KartApp
         wsRef={wsRef}
         send={send}
         players={players}
         disconnectedPlayerIds={disconnectedPlayerIds}
+        onGameOver={leaveToSelect}
         onAbandon={leaveToSelect}
+        status={status}
       />
     );
   }

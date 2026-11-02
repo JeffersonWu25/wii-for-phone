@@ -1,0 +1,48 @@
+{
+  "feature": "bowling-throw",
+  "passed": true,
+  "finishedAt": "2026-11-02T15:16:07.405Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "phone gets the bowl screen on its turn",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "phone shows the throw result with speed, angle, and curve",
+      "ok": true,
+      "detail": "4 pins knocked down Speed 24 km/h Angle Straight Curve Straight Score: 0 Tap anywhere to dismiss"
+    },
+    {
+      "name": "host scoreboard shows the first roll for Ada",
+      "ok": true,
+      "detail": "roll cell \"4\""
+    },
+    {
+      "name": "phone sent exactly one throw event",
+      "ok": true,
+      "detail": "throw frames 1"
+    },
+    {
+      "name": "phone streamed pos packets while held",
+      "ok": true,
+      "detail": "pos frames 9"
+    },
+    {
+      "name": "host received the throw through the relay",
+      "ok": true,
+      "detail": "host throw frames 1"
+    },
+    {
+      "name": "phone received a throw_result",
+      "ok": true,
+      "detail": "throw_result frames 1"
+    },
+    {
+      "name": "dismissing the result returns the phone to waiting",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

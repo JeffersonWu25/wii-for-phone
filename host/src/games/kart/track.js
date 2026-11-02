@@ -1,516 +1,477 @@
-import { LUIGI_PLAN } from './tracks/luigi-circuit-plan.js';
-import { loftCourse } from './track-loft.js';
+// Sunny Meadow Circuit — pure track data + geometry queries (no three.js).
+// Heading h: forward = (cos h, 0, sin h), right = (-sin h, 0, cos h); right turns increase h.
+// Lateral > 0 is to the right of the centerline.
 
-export const PROGRESS_CONTINUITY = 0.10;
+// ── Data ─────────────────────────────────────────────────────────────────────
 
-const MAX_STEP_M = 6;
+export const SAMPLE_STEP = 0.5;
+export const CURB_WIDTH = 1.2;
+export const CHECKPOINT_COUNT = 8;
+export const TRANSITION = 20; // m over which width / bank blend between pieces
 
-export function createTrack(plan, opts = {}) {
-  const course = compile(plan, opts);
-  const grid = plan.grid;
-  const boxes = opts.itemBoxProgress ?? plan.itemBoxProgress;
-  if (!Array.isArray(boxes)) {
-    throw new Error('createTrack needs itemBoxProgress on opts or plan');
-  }
-  const itemBoxProgress = Object.freeze([...boxes]);
+const edge = (curb, runoff, runoffWidth, wall = false) => ({ curb, runoff, runoffWidth, wall });
+const grass = (w = 12) => edge(false, 'grass', w);
 
-  function poseAt(t) {
-    return poseOn(course, t);
-  }
+// The 140 m start straight is split at the line: 100 m ahead of it, 40 m of grid behind it (the last piece).
+export const PIECES = [
+  { tag: 'start', kind: 'straight', length: 100, width: 20, left: grass(16), right: grass(12) },
+  { tag: 't1', kind: 'arc', turn: 'right', angle: 90, radius: 40, width: 16, left: edge(true, 'sand', 14, true), right: edge(true, 'grass', 10) },
+  { tag: 'short', kind: 'straight', length: 30, width: 16, left: grass(), right: grass() },
+  { tag: 'sLeft', kind: 'arc', turn: 'left', angle: 45, radius: 50, width: 16, left: edge(true, 'grass', 14), right: grass() },
+  { tag: 'sRight', kind: 'arc', turn: 'right', angle: 45, radius: 50, width: 16, left: grass(), right: edge(true, 'grass', 12) },
+  { tag: 'hill', kind: 'arc', turn: 'right', angle: 90, radius: 30, width: 16, left: grass(), right: edge(true, 'sand', 10) },
+  { tag: 'back', kind: 'straight', length: 179.289322, width: 16, left: grass(), right: grass() },
+  { tag: 'sweeper', kind: 'arc', turn: 'right', angle: 180, radius: 85.355339, width: 16, bank: 10, left: edge(true, 'sand', 12, true), right: edge(true, 'sand', 12) },
+  { tag: 'grid', kind: 'straight', length: 40, width: 20, left: grass(16), right: grass(12) },
+];
 
-  function sampleTrack(x, z, seedProgress) {
-    if (!Number.isFinite(x) || !Number.isFinite(z)) {
-      throw new TypeError('sampleTrack needs finite x and z');
-    }
-    const seed = Number.isFinite(seedProgress) ? wrap01(seedProgress) : null;
-    return locate(course, x, z, seed);
-  }
+// Control points resolved to s by buildTrack; cosine interpolation between neighbours.
+// `at` is 'start' | 'end' | meters from the piece start.
+export const ELEVATION = [
+  { piece: 'hill', at: 'start', h: 0 },
+  { piece: 'hill', at: 'end', h: 5 },
+  { piece: 'back', at: 70, h: 5 },
+  { piece: 'back', at: 150, h: 0 },
+];
 
-  function followTrack(motion) {
-    const x0 = motion?.x0;
-    const z0 = motion?.z0;
-    const x1 = motion?.x1;
-    const z1 = motion?.z1;
-    const seedProgress = motion?.seedProgress;
-    if (![x0, z0, x1, z1, seedProgress].every(Number.isFinite)) {
-      throw new TypeError('followTrack motion needs finite numbers');
-    }
-    const end = clampDisc(course, x1, z1);
-    const sample = locate(course, end.x, end.z, wrap01(seedProgress));
-    const dashEntered = segmentHitsDash(course, x0, z0, end.x, end.z) && !pointInDash(course, x0, z0);
-    return {
-      ...sample,
-      x: end.x,
-      z: end.z,
-      dashEntered,
-    };
-  }
+export const BOOST_PADS = [
+  { piece: 'back', at: 35, lateral: -3 },
+  { piece: 'back', at: 115, lateral: 3 },
+];
+const PAD_LENGTH = 6;
+const PAD_WIDTH = 4;
 
-  function gridPose(index) {
-    const row = Math.floor(index / 2);
-    const col = index % 2;
-    const back = (grid.frontMeters + row * grid.rowMeters) / course.perim;
-    const pose = poseAt(-back);
-    const side = (col === 0 ? -1 : 1) * grid.colOffset;
-    const rx = Math.cos(pose.heading);
-    const rz = -Math.sin(pose.heading);
-    return {
-      x: pose.x + rx * side,
-      z: pose.z + rz * side,
-      facing: pose.heading,
-    };
-  }
+// Data only for the item system; nothing consumes these in v1.
+export const RESERVED = {
+  itemRows: [
+    { piece: 'short', at: 15, laterals: [-4, 0, 4] },
+    { piece: 'back', at: 90, laterals: [-4, 0, 4] },
+  ],
+  ramps: [{ piece: 'back', at: 150, lateral: 0, length: 8, width: 6 }],
+};
 
-  return Object.freeze({
-    id: opts.id || null,
-    PERIM: course.perim,
-    HALF: course.poseAtSLocal(0).half,
-    itemBoxProgress,
-    poseAt,
-    sampleTrack,
-    followTrack,
-    gridPose,
-    trackVisuals() {
-      return course.visuals;
-    },
-  });
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (t) => {
+  const u = clamp(t, 0, 1);
+  return u * u * (3 - 2 * u);
+};
+
+export function pieceLength(p) {
+  return p.kind === 'straight' ? p.length : (p.radius * p.angle * Math.PI) / 180;
 }
 
-function compile(plan, opts = {}) {
-  const waypoints = plan.waypoints;
-  const idIndex = new Map(waypoints.map((wp, i) => [wp.id, i]));
-  const edges = [];
-  let cursor = 0;
-  for (let i = 0; i < waypoints.length; i++) {
-    const a = waypoints[i];
-    const b = waypoints[(i + 1) % waypoints.length];
-    const dx = b.x - a.x;
-    const dz = b.z - a.z;
-    const length = Math.hypot(dx, dz);
-    if (!(length > 0.5) || !(a.halfWidth > 0)) {
-      throw new Error(`bad edge ${a.id}`);
-    }
-    const tx = dx / length;
-    const tz = dz / length;
-    edges.push({
-      i,
-      seg: a.seg,
-      x0: a.x,
-      z0: a.z,
-      x1: b.x,
-      z1: b.z,
-      length,
-      s0: cursor,
-      tx,
-      tz,
-      nx: tz,
-      nz: -tx,
-      half0: a.halfWidth,
-      half1: b.halfWidth,
-      y0: a.visualOuterY || 0,
-      y1: b.visualOuterY || 0,
-    });
-    cursor += length;
-  }
-  const perim = cursor;
-
-  function frameOnEdge(edge, u) {
-    const uu = clamp(u, 0, 1);
-    const half = edge.half0 + (edge.half1 - edge.half0) * uu;
-    return {
-      x: edge.x0 + (edge.x1 - edge.x0) * uu,
-      z: edge.z0 + (edge.z1 - edge.z0) * uu,
-      nx: edge.nx,
-      nz: edge.nz,
-      tx: edge.tx,
-      tz: edge.tz,
-      half,
-      visualOuterY: edge.y0 + (edge.y1 - edge.y0) * uu,
-      s: edge.s0 + edge.length * uu,
-      progress: wrap01((edge.s0 + edge.length * uu) / perim),
-      heading: Math.atan2(edge.tx, edge.tz),
-      seg: edge.seg,
-    };
-  }
-
-  function frameAt(id, u) {
-    const edge = edges[idIndex.get(id)];
-    if (!edge) throw new Error(`unknown waypoint ${id}`);
-    return frameOnEdge(edge, u);
-  }
-
-  function poseAtSLocal(s) {
-    let arc = s % perim;
-    if (arc < 0) arc += perim;
-    if (arc >= perim - 1e-9) arc = 0;
-    for (const edge of edges) {
-      if (arc >= edge.s0 && arc < edge.s0 + edge.length) {
-        return frameOnEdge(edge, (arc - edge.s0) / edge.length);
-      }
-    }
-    return frameOnEdge(edges[0], 0);
-  }
-
-  function progressOf(id, u) {
-    return frameAt(id, u).progress;
-  }
-
-  const sand = plan.sandBands.map((band) => ({
-    p0: progressOf(band.from, band.u0),
-    p1: progressOf(band.to, band.u1),
-    depth: band.depth,
-  }));
-
-  const dashes = [];
-  for (const spec of plan.dashes) {
-    const p0 = progressOf(spec.from, spec.u0);
-    const p1 = progressOf(spec.to, spec.u1);
-    const span = forwardSpan(p0, p1);
-    const steps = Math.max(2, Math.ceil((span * perim) / 4));
-    for (let k = 0; k < steps; k++) {
-      const a = poseAtSLocal(wrap01(p0 + span * (k / steps)) * perim);
-      const b = poseAtSLocal(wrap01(p0 + span * ((k + 1) / steps)) * perim);
-      dashes.push([
-        offset(a, a.half * spec.latFrac0),
-        offset(b, b.half * spec.latFrac0),
-        offset(b, b.half * spec.latFrac1),
-        offset(a, a.half * spec.latFrac1),
-      ]);
-    }
-  }
-
-  const corridors = plan.corridors.map((spec) => {
-    const s0 = progressOf(spec.from, spec.u0);
-    const s1 = progressOf(spec.to, spec.u1);
-    const raw = spec.spine.map((pt) => {
-      const frame = frameAt(pt.at, pt.u);
-      const lateral = pt.lateral === 'inner' ? -frame.half - 0.4 : pt.lateral;
-      return offset(frame, lateral);
-    });
-    let length = 0;
-    const center = [{ x: raw[0].x, z: raw[0].z, s: 0 }];
-    for (let i = 1; i < raw.length; i++) {
-      length += Math.hypot(raw[i].x - raw[i - 1].x, raw[i].z - raw[i - 1].z);
-      center.push({ x: raw[i].x, z: raw[i].z, s: length });
-    }
-    const poly = ribbon(center, (i, n) => {
-      const t = n <= 1 ? 0 : i / (n - 1);
-      return 2.4 + Math.sin(Math.PI * t) * spec.reach;
-    });
-    const span = forwardSpan(s0, s1);
-    const jump = length < 1e-3 ? Infinity : (MAX_STEP_M / length) * span;
-    if (!(jump <= PROGRESS_CONTINUITY)) {
-      throw new Error(`${spec.id} progress jump ${jump.toFixed(3)} exceeds budget`);
-    }
-    return { id: spec.id, s0, s1, length, center, poly };
-  });
-
-  let worldRadius = 0;
-  const consider = (x, z) => {
-    worldRadius = Math.max(worldRadius, Math.hypot(x, z));
-  };
-  for (let s = 0; s <= perim; s += 2) {
-    const pose = poseAtSLocal(Math.min(s, perim - 1e-4));
-    consider(pose.x + pose.nx * pose.half, pose.z + pose.nz * pose.half);
-    consider(pose.x - pose.nx * (pose.half + 18), pose.z - pose.nz * (pose.half + 18));
-  }
-  for (const corridor of corridors) {
-    for (const p of corridor.poly) consider(p.x, p.z);
-  }
-  worldRadius += plan.grassMargin;
-
-  for (let i = 0; i < 80; i++) {
-    const pose = poseAtSLocal((i / 80) * perim);
-    for (const corridor of corridors) {
-      if (pointInPoly(corridor.poly, pose.x, pose.z)) {
-        throw new Error(`centerline crosses ${corridor.id}`);
-      }
-    }
-  }
-
-  const back = plan.grid.frontMeters + 5 * plan.grid.rowMeters;
-  const gridFrame = poseAtSLocal(wrap01(-back / perim) * perim);
-  if (opts.requireStartGrid && gridFrame.seg !== 'start') {
-    throw new Error('grid row 5 leaves the start straight');
-  }
-  if (opts.perimRange) {
-    const [lo, hi] = opts.perimRange;
-    if (!(perim > lo && perim < hi)) throw new Error(`PERIM ${perim}`);
-  }
-
-  const visuals = loftCourse({
-    perim,
-    edges,
-    sandBands: sand,
-    dashQuads: structuredClone(dashes),
-    corridors: structuredClone(corridors),
-    worldRadius,
-    grid: plan.grid,
-  });
-
-  return {
-    perim,
-    edges,
-    sand,
-    dashes,
-    corridors,
-    worldRadius,
-    poseAtSLocal,
-    visuals,
-  };
-}
-
-function locate(course, x, z, seed) {
-  if (seed != null) {
-    const cut = locateCorridor(course, x, z, seed);
-    if (cut) return cut;
-  }
-  let best = null;
-  for (const edge of course.edges) {
-    const proj = projectEdge(course, edge, x, z);
-    if (seed != null && circDist(proj.progress, seed) > PROGRESS_CONTINUITY) continue;
-    if (!best || proj.dist2 < best.dist2) best = proj;
-  }
-  if (!best) {
-    for (const edge of course.edges) {
-      const proj = projectEdge(course, edge, x, z);
-      if (!best || proj.dist2 < best.dist2) best = proj;
-    }
-  }
-  const depth = sandDepthAt(course, best.progress);
-  let surface = 'grass';
-  if (Math.abs(best.lateral) <= best.half + 1e-4) surface = 'asphalt';
-  else if (best.lateral < 0 && -best.lateral <= best.half + depth) surface = 'sand';
-  return {
-    cx: best.cx,
-    cz: best.cz,
-    tx: best.tx,
-    tz: best.tz,
-    lateral: best.lateral,
-    progress: best.progress,
-    dirX: best.dirX,
-    dirZ: best.dirZ,
-    halfWidth: best.half,
-    surface,
-    onDash: pointInDash(course, x, z),
-  };
-}
-
-function locateCorridor(course, x, z, seed) {
-  let best = null;
-  for (const corridor of course.corridors) {
-    if (!seedHitsSpan(seed, corridor.s0, corridor.s1)) continue;
-    if (!pointInPoly(corridor.poly, x, z)) continue;
-    const proj = projectSpine(corridor.center, x, z);
-    if (!best || proj.dist2 < best.dist2) best = { corridor, proj };
-  }
-  if (!best) return null;
-  const span = forwardSpan(best.corridor.s0, best.corridor.s1);
-  const u = best.corridor.length <= 1e-6 ? 0 : best.proj.s / best.corridor.length;
-  const progress = wrap01(best.corridor.s0 + clamp(u, 0, 1) * span);
-  const pose = poseOn(course, progress);
-  const lx = x - pose.x;
-  const lz = z - pose.z;
-  const ld = Math.hypot(lx, lz);
-  const nx = Math.cos(pose.heading);
-  const nz = -Math.sin(pose.heading);
-  return {
-    cx: pose.x,
-    cz: pose.z,
-    tx: Math.sin(pose.heading),
-    tz: Math.cos(pose.heading),
-    lateral: lx * nx + lz * nz,
-    progress,
-    dirX: ld < 1e-6 ? 0 : lx / ld,
-    dirZ: ld < 1e-6 ? 0 : lz / ld,
-    halfWidth: pose.halfWidth,
-    surface: 'sand',
-    onDash: pointInDash(course, x, z),
-  };
-}
-
-function projectEdge(course, edge, x, z) {
-  const dx = x - edge.x0;
-  const dz = z - edge.z0;
-  let u = (dx * edge.tx + dz * edge.tz) / edge.length;
-  u = clamp(u, 0, 1);
-  const cx = edge.x0 + edge.tx * edge.length * u;
-  const cz = edge.z0 + edge.tz * edge.length * u;
-  const lx = x - cx;
-  const lz = z - cz;
-  const lateral = lx * edge.nx + lz * edge.nz;
-  const progress = wrap01((edge.s0 + edge.length * u) / course.perim);
-  const half = edge.half0 + (edge.half1 - edge.half0) * u;
-  const ld = Math.hypot(lx, lz);
-  return {
-    cx,
-    cz,
-    tx: edge.tx,
-    tz: edge.tz,
-    lateral,
-    progress,
-    half,
-    dist2: lx * lx + lz * lz,
-    dirX: ld < 1e-6 ? 0 : lx / ld,
-    dirZ: ld < 1e-6 ? 0 : lz / ld,
-  };
-}
-
-function projectSpine(center, x, z) {
-  let best = { dist2: Infinity, s: 0 };
-  for (let i = 0; i < center.length - 1; i++) {
-    const a = center[i];
-    const b = center[i + 1];
-    const dx = b.x - a.x;
-    const dz = b.z - a.z;
-    const len2 = dx * dx + dz * dz || 1e-9;
-    const u = clamp(((x - a.x) * dx + (z - a.z) * dz) / len2, 0, 1);
-    const px = a.x + dx * u;
-    const pz = a.z + dz * u;
-    const dist2 = (x - px) ** 2 + (z - pz) ** 2;
-    if (dist2 < best.dist2) best = { dist2, s: a.s + (b.s - a.s) * u };
-  }
-  return best;
-}
-
-function sandDepthAt(course, progress) {
-  let depth = 0;
-  for (const band of course.sand) {
-    const span = forwardSpan(band.p0, band.p1);
-    const rel = forwardSpan(band.p0, progress);
-    if (rel <= span + 1e-6) depth = Math.max(depth, band.depth);
-  }
-  return depth;
-}
-
-function poseOn(course, t) {
-  const hit = course.poseAtSLocal(wrap01(t) * course.perim);
-  return {
-    x: hit.x,
-    z: hit.z,
-    heading: hit.heading,
-    halfWidth: hit.half,
-    visualOuterY: hit.visualOuterY,
-  };
-}
-
-function clampDisc(course, x, z) {
-  const r = Math.hypot(x, z);
-  if (r <= course.worldRadius || r < 1e-8) return { x, z };
-  const k = course.worldRadius / r;
-  return { x: x * k, z: z * k };
-}
-
-function pointInDash(course, x, z) {
-  for (const quad of course.dashes) {
-    if (pointInPoly(quad, x, z)) return true;
-  }
-  return false;
-}
-
-function segmentHitsDash(course, x0, z0, x1, z1) {
-  if (pointInDash(course, x1, z1)) return true;
-  const a = { x: x0, z: z0 };
-  const b = { x: x1, z: z1 };
-  for (const quad of course.dashes) {
-    for (let i = 0; i < quad.length; i++) {
-      const c = quad[i];
-      const d = quad[(i + 1) % quad.length];
-      if (segmentsCross(a, b, c, d)) return true;
-    }
-  }
-  return false;
-}
-
-function pointInPoly(poly, x, z) {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const xi = poly[i].x;
-    const zi = poly[i].z;
-    const xj = poly[j].x;
-    const zj = poly[j].z;
-    const cross = (zi > z) !== (zj > z)
-      && x < ((xj - xi) * (z - zi)) / ((zj - zi) || 1e-12) + xi;
-    if (cross) inside = !inside;
-  }
-  return inside;
-}
-
-function segmentsCross(a, b, c, d) {
-  const ab = side(a, b, c) * side(a, b, d);
-  const cd = side(c, d, a) * side(c, d, b);
-  return ab < 0 && cd < 0;
-}
-
-function side(p, q, r) {
-  return (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
-}
-
-function ribbon(center, widthAt) {
-  const left = [];
-  const right = [];
-  const n = center.length;
+function smoothCircular(arr, n, radius) {
+  const out = new Float64Array(n);
+  const span = 2 * radius + 1;
   for (let i = 0; i < n; i++) {
-    const prev = center[Math.max(0, i - 1)];
-    const next = center[Math.min(n - 1, i + 1)];
-    let tx = next.x - prev.x;
-    let tz = next.z - prev.z;
-    const mag = Math.hypot(tx, tz) || 1;
-    tx /= mag;
-    tz /= mag;
-    const nx = tz;
-    const nz = -tx;
-    const w = widthAt(i, n);
-    left.push({ x: center[i].x + nx * w, z: center[i].z + nz * w });
-    right.push({ x: center[i].x - nx * w, z: center[i].z - nz * w });
+    let sum = 0;
+    for (let k = -radius; k <= radius; k++) sum += arr[(i + k + n * 4) % n];
+    out[i] = sum / span;
   }
-  return [...left, ...right.reverse()];
+  return out;
 }
 
-function offset(frame, lateral) {
+// Gentle rolling hills for distant scenery, 0..12 m.
+function rollingHills(x, z) {
+  const v = 0.6 * Math.sin(x / 70 + 1.3) * Math.cos(z / 85 + 0.4) + 0.4 * Math.sin((x + z) / 55 + 2);
+  return 6 + 6 * v;
+}
+
+// ── Build ────────────────────────────────────────────────────────────────────
+
+export function buildTrack(pieces = PIECES) {
+  // Piece start poses, integrated analytically so the loop closes exactly.
+  const lens = pieces.map(pieceLength);
+  const starts = [];
+  const poses = [];
+  let acc = 0;
+  let cur = { x: 0, z: 0, h: 0 };
+  const advance = (p, pose, u) => {
+    if (p.kind === 'straight') {
+      return { x: pose.x + Math.cos(pose.h) * u, z: pose.z + Math.sin(pose.h) * u, h: pose.h };
+    }
+    const dir = p.turn === 'right' ? 1 : -1;
+    const cx = pose.x + dir * p.radius * -Math.sin(pose.h);
+    const cz = pose.z + dir * p.radius * Math.cos(pose.h);
+    const h = pose.h + (dir * u) / p.radius;
+    return { x: cx + dir * p.radius * Math.sin(h), z: cz - dir * p.radius * Math.cos(h), h };
+  };
+  pieces.forEach((p, i) => {
+    starts.push(acc);
+    poses.push(cur);
+    cur = advance(p, cur, lens[i]);
+    acc += lens[i];
+  });
+  const length = acc;
+  const closure = { dx: cur.x, dz: cur.z, dh: cur.h - Math.PI * 2 * Math.round(cur.h / (Math.PI * 2)) };
+
+  const pieceIndexAt = (s) => {
+    for (let i = pieces.length - 1; i > 0; i--) if (s >= starts[i]) return i;
+    return 0;
+  };
+  const poseAt = (s) => {
+    const i = pieceIndexAt(s);
+    return advance(pieces[i], poses[i], Math.min(s - starts[i], lens[i]));
+  };
+  const range = (tag) => {
+    const i = pieces.findIndex((p) => p.tag === tag);
+    return { i, s0: starts[i], s1: starts[i] + lens[i] };
+  };
+  const resolve = (piece, at) => {
+    const r = range(piece);
+    return at === 'start' ? r.s0 : at === 'end' ? r.s1 : r.s0 + at;
+  };
+
+  // Elevation control points (closed at 0 m both ends).
+  const elev = [{ s: 0, h: 0 }, ...ELEVATION.map((e) => ({ s: resolve(e.piece, e.at), h: e.h })), { s: length, h: 0 }];
+  const elevAt = (s) => {
+    for (let i = 0; i < elev.length - 1; i++) {
+      const a = elev[i];
+      const b = elev[i + 1];
+      if (s >= a.s && s <= b.s && b.s > a.s) {
+        const t = (s - a.s) / (b.s - a.s);
+        return {
+          y: a.h + ((b.h - a.h) * (1 - Math.cos(Math.PI * t))) / 2,
+          grade: ((b.h - a.h) * Math.PI * Math.sin(Math.PI * t)) / (2 * (b.s - a.s)),
+        };
+      }
+    }
+    return { y: 0, grade: 0 };
+  };
+
+  // Per-sample profile.
+  const N = Math.round(length / SAMPLE_STEP);
+  const ds = length / N;
+  const samples = [];
+  const rawCurbL = new Float64Array(N);
+  const rawCurbR = new Float64Array(N);
+  const rawRunL = new Float64Array(N);
+  const rawRunR = new Float64Array(N);
+  const curv = new Float64Array(N);
+
+  for (let n = 0; n <= N; n++) {
+    const s = n * ds;
+    const idx = pieceIndexAt(Math.min(s, length - 1e-9));
+    const p = pieces[idx];
+    const pose = poseAt(s);
+    const u = s - starts[idx];
+    const toEnd = lens[idx] - u;
+    const prev = pieces[(idx + pieces.length - 1) % pieces.length];
+    const next = pieces[(idx + 1) % pieces.length];
+
+    // Width narrows over the first TRANSITION m of the narrower piece, widens over the last of the wider-bound one.
+    let width = p.width;
+    if (prev.width > p.width && u < TRANSITION) width = lerp(prev.width, p.width, smoothstep(u / TRANSITION));
+    if (next.width > p.width && toEnd < TRANSITION) width = lerp(p.width, next.width, smoothstep(1 - toEnd / TRANSITION));
+
+    // Bank blends toward the next piece's bank over the last stretch of every piece.
+    const b = p.bank ?? 0;
+    const bn = next.bank ?? 0;
+    const bank = toEnd < TRANSITION ? lerp(b, bn, smoothstep(1 - toEnd / TRANSITION)) : b;
+
+    const e = elevAt(s);
+    const k = p.kind === 'straight' ? 0 : (p.turn === 'right' ? 1 : -1) / p.radius;
+    samples.push({
+      s,
+      x: pose.x,
+      z: pose.z,
+      h: pose.h,
+      y: e.y,
+      grade: e.grade,
+      bank: (bank * Math.PI) / 180,
+      halfWidth: width / 2,
+      curvature: k,
+      pieceIndex: idx,
+    });
+    if (n < N) {
+      rawCurbL[n] = p.left.curb ? CURB_WIDTH : 0;
+      rawCurbR[n] = p.right.curb ? CURB_WIDTH : 0;
+      rawRunL[n] = p.left.runoffWidth;
+      rawRunR[n] = p.right.runoffWidth;
+      curv[n] = k;
+    }
+  }
+
+  // Edge widths blend across piece boundaries so limits and meshes have no steps.
+  const sm = (arr) => smoothCircular(arr, N, 16);
+  const curbL = sm(rawCurbL);
+  const curbR = sm(rawCurbR);
+  const runL = sm(rawRunL);
+  const runR = sm(rawRunR);
+  const kSmooth = smoothCircular(curv, N, 48);
+  for (let n = 0; n <= N; n++) {
+    const m = n % N;
+    const sp = samples[n];
+    sp.curbL = curbL[m];
+    sp.curbR = curbR[m];
+    sp.runL = runL[m];
+    sp.runR = runR[m];
+    sp.sandL = pieces[sp.pieceIndex].left.runoff === 'sand';
+    sp.sandR = pieces[sp.pieceIndex].right.runoff === 'sand';
+    // Terrain falloff shortens on the inside of tight bends so it finishes before the arc's center.
+    const k = kSmooth[m];
+    const limR = sp.halfWidth + sp.curbR + sp.runR;
+    const limL = sp.halfWidth + sp.curbL + sp.runL;
+    sp.fallR = k > 1e-4 ? clamp(0.7 * (1 / k - limR), 3, 30) : 30;
+    sp.fallL = k < -1e-4 ? clamp(0.7 * (-1 / k - limL), 3, 30) : 30;
+  }
+
+  // ── Queries ────────────────────────────────────────────────────────────────
+
+  const wrapS = (s) => ((s % length) + length) % length;
+  const locate = (s) => {
+    const u = wrapS(s) / ds;
+    const i = Math.min(Math.floor(u), N - 1);
+    return [i, u - i];
+  };
+
+  function frameAt(sIn) {
+    const [i, f] = locate(sIn);
+    const a = samples[i];
+    const b = samples[i + 1];
+    const h = lerp(a.h, b.h, f);
+    const fx = Math.cos(h);
+    const fz = Math.sin(h);
+    return {
+      s: wrapS(sIn),
+      x: lerp(a.x, b.x, f),
+      y: lerp(a.y, b.y, f),
+      z: lerp(a.z, b.z, f),
+      h,
+      fx,
+      fz,
+      rx: -fz,
+      rz: fx,
+      bank: lerp(a.bank, b.bank, f),
+      halfWidth: lerp(a.halfWidth, b.halfWidth, f),
+      pieceIndex: a.pieceIndex,
+      tag: pieces[a.pieceIndex].tag,
+    };
+  }
+
+  function edgesAt(sIn) {
+    const [i, f] = locate(sIn);
+    const a = samples[i];
+    const b = samples[i + 1];
+    const bank = lerp(a.bank, b.bank, f);
+    return {
+      y: lerp(a.y, b.y, f),
+      grade: a.grade,
+      bank,
+      tb: Math.tan(bank),
+      hw: lerp(a.halfWidth, b.halfWidth, f),
+      curbL: lerp(a.curbL, b.curbL, f),
+      curbR: lerp(a.curbR, b.curbR, f),
+      runL: lerp(a.runL, b.runL, f),
+      runR: lerp(a.runR, b.runR, f),
+      sandL: a.sandL,
+      sandR: a.sandR,
+      fallL: lerp(a.fallL, b.fallL, f),
+      fallR: lerp(a.fallR, b.fallR, f),
+      k: lerp(a.curvature, b.curvature, f),
+      h: lerp(a.h, b.h, f),
+    };
+  }
+
+  const heightOf = (e, lat) => e.y - e.tb * clamp(lat, -(e.hw + e.curbL), e.hw + e.curbR);
+
+  function heightAt(s, lateral) {
+    return heightOf(edgesAt(s), lateral);
+  }
+
+  function surfaceAt(s, lateral) {
+    const e = edgesAt(s);
+    const limitL = e.hw + e.curbL + e.runL;
+    const limitR = e.hw + e.curbR + e.runR;
+    const a = Math.abs(lateral);
+    const right = lateral >= 0;
+    const curb = right ? e.curbR : e.curbL;
+    const limit = right ? limitR : limitL;
+    let kind = 'road';
+    if (a > limit) kind = 'wall';
+    else if (a > e.hw + curb) kind = (right ? e.sandR : e.sandL) ? 'sand' : 'grass';
+    else if (a > e.hw) kind = curb > 0.05 ? 'curb' : right ? (e.sandR ? 'sand' : 'grass') : e.sandL ? 'sand' : 'grass';
+
+    // Surface gradient in xz: grade along forward, -tan(bank) along right (banked only on road + curb).
+    const onBank = a <= e.hw + curb ? e.tb : 0;
+    const fx = Math.cos(e.h);
+    const fz = Math.sin(e.h);
+    const gx = e.grade * fx - onBank * -fz;
+    const gz = e.grade * fz - onBank * fx;
+    const inv = 1 / Math.hypot(gx, 1, gz);
+    return { y: heightOf(e, lateral), nx: -gx * inv, ny: inv, nz: -gz * inv, kind, limitL, limitR };
+  }
+
+  // Newton-refine s so the offset from the centerline is purely lateral.
+  function refine(x, z, s0) {
+    let s = s0;
+    let lat = 0;
+    for (let it = 0; it < 4; it++) {
+      const fr = frameAt(s);
+      const dx = x - fr.x;
+      const dz = z - fr.z;
+      const along = dx * fr.fx + dz * fr.fz;
+      lat = dx * fr.rx + dz * fr.rz;
+      const k = edgesAt(s).k;
+      s += along / Math.max(0.2, 1 - lat * k);
+      if (Math.abs(along) < 1e-7) break;
+    }
+    const fr = frameAt(s);
+    lat = (x - fr.x) * fr.rx + (z - fr.z) * fr.rz;
+    return { s: wrapS(s), lateral: lat };
+  }
+
+  // Coarse spatial hash over every 4th sample (2 m) for global nearest-point lookups.
+  const CELL = 24;
+  const COARSE = 4;
+  let minX = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxZ = -Infinity;
+  for (let n = 0; n < N; n++) {
+    minX = Math.min(minX, samples[n].x);
+    maxX = Math.max(maxX, samples[n].x);
+    minZ = Math.min(minZ, samples[n].z);
+    maxZ = Math.max(maxZ, samples[n].z);
+  }
+  const gx0 = minX - 1;
+  const gz0 = minZ - 1;
+  const gnx = Math.ceil((maxX - gx0) / CELL) + 1;
+  const gnz = Math.ceil((maxZ - gz0) / CELL) + 1;
+  const cells = Array.from({ length: gnx * gnz }, () => []);
+  for (let n = 0; n < N; n += COARSE) {
+    const cx = Math.floor((samples[n].x - gx0) / CELL);
+    const cz = Math.floor((samples[n].z - gz0) / CELL);
+    cells[cz * gnx + cx].push(n);
+  }
+
+  const d2To = (n, x, z) => {
+    const sp = samples[n];
+    return (sp.x - x) ** 2 + (sp.z - z) ** 2;
+  };
+
+  function nearestIndexGlobal(x, z) {
+    const cx = Math.floor((x - gx0) / CELL);
+    const cz = Math.floor((z - gz0) / CELL);
+    let best = -1;
+    let bestD2 = Infinity;
+    const scan = (ix, iz) => {
+      if (ix < 0 || iz < 0 || ix >= gnx || iz >= gnz) return;
+      for (const n of cells[iz * gnx + ix]) {
+        const d2 = d2To(n, x, z);
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          best = n;
+        }
+      }
+    };
+    const rMax = Math.max(Math.abs(cx), Math.abs(gnx - cx), Math.abs(cz), Math.abs(gnz - cz)) + 1;
+    for (let r = 0; r <= rMax; r++) {
+      // Ring r cells are at least (r - 1) cells from the query.
+      if (best >= 0 && Math.sqrt(bestD2) <= (r - 1) * CELL) break;
+      if (r === 0) scan(cx, cz);
+      else {
+        for (let dx = -r; dx <= r; dx++) {
+          scan(cx + dx, cz - r);
+          scan(cx + dx, cz + r);
+        }
+        for (let dz = -r + 1; dz <= r - 1; dz++) {
+          scan(cx - r, cz + dz);
+          scan(cx + r, cz + dz);
+        }
+      }
+    }
+    // Pick the best fine sample around the coarse winner.
+    let fine = best;
+    let fineD2 = bestD2;
+    for (let k = -COARSE; k <= COARSE; k++) {
+      const n = (best + k + N) % N;
+      const d2 = d2To(n, x, z);
+      if (d2 < fineD2) {
+        fineD2 = d2;
+        fine = n;
+      }
+    }
+    return fine;
+  }
+
+  const HINT_WINDOW = 60; // samples each way (30 m)
+  function project(x, z, hintS) {
+    let idx = -1;
+    if (hintS != null && Number.isFinite(hintS)) {
+      const c = Math.round(wrapS(hintS) / ds);
+      let bestD2 = Infinity;
+      let bestK = 0;
+      for (let k = -HINT_WINDOW; k <= HINT_WINDOW; k++) {
+        const n = (c + k + N * 4) % N;
+        const d2 = d2To(n, x, z);
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          idx = n;
+          bestK = k;
+        }
+      }
+      if (Math.abs(bestK) === HINT_WINDOW || bestD2 > 900) idx = -1;
+    }
+    if (idx < 0) idx = nearestIndexGlobal(x, z);
+    return refine(x, z, idx * ds);
+  }
+
+  const baseTerrain = (x, z, dist) => rollingHills(x, z) * smoothstep((dist - 120) / 60);
+
+  function terrainHeight(x, z) {
+    const { s, lateral } = refine(x, z, nearestIndexGlobal(x, z) * ds);
+    const e = edgesAt(s);
+    const right = lateral >= 0;
+    const limit = right ? e.hw + e.curbR + e.runR : e.hw + e.curbL + e.runL;
+    const a = Math.abs(lateral);
+    if (a <= limit) return heightOf(e, lateral);
+    const edgeH = heightOf(e, right ? limit : -limit);
+    const w = smoothstep((a - limit) / (right ? e.fallR : e.fallL));
+    return lerp(edgeH, baseTerrain(x, z, a), w);
+  }
+
+  const checkpoints = Array.from({ length: CHECKPOINT_COUNT }, (_, index) => ({ index, s: (index * length) / CHECKPOINT_COUNT }));
+  const boostPads = BOOST_PADS.map((p) => ({ s: resolve(p.piece, p.at), lateral: p.lateral, length: PAD_LENGTH, width: PAD_WIDTH }));
+  const itemRows = RESERVED.itemRows.map((r) => ({ s: resolve(r.piece, r.at), laterals: r.laterals }));
+  const ramps = RESERVED.ramps.map((r) => ({ s: resolve(r.piece, r.at), lateral: r.lateral, length: r.length, width: r.width }));
+
+  function gridSlots(n) {
+    return Array.from({ length: n }, (_, i) => {
+      const row = i >> 1;
+      const col = i & 1;
+      const s = wrapS(-(6 + row * 8 + (col ? 4 : 0)));
+      const lateral = col ? 4 : -4;
+      const fr = frameAt(s);
+      return { s, lateral, x: fr.x + fr.rx * lateral, y: heightAt(s, lateral), z: fr.z + fr.rz * lateral, h: fr.h };
+    });
+  }
+
+  function pieceRange(tag) {
+    const { s0, s1 } = range(tag);
+    return { s0, s1 };
+  }
+
   return {
-    x: frame.x + frame.nx * lateral,
-    z: frame.z + frame.nz * lateral,
+    length,
+    closure,
+    pieces,
+    samples,
+    sampleStep: ds,
+    frameAt,
+    project,
+    surfaceAt,
+    heightAt,
+    terrainHeight,
+    checkpoints,
+    boostPads,
+    itemRows,
+    ramps,
+    gridSlots,
+    pieceRange,
+    wrapS,
   };
 }
-
-function seedHitsSpan(seed, s0, s1) {
-  const span = forwardSpan(s0, s1);
-  const rel = forwardSpan(s0, seed);
-  return rel <= span + PROGRESS_CONTINUITY || rel >= 1 - PROGRESS_CONTINUITY;
-}
-
-function forwardSpan(from, to) {
-  let d = to - from;
-  if (d < 0) d += 1;
-  return d;
-}
-
-function circDist(a, b) {
-  const d = Math.abs(wrap01(a) - wrap01(b));
-  return Math.min(d, 1 - d);
-}
-
-function wrap01(t) {
-  return ((t % 1) + 1) % 1;
-}
-
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
-}
-
-export const luigiCircuit = createTrack(LUIGI_PLAN, {
-  id: 'luigi-circuit',
-  perimRange: [190, 245],
-  requireStartGrid: true,
-});
-
-export const PERIM = luigiCircuit.PERIM;
-/** Start-straight asphalt half-width. Items and older contain paths still read this. */
-export const HALF = luigiCircuit.HALF;
-export const itemBoxProgress = luigiCircuit.itemBoxProgress;
-export const poseAt = luigiCircuit.poseAt;
-export const sampleTrack = luigiCircuit.sampleTrack;
-export const followTrack = luigiCircuit.followTrack;
-export const gridPose = luigiCircuit.gridPose;
-export const trackVisuals = luigiCircuit.trackVisuals;
