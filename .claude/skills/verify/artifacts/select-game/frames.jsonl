@@ -1,6 +1,6 @@
-{"at":"2026-11-02T15:15:59.788Z","page":"host","dir":"in","msg":{"type":"session_created","sessionId":"7e59b9"}}
-{"at":"2026-11-02T15:15:59.797Z","page":"host","dir":"out","msg":{"type":"feel","speed":1,"tilt":1.75,"curve":1.6,"maxCurve":0.65}}
-{"at":"2026-11-02T15:16:00.048Z","page":"phone:Ada","dir":"out","msg":{"type":"join","name":"Ada"}}
-{"at":"2026-11-02T15:16:00.048Z","page":"phone:Ada","dir":"in","msg":{"type":"joined","playerId":"498ac1c3"}}
-{"at":"2026-11-02T15:16:00.048Z","page":"host","dir":"in","msg":{"type":"player_joined","playerId":"498ac1c3","name":"Ada"}}
-{"at":"2026-11-02T15:16:00.170Z","page":"phone:Ada","dir":"in","msg":{"type":"session_ended"}}
+{"at":"2026-11-02T22:01:20.852Z","page":"host","dir":"in","msg":{"type":"session_created","sessionId":"ae0545"}}
+{"at":"2026-11-02T22:01:20.859Z","page":"host","dir":"out","msg":{"type":"feel","speed":1,"tilt":1.75,"curve":1.6,"maxCurve":0.65}}
+{"at":"2026-11-02T22:01:21.089Z","page":"phone:Ada","dir":"out","msg":{"type":"join","name":"Ada"}}
+{"at":"2026-11-02T22:01:21.089Z","page":"phone:Ada","dir":"in","msg":{"type":"joined","playerId":"168da9c4"}}
+{"at":"2026-11-02T22:01:21.089Z","page":"host","dir":"in","msg":{"type":"player_joined","playerId":"168da9c4","name":"Ada"}}
+{"at":"2026-11-02T22:01:21.180Z","page":"phone:Ada","dir":"in","msg":{"type":"session_ended"}}

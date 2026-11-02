@@ -8,13 +8,13 @@ With Kart Racer selected, the first 4 joined players each get their own view of 
 - `pane-hud`: each pane has `.kart-item-slot.main` and `.reserve`, `.kart-coins` with `00`, `.kart-lapcount` with `1/3`, and `.kart-place` like `1st`.
 - `shared-minimap`: one `.kart-minimap` with a `.kart-map-marker` per racer, placed on the right edge (1p), on the screen centre (2p, 4p), or in `.kart-map-quadrant` at the bottom right (3p).
 - `no-legacy-hud`: no `.kart-timer` and no `.kart-standings`.
-- `every-view-moves`: with GAS held on every phone, each kart's `s` in `window.__kartState` advances.
+- `every-view-moves`: with no input on any phone, each kart's `s` in `window.__kartState` advances from GO (the kart always accelerates).
 - `racer-cap`: with 5 players in the lobby, `data-players` is 4 and the 5th player is not in `__kartState.karts`.
 
 ## How to get to it (user POV)
 
 - Join 1 to 5 phones to the lobby, press `Select Game` on the host, choose the Kart Racer card.
-- Turn each phone to landscape and hold GAS. Watch the TV split into one view per racer.
+- Turn each phone to landscape. Watch the TV split into one view per racer. The karts drive themselves from GO.
 
 ## Driving it with Playwright
 
@@ -29,7 +29,6 @@ node .claude/skills/verify/scripts/drive.mjs kart-split
 The script runs five rounds, N = 1 to 5. Each round opens a fresh host page, so it is a new session. Steps per round:
 
 - Join the first N names, press `Select Game`, click the Kart Racer card. Expect `#screen-kart` on the first min(N, 4) phones and `.kart-canvas canvas` on the host.
-- Open a CDP session on each racer's page and send `Input.dispatchTouchEvent` `touchStart` on `#btn-gas`. Expect `#btn-gas.pressed` on each. No phone steers, so karts drive straight.
 - Wait for the countdown, screenshot `n<N>-countdown.png`. Wait for `window.__kartState.phase === 'racing'`, read each kart's `s`, wait 2 s, capture `n<N>-racing` (screenshot and aria snapshot of the host), wait 2 s more, read `s` again and the contract elements.
 - Checks, each prefixed `N=<N>:` in `result.json`:
   - `.kart-app[data-players]` is min(N, 4).
@@ -48,9 +47,9 @@ Evidence in `artifacts/kart-split/`: `n<N>-countdown.png`, `n<N>-racing.png` and
 ## Gotchas
 
 - The pane-geometry and HUD checks read the DOM contract, not pixels. Whether the views look right (camera behind each kart, dividers, colours by slot) has to be judged from the screenshots.
-- GAS is held from the grid, before the countdown, as in `kart-race`. Karts only move once the phase is `racing`, so the drive window starts there.
-- The `s` check is modulo the track length, so a kart that crosses the line during the window is still measured correctly. Karts do not steer, so one may hit a wall and slow down, which still advances `s`.
-- The 5th phone is never given GAS and never needs `#screen-kart`. Its `s` is not checked.
+- No phone touches anything. Karts only move once the phase is `racing`, so the drive window starts there.
+- The `s` check is modulo the track length, so a kart that crosses the line during the window is still measured correctly. Karts do not steer, so one may reach a wall and slow down, which still advances `s`. There is no respawn.
+- The 5th phone never needs `#screen-kart`. Its `s` is not checked.
 - The window is 4 s of driving. Place text can change within it, so only its shape is checked.
 - The lap count is read at the end of the window, so it assumes no kart crosses the line within 4 s of GO.
 - Chrome is the only browser used. Real iOS orientation lock and Pointer Events behavior are not exercised.

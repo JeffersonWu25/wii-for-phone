@@ -1,7 +1,7 @@
 {
   "feature": "kart-race",
   "passed": true,
-  "finishedAt": "2026-11-02T16:48:05.985Z",
+  "finishedAt": "2026-11-02T22:03:58.543Z",
   "error": null,
   "checks": [
     {
@@ -15,7 +15,7 @@
       "detail": ""
     },
     {
-      "name": "GAS touch registers on the phone (button pressed)",
+      "name": "phone has no GAS button",
       "ok": true,
       "detail": ""
     },
@@ -32,7 +32,7 @@
     {
       "name": "Ada finished all 3 laps",
       "ok": true,
-      "detail": "lap 3, race time 114.55s"
+      "detail": "lap 3, race time 114.50s"
     },
     {
       "name": "HUD lap counter showed 1, 2, 3 in order",
@@ -47,7 +47,7 @@
     {
       "name": "three crossings after the grid start gave 3 plausible lap times (30-80 s)",
       "ok": true,
-      "detail": "wraps at 1.0, 42.2, 78.4, 114.5; laps 41.2, 36.1, 36.2 s"
+      "detail": "wraps at 1.0, 42.2, 78.3, 114.5; laps 41.1, 36.2, 36.2 s"
     },
     {
       "name": "no respawn jumps (clean run)",
@@ -62,7 +62,7 @@
     {
       "name": "kart stays inside the corridor (|lateral| <= limit)",
       "ok": true,
-      "detail": "max overshoot -0.900 m over 2012 samples"
+      "detail": "max overshoot -0.900 m over 2035 samples"
     },
     {
       "name": "kart y within 5 cm of heightAt(s, lateral)",
@@ -87,12 +87,17 @@
     {
       "name": "wall test: speed drops on contact",
       "ok": true,
-      "detail": "speed 30.0 -> min -1.7 m/s"
+      "detail": "speed 30.2 -> min -2.6 m/s"
     },
     {
       "name": "wall test: kart recovered to finish the race",
       "ok": true,
       "detail": ""
+    },
+    {
+      "name": "joystick touch moves the knob",
+      "ok": true,
+      "detail": "knob translate(61px, 0px)"
     },
     {
       "name": "portrait phone shows the rotate prompt",
@@ -102,7 +107,7 @@
     {
       "name": "results card lists both players with Ada 1st and a time",
       "ok": true,
-      "detail": "1stAda1:54.51best 0:36.15 | 2ndBoDNF"
+      "detail": "1stAda1:54.46best 0:36.15 | 2ndBoDNFbest 1:41.41"
     },
     {
       "name": "Ada's phone shows Finished! 1st",
@@ -112,7 +117,7 @@
     {
       "name": "phones received kart_status frames",
       "ok": true,
-      "detail": "Ada 6, Bo 6"
+      "detail": "Ada 7, Bo 7"
     },
     {
       "name": "phones received kart_results frames",
@@ -120,9 +125,9 @@
       "detail": "Ada 1, Bo 1"
     },
     {
-      "name": "Ada's drive frames carried gas and varied steer",
+      "name": "Ada's drive frames carry steer, brake and drift (no gas) and varied steer",
       "ok": true,
-      "detail": "2970 frames, 122 distinct steer values"
+      "detail": "2975 frames, 127 distinct steer values, brake max 0, drift true 0"
     },
     {
       "name": "Back to games returns the host to game select",

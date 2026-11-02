@@ -1,13 +1,13 @@
 {
   "feature": "join-lobby",
   "passed": true,
-  "finishedAt": "2026-11-02T15:15:59.122Z",
+  "finishedAt": "2026-11-02T22:01:20.224Z",
   "error": null,
   "checks": [
     {
       "name": "host lobby QR points at the local phone URL with this session",
       "ok": true,
-      "detail": "session f91820"
+      "detail": "session e15ef0"
     },
     {
       "name": "host lobby starts with no players",
@@ -52,7 +52,7 @@
     {
       "name": "relay logged two joins",
       "ok": true,
-      "detail": "[relay] Player joined: Ada (ce42b479) | [relay] Player joined: Grace (dc7cecef)"
+      "detail": "[relay] Player joined: Ada (77bc6156) | [relay] Player joined: Grace (418c9d5b)"
     }
   ]
 }

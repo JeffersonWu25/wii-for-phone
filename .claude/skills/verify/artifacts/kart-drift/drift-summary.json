@@ -1,0 +1,359 @@
+{
+  "launch": {
+    "steer": 0.9032199624044793,
+    "phase": "racing",
+    "time": 0.7499649999999998,
+    "sm": 803.3835125769184,
+    "ps": -2.553074585535569,
+    "lap": 0,
+    "lateral": -3.999999999999999,
+    "speed": 10.473155280954755,
+    "boost": 0,
+    "boostLevel": 0,
+    "drift": {
+      "sliding": false,
+      "dir": 0,
+      "charge": 0,
+      "level": 0
+    },
+    "surface": "road",
+    "wrongWay": false,
+    "limitL": 26,
+    "limitR": 22
+  },
+  "rev": {
+    "min": -5.833149999999997,
+    "shot": true,
+    "speedAtPress": 10.473155280954755
+  },
+  "drifts": {
+    "t1": {
+      "label": "t1",
+      "piece": "t1",
+      "levels": [
+        {
+          "level": 0,
+          "charge": 0.067,
+          "sinceSlide": 0.067,
+          "wallMs": 100
+        },
+        {
+          "level": 1,
+          "charge": 1.017,
+          "sinceSlide": 1.017,
+          "wallMs": 1050
+        }
+      ],
+      "dir": 1,
+      "started": true,
+      "maxOver": -18.76695939392631,
+      "maxAbsLat": 0.6319132694539858,
+      "slidingSamples": 22,
+      "offroadSamples": 0,
+      "entry": {
+        "ps": 103.37680375915033,
+        "speed": 21.986029954764994,
+        "boost": 0,
+        "lateral": 0.1176097883456032
+      },
+      "end": {
+        "ps": 131.11694441183317,
+        "speed": 21.7425765766258,
+        "level": 1,
+        "charge": 1.2332849999999993,
+        "boost": 0
+      },
+      "stopReason": "release",
+      "cancelPost": [],
+      "release": {
+        "boost": 0.6499999999999999,
+        "boostLevel": 1,
+        "speed": 22.159701361847013,
+        "afterMs": 83
+      },
+      "postMaxSpeed": 27.66022477370686,
+      "postMaxLevel": 1,
+      "slideStart": 8.849645000000015,
+      "wallMs": {
+        "slideStart": 100
+      }
+    },
+    "sRight": {
+      "label": "sRight",
+      "piece": "sRight",
+      "levels": [
+        {
+          "level": 0,
+          "charge": 0.033,
+          "sinceSlide": 0.033,
+          "wallMs": 82
+        },
+        {
+          "level": 1,
+          "charge": 1.033,
+          "sinceSlide": 1.033,
+          "wallMs": 1065
+        }
+      ],
+      "dir": 1,
+      "started": true,
+      "maxOver": -19.176093522729598,
+      "maxAbsLat": 1.917258192244927,
+      "slidingSamples": 23,
+      "offroadSamples": 0,
+      "entry": {
+        "ps": 232.4221409596836,
+        "speed": 21.4397363220436,
+        "boost": 0,
+        "lateral": 1.5869442093517625
+      },
+      "end": {
+        "ps": 261.461164978935,
+        "speed": 21.56553365741194,
+        "level": 1,
+        "charge": 1.2499549999999982,
+        "boost": 0
+      },
+      "stopReason": "cancel",
+      "cancelPost": [
+        {
+          "sliding": true,
+          "level": 1,
+          "charge": 1.299954999999998,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 21.566894010764265
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 20.49866716604959
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 17.054028069971427
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 16.62729500053338
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 15.429256363032563
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 15.049574431765304
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 13.929082263025878
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 12.834126775727999
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 11.392081724576899
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 10.29559836830578
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 8.818525863798522
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 7.704413705146285
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 6.588561351323685
+        },
+        {
+          "sliding": false,
+          "level": 0,
+          "charge": 0,
+          "boost": 0,
+          "boostLevel": 0,
+          "speed": 5.103180509126595
+        }
+      ],
+      "release": null,
+      "postMaxSpeed": 0,
+      "postMaxLevel": 0,
+      "slideStart": 14.916065000000112,
+      "wallMs": {
+        "slideStart": 82
+      },
+      "cancelPre": {
+        "level": 1,
+        "charge": 1.2499549999999982,
+        "boost": 0,
+        "boostLevel": 0,
+        "speed": 21.56553365741194
+      }
+    },
+    "sweeper": {
+      "label": "sweeper",
+      "piece": "sweeper",
+      "levels": [
+        {
+          "level": 0,
+          "charge": 0.05,
+          "sinceSlide": 0.05,
+          "wallMs": 83
+        },
+        {
+          "level": 1,
+          "charge": 1.05,
+          "sinceSlide": 1.05,
+          "wallMs": 1082
+        },
+        {
+          "level": 2,
+          "charge": 2.067,
+          "sinceSlide": 2.067,
+          "wallMs": 2066
+        },
+        {
+          "level": 3,
+          "charge": 3.017,
+          "sinceSlide": 3.017,
+          "wallMs": 3016
+        }
+      ],
+      "dir": 1,
+      "started": true,
+      "maxOver": -20.18011754807031,
+      "maxAbsLat": 1.0198824519296903,
+      "slidingSamples": 60,
+      "offroadSamples": 0,
+      "entry": {
+        "ps": 506.95183736401725,
+        "speed": 21.896707385761953,
+        "boost": 0,
+        "lateral": 1.3084087616838387
+      },
+      "end": {
+        "ps": 583.6270131443526,
+        "speed": 21.61662461170183,
+        "level": 3,
+        "charge": 3.5498600000000016,
+        "boost": 0
+      },
+      "stopReason": "release",
+      "cancelPost": [],
+      "release": {
+        "boost": 1.9500000000000002,
+        "boostLevel": 3,
+        "speed": 22.794745654023597,
+        "afterMs": 84
+      },
+      "postMaxSpeed": 35.15604611596256,
+      "postMaxLevel": 3,
+      "slideStart": 28.64885499999935,
+      "wallMs": {
+        "slideStart": 83
+      }
+    }
+  },
+  "item": {
+    "before": {
+      "steer": 0.036265239012170804,
+      "phase": "racing",
+      "time": 40.315054999999745,
+      "sm": 778.5400069200258,
+      "ps": 778.5400069200258,
+      "lap": 0,
+      "lateral": -0.6502559365281041,
+      "speed": 21.99978356842557,
+      "boost": 0,
+      "boostLevel": 0,
+      "drift": {
+        "sliding": false,
+        "dir": 0,
+        "charge": 0,
+        "level": 0
+      },
+      "surface": "road",
+      "wrongWay": false,
+      "limitL": 26,
+      "limitR": 22
+    },
+    "after": {
+      "steer": -0.02432878202656671,
+      "phase": "racing",
+      "time": 40.88169499999979,
+      "sm": 791.000253423667,
+      "ps": 791.000253423667,
+      "lap": 0,
+      "lateral": -0.2697239535246044,
+      "speed": 21.999998680564694,
+      "boost": 0,
+      "boostLevel": 0,
+      "drift": {
+        "sliding": false,
+        "dir": 0,
+        "charge": 0,
+        "level": 0
+      },
+      "surface": "road",
+      "wrongWay": false,
+      "limitL": 26,
+      "limitR": 22
+    },
+    "itemFramesBefore": 877,
+    "itemPressed": true
+  }
+}

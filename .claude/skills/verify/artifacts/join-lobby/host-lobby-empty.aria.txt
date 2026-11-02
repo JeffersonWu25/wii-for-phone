@@ -3,8 +3,8 @@
 - paragraph: Scan to join on your phone
 - paragraph:
   - text: "Session:"
-  - strong: f91820
-- paragraph: http://127.0.0.1:15174?session=f91820
+  - strong: e15ef0
+- paragraph: http://127.0.0.1:15574?session=e15ef0
 - heading "Players (0)" [level=2]
 - list:
   - listitem: Waiting for players...
