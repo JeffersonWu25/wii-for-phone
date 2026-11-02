@@ -41,3 +41,13 @@ Only one part gets a competing run: the HUD look. The renderer is mechanical Thr
 ## Timeline
 
 - 2026-11-02 17:09 Branch created, references copied into the run folder, plan written.
+- 17:12 Decision: fixed the host DOM contract up front so the harness (S2) and the HUD runs can be built in parallel against the same selectors.
+- 17:12 Decision: S2 adds a `VERIFY_PORT_OFFSET` to the harness. The instance uses fixed ports, so without it the two competing HUD runs could not each run the harness in their own worktree at the same time.
+- 17:13 Started S1 (renderer), Sonnet, own worktree. Brief: `briefs/01-renderer.md`.
+- 17:13 Started S2 (harness), Sonnet, own worktree, in parallel with S1 (no shared files). Brief: `briefs/02-harness.md`.
+- 17:15 Wrote `rubric.md` for the HUD competing run before starting it.
+- 17:16 S1 finished (Sonnet, ~2 min). Note: the Agent worktrees were cut from `main`, not from the feature branch, so the subagents could not see `RUN.md` in their checkout; S1 read it from the main checkout. Future briefs paste the spec inline.
+- 17:17 Reviewed S1's diff myself: `splitLayout` + tests, per-view cameras with scissored viewports, per-view sun focus and `world.tick`, `MIN_HFOV = 75` widening the vertical FOV for the tall 2p panes, racers capped at 4, timer/standings removed, `?views=N` on the dev preview. Matches the brief. Cherry-picked as 8d0dc23, removed the worktree and branch. Kart unit tests pass.
+- 17:22 S2 finished (Sonnet, ~5.5 min). Reviewed the diff myself: offset applied once in `PORTS`, `kart-split` round per N=1..5 with all contract checks, `kart-race` reads moved to the contract, docs updated. Its HUD checks fail as expected (no HUD yet); GAS and kart-advance checks pass, so the harness path is sound.
+- 17:23 Cherry-picked S2 as b8f8bba, then d3dabfc removes the pre-HUD `kart-split` sample artifacts (regenerated later) and a stale `kart-race/failure.png` S2 had swept in. Removed its worktree and branch.
+- 17:24 Decision: B1 = HTML + CSS container-query units; B2 = SVG-drawn pieces scaled by a per-pane `--u`. Two real alternatives for scaling one HUD across very different pane shapes, which is the hardest part. Each runs its own harness instance (offsets 200 / 300). Briefs tell them to `git merge feat/kart-split-screen` first because Agent worktrees are cut from `main`.
