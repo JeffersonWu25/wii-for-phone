@@ -57,3 +57,51 @@ Open them with your Read tool and study them before you write anything. Use our 
 
 - Match the surrounding code: comment density, naming, idiom. Small, readable React and CSS. No dead code, no debug leftovers.
 - Final report: what you built per file, how you handled scaling and the minimap orientation, the screenshots you produced, the `kart-split` result, and what still looks off compared with the references.
+
+---
+
+## Final report (B1, unedited)
+
+B1 (HTML + CSS container queries) is done and committed as 7b10a33 on the worktree branch. The `kart-split` harness run passed with no FAIL lines, the kart tests pass (42/42), `npx vite build` succeeds, and the offset-200 instance is cleaned up.
+
+**What I built, per file**
+- `host/src/games/kart/Hud.jsx` (new): a `Pane` component and a `Minimap` component.
+  - `Pane` renders the item slots, the place number, the coins and lap pills, WRONG WAY, and the countdown label. The countdown shows in every pane.
+  - Icons are inline SVG: coin and checkered flag.
+  - `Minimap` is an SVG with a see-through outline and a start tick. Each racer is a coloured disc with a white ring and their initial, wrapped in a `<g class="kart-map-marker" data-slot>` that is moved by `dotRefs` through `transform`, so there is no per-frame React render.
+- `host/src/games/kart/KartApp.jsx`:
+  - Renders a `Pane` per `layout.views` entry, and the minimap inside `.kart-map-quadrant` for 3p.
+  - Builds the first HUD snapshot at setup, so the panes have content before the first 100 ms tick.
+  - Picks the map shape from `split.mapTall`.
+  - Removes the old HUD markup and the single global countdown.
+  - Quit moved to top-centre and shrunk.
+- `host/src/games/kart/hud.js`:
+  - `fitMinimap` takes a new `rotate` argument (quarter turn).
+  - `startTick` now works from the projected perpendicular, so it stays correct when rotated.
+  - New `placeParts` splits digits from suffix, and `ordinal` now handles 11th to 13th.
+  - `splitLayout` returns a new `mapTall` flag, true for 1p and 2p.
+- `host/src/games/kart/hud.test.mjs`: tests for the ordinals, `placeParts` and the rotated fit.
+- `host/src/style.css`: the old kart panel, lap, timer, standings, place and minimap-box rules are replaced by the new HUD. I kept `.kart-dot` because the results card still uses it.
+
+**Scaling**
+- Each `.kart-pane` has `container-type: size`.
+- Everything inside is sized in `cqmin`: item slots 17 and 11, pills 9, place digits 16, countdown 40.
+- The dividers are pane `::after` borders, so nothing overlaps them. The 3p quadrant gets its own top and left border.
+
+**Minimap orientation**
+- 1p uses a tall map (the track rotated 90°) on the right edge, centred vertically.
+- 2p uses a tall map centred on the divider.
+- 4p uses a wide map, 26vw, centred on the cross.
+- 3p uses a wide map at 92% of the bottom-right quadrant.
+- The path is a translucent white outline with a faint shadow and no box.
+
+**Screenshots**
+- `n1`, `n2`, `n3`, `n4` and `n5` for both countdown and racing are in `/Users/jeffersonwu/Desktop/projects/wii-for-phone/.claude/worktrees/agent-ad8bd80e31eb5a8c1/.claude/skills/verify/artifacts/kart-split/`, committed.
+- I looked at each against the references; the 1p, 2p and 4p layouts match them closely.
+
+**What still looks off compared with the references**
+- Slot colours do not match kart colours. The place number follows the spec (P1 gold, P2 blue, P3 pink, P4 green). The minimap markers use the kart `PALETTE` (red, blue, yellow, green), so P1 is a gold number but a red marker. Reordering `PALETTE` would fix it but also changes colours on the phones.
+- Quit sits at top-centre, so in 2p and 4p it straddles the divider. Escape also quits.
+- Elements scale with the pane as asked, but the references keep roughly fixed pixel sizes. So 4p pills and place numbers are smaller than in `ref-4p`, about 29 px pills against about 38 px in the reference. In 1p the place number is a bit smaller than the reference.
+- In 3p the bottom-right quadrant is a flat sky-blue clear colour, with the see-through outline over it.
+- The minimap markers all start overlapped on the grid, as expected.

@@ -57,3 +57,52 @@ Open them with your Read tool and study them before you write anything. Use our 
 
 - Match the surrounding code: comment density, naming, idiom. Small, readable React and CSS. No dead code, no debug leftovers.
 - Final report: what you built per file, how you handled scaling and the minimap orientation, the screenshots you produced, the `kart-split` result, and what still looks off compared with the references.
+
+---
+
+## Final report (B2, unedited)
+
+B2 (SVG HUD) is built and committed as c02d2af on `worktree-agent-a2cf540c8e0e94e60`, not pushed. `kart-split` passes every check for N=1..5. `node --test src/games/kart/*.test.mjs` passes (45 tests) and `npx vite build` passes. Instance cleaned up (offset 300).
+
+**What changed, per file**
+- **`host/src/games/kart/KartHud.jsx` (new):**
+  - Holds `KartPane` and `KartMinimap`.
+  - The item slots, the coins and lap pills (with coin and checkered-flag icons) and the place number are each their own SVG with a fixed `viewBox`.
+  - The place number is an SVG `<text>` with a per-slot `<linearGradient>` fill (P1 gold, P2 blue, P3 red/pink, P4 green), a dark stroke and `paint-order: stroke`. The digits are large and the suffix is a smaller `<tspan>`. The `viewBox` width follows the digit count, and the text is anchored to the pane's outer side.
+  - Quit is rendered inside pane 0, right of the item slots, so it doesn't collide with the HUD.
+  - WRONG WAY and the countdown label render inside each pane.
+  - The minimap is one SVG: a translucent light outline over a faint dark shade stroke, no box, and one `<g class="kart-map-marker" data-slot>` per racer (coloured disc, white ring, initial). In 3p it sits in `.kart-map-quadrant` over the bottom-right quadrant.
+- **`host/src/games/kart/hud.js`:**
+  - `fitMinimap` takes a new trailing `rotate` argument, a quarter turn clockwise.
+  - `startTick` now projects the perpendicular through the same projection, so the start line stays correct on a rotated map.
+  - New `placeParts(n)` splits a place into digits and suffix.
+  - New `paneUnit(view, w, h)` returns `min(paneH, 0.8 * paneW) / 100` px.
+- **`host/src/games/kart/hud.test.mjs`:** new tests for the rotated fit, the rotated start tick, `placeParts` and `paneUnit`.
+- **`host/src/games/kart/KartApp.jsx`:**
+  - Renders panes, dividers and the minimap.
+  - Tracks window size in state (set from the existing resize handler) and passes each pane its unit.
+  - Minimap markers now move imperatively through `markerRefs` with a `transform`, still with no per-frame React render.
+  - Dropped `hud.total`.
+- **`host/src/style.css` (Kart section only):**
+  - Removed `.kart-panel`, `.kart-lap`, `.kart-timer`, `.kart-standings`, the old `.kart-place*` and the old minimap box styles.
+  - Added the pane, item-slot, pill, place, divider and minimap styles.
+  - Kept `.kart-dot`, which the results card still uses.
+
+**Scaling**
+- `--u` is set inline on each `.kart-pane` as 1% of the pane height, capped at 0.8 × pane width so tall 2p halves don't overshoot. It is recomputed on window resize.
+- Every piece sizes from `calc(var(--u) * k)`, so the HUD keeps the same proportions to its pane in 1p, 2p and 4p. 3p panes use the 4p rules.
+
+**Minimap orientation**
+- 1p and 2p rotate the map 90° into a 120×190 tall box. 1p puts it at mid-right (`right: 1.5vw`, `top: 50%`, height 46vh) and 2p centres it on the divider (height 48vh).
+- 3p and 4p use the unrotated wide 190×120 box. 4p centres it on the cross (width 24vw), and 3p fills 84% of the bottom-right quadrant.
+
+**Screenshots**
+- Committed in `.claude/skills/verify/artifacts/kart-split/`: `n1..n5-countdown.png` and `n1..n5-racing.png`, plus the aria snapshots, `frames.jsonl` and `result.json`.
+- Compared against `ref-1p`, `ref-2p` and `ref-4p`. Item slots, pills, place number, dividers and the translucent map match them in position and style. The countdown shows once per pane, and the harness read it fine.
+
+**Still looks off against the references**
+- The slots are empty, so they are plain translucent rounded squares with none of the reference item art.
+- The pill "/3" suffix is a bit smaller and lighter than in the references.
+- In 3p the large map sits on bare scene background, because the empty quadrant has no camera.
+- All markers stack at the start line during the countdown, and the 4p centre map overlaps the pane edges by design.
+- Rendering is Chrome only.
