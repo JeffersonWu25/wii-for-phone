@@ -1,0 +1,12 @@
+Settings
+Wii Playground
+
+Scan to join on your phone
+
+Session: 713aad
+
+http://127.0.0.1:15174?session=713aad
+
+Players (1)
+Verify Player
+Select Game

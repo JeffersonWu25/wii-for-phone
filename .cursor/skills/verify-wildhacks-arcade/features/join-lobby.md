@@ -32,7 +32,7 @@ Preconditions:
 - **Enter name.** Fill the name textbox with `Verify Player` using `browser_fill`. Snapshot the phone tab and confirm the textbox value is `Verify Player`.
 - **Join.** Click `Join Game`. The phone first shows `Joining...`. Snapshot again until `#screen-waiting` shows `Waiting for host to select a game...`.
 - **Confirm on the host.** Snapshot the host tab. The list item is `Verify Player`. The heading's accessible name is `Players (1)` (or `Players ( 1 )`). `Select Game` is enabled (it has no disabled state).
-- **Confirm the relay.** Copy the `Player joined: Verify Player` line from `run/relay.log` into `artifacts/join-lobby/relay.log.txt`. The session id in nearby `Session created` lines must be the id still shown on the host.
+- **Confirm the relay.** Copy the `Player joined: Verify Player` line from `run/relay.log` into `artifacts/join-lobby/relay.log.txt`. Pair it with the `Session created` line whose id is still printed on the host. Ignore an earlier `Session created` / `Session ended` pair from StrictMode.
 - **Duplicate name.** Open the same phone URL in a third tab, fill `Verify Player`, and click `Join Game`. The phone returns to `#screen-name` with `That name is already taken. Choose another.` The host count stays `Players (1)`.
 - **Proof.** Save `artifacts/join-lobby/phone-name.aria.txt` and `phone-name.png` from the filled name screen before the successful join click. Save `artifacts/join-lobby/host-after-join.aria.txt` and `host-after-join.png` from the host after the name appears. Save `artifacts/join-lobby/phone-waiting.aria.txt` and `phone-waiting.png` from the waiting screen. The host artifacts must show `Wii Playground`, `Verify Player`, and the session id.
 
