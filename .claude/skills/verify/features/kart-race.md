@@ -1,6 +1,6 @@
 # Race Kart Racer
 
-With Kart Racer selected, every joined player gets a kart on the start grid. After a 3-2-1 countdown and GO, players steer with a joystick and hold GAS on a landscape phone. The host TV follows the first player's kart around a 3-lap circuit with a hill, banked sweeper, boost pads and walls at the track edge. When the first kart finishes, the race ends after a 30 s grace (or when all finish), a results card lists the standings, and the host returns to the game hub.
+With Kart Racer selected, every joined player gets a kart on the start grid. After a 3-2-1 countdown and GO, players steer with a joystick and hold GAS on a landscape phone. The host TV splits into one view per player, each following that player's kart around a 3-lap circuit with a hill, banked sweeper, boost pads and walls at the track edge. When the first kart finishes, the race ends after a 30 s grace (or when all finish), a results card lists the standings, and the host returns to the game hub.
 
 ## Sub-features
 
@@ -23,7 +23,7 @@ With Kart Racer selected, every joined player gets a kart on the start grid. Aft
 
 ## Driving it with Playwright
 
-Preconditions: instance doctor is `DOCTOR OK`. The host viewport is 1280x720. Phones are 844x390 landscape with `hasTouch` and `isMobile`. `Ada` joins first, so the host camera follows her. `Bo` joins second and never touches a control, so his kart stays on the grid and the race ends 30 s after Ada finishes.
+Preconditions: instance doctor is `DOCTOR OK`. The host viewport is 1280x720. Phones are 844x390 landscape with `hasTouch` and `isMobile`. `Ada` joins first, so she gets the left pane (slot 0), whose `.kart-lapcount` the checks read. `Bo` joins second and never touches a control, so his kart stays on the grid and the race ends 30 s after Ada finishes.
 
 Run it (about 2.5 minutes):
 
@@ -48,7 +48,7 @@ Evidence in `artifacts/kart-race/`: the `.png` files above, `phone-ada-finished.
 
 - The input path is real (touch, pointer events, relay `drive` frames at the phone's 20 Hz), but the steering value comes from a script reading host internals. It proves the race pipeline, not how a human finds the racing line.
 - The kart y check uses the host's own `kart.y`, which the physics sets from `heightAt`. It guards the data. Floating or clipping in the render has to be judged from the screenshots.
-- Start lights hang on the gantry above the line and are not in the follow camera's view from the grid. `02-countdown-lights` shows the on-screen digit. `13-approach-finish` shows the gantry with the lights out.
+- Start lights hang on the gantry above the line. The pulled-back grid camera shows them in each pane, and `02-countdown-lights` shows them with the per-pane countdown digit. `13-approach-finish` shows the gantry with the lights out.
 - Screenshots are fired without awaiting so the steering loop keeps running, so each one lands a few frames after the section was entered.
 - The first lap counts from the first line crossing after the grid start. The completed-lap counter is 0 until then, and Ada's `.kart-lapcount` shows `1/3` from the grid.
 - The wall test flips the kart around, so WRONG WAY may flash after it. That is excluded from the check by design.
