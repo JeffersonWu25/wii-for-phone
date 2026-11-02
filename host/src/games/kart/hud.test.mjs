@@ -70,8 +70,16 @@ test('rotated minimap turns a wide track upright inside a tall box', () => {
   const [a, b] = [project(0, 0), project(100, 0)];
   assert.equal(a[0], b[0]); // the long x axis now runs down the screen
   assert.equal(Math.abs(b[1] - a[1]), 160);
+  const pts = samples.map((p) => project(p.x, p.z));
+  for (const [x, y] of pts) assert.ok(x >= 10 - 1e-9 && x <= 90 + 1e-9 && y >= 10 - 1e-9 && y <= 190 + 1e-9);
   const [, y1, , y2] = startTick(project, { x: 0, z: 0, h: 0 }, 5);
   assert.equal(y1, y2); // a start line along z now lies level
+});
+
+test('start tick stays perpendicular on a rotated map', () => {
+  const { project } = fitMinimap([{ x: 0, z: 0 }, { x: 100, z: 50 }], 100, 200, 10, 1, true);
+  const [x1, y1, x2, y2] = startTick(project, { x: 0, z: 0, h: 0 }, 5);
+  assert.ok(Math.abs(y2 - y1) < 1e-9 && Math.abs(Math.abs(x2 - x1) - 10) < 1e-9);
 });
 
 function fakeRace() {

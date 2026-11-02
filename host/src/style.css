@@ -772,7 +772,7 @@ html, body, #root {
 .kart-pane {
   position: absolute;
   container-type: size;
-  --pill-h: 9cqmin;
+  --pill-h: 7.5cqmin;
   --edge: 2.6cqmin;
   --c-top: #ffe777;
   --c-bottom: #f0a312;
@@ -827,7 +827,6 @@ html, body, #root {
 .kart-pills {
   position: absolute;
   bottom: var(--edge);
-  left: var(--edge);
   display: flex;
   gap: 1.2cqmin;
 }
@@ -842,11 +841,11 @@ html, body, #root {
   border: 0.5cqmin solid rgba(255, 255, 255, 0.28);
   background: rgba(22, 27, 44, 0.62);
   color: #fff;
-  font-size: 6.2cqmin;
+  font-size: 5.2cqmin;
   line-height: 1;
 }
 
-.kart-pill svg { height: 6cqmin; width: 6cqmin; }
+.kart-pill svg { height: 5cqmin; width: 5cqmin; }
 .kart-pill small { font-size: 0.7em; opacity: 0.8; }
 .coin-rim { fill: #f5a812; }
 .coin-face { fill: #ffd84a; }
@@ -856,8 +855,7 @@ html, body, #root {
 
 .kart-place {
   position: absolute;
-  bottom: var(--edge);
-  right: var(--edge);
+  bottom: calc(var(--edge) + 1.8cqmin);
   display: flex;
   align-items: baseline;
   gap: 0.6cqmin;
@@ -881,20 +879,16 @@ html, body, #root {
 .kart-place b { font-size: 16cqmin; }
 .kart-place small { font-size: 8.5cqmin; }
 
-/* 3p and 4p: the place number stacks above the pills on the pane's outer edge. */
-.kart-app[data-players="3"] .kart-pills,
-.kart-app[data-players="4"] .kart-pills,
-.kart-app[data-players="3"] .kart-place,
-.kart-app[data-players="4"] .kart-place {
-  left: auto;
-  right: auto;
-}
+/* 1p and 2p: pills bottom-left, place bottom-right. */
+.kart-app:is([data-players="1"], [data-players="2"]) .kart-pills { left: var(--edge); }
+.kart-app:is([data-players="1"], [data-players="2"]) .kart-place { right: var(--edge); }
 
-.kart-app[data-players="3"] .kart-place,
-.kart-app[data-players="4"] .kart-place { bottom: calc(var(--edge) + var(--pill-h) + 1.2cqmin); }
-
-.kart-app:is([data-players="3"], [data-players="4"]) .kart-pane[data-side="left"] :is(.kart-pills, .kart-place) { left: var(--edge); }
-.kart-app:is([data-players="3"], [data-players="4"]) .kart-pane[data-side="right"] :is(.kart-pills, .kart-place) { right: var(--edge); }
+/* 3p and 4p: the place number stacks above the pills on the pane's outer edge, inset a little further. */
+.kart-app:is([data-players="3"], [data-players="4"]) .kart-place { bottom: calc(var(--edge) + var(--pill-h) + 2.4cqmin); }
+.kart-app:is([data-players="3"], [data-players="4"]) .kart-pane[data-side="left"] .kart-pills { left: var(--edge); }
+.kart-app:is([data-players="3"], [data-players="4"]) .kart-pane[data-side="right"] .kart-pills { right: var(--edge); }
+.kart-app:is([data-players="3"], [data-players="4"]) .kart-pane[data-side="left"] .kart-place { left: calc(var(--edge) + 2cqmin); }
+.kart-app:is([data-players="3"], [data-players="4"]) .kart-pane[data-side="right"] .kart-place { right: calc(var(--edge) + 2cqmin); }
 
 .kart-quit,
 .kart-countdown,
@@ -932,7 +926,7 @@ html, body, #root {
 .kart-app[data-players="2"] .kart-minimap {
   left: 50%;
   top: 50%;
-  height: 58vh;
+  height: 46vh;
   transform: translate(-50%, -50%);
 }
 
@@ -955,6 +949,7 @@ html, body, #root {
   border: 0 solid #0a0d14;
   border-width: 0.3vmin 0 0 0.3vmin;
   box-sizing: border-box;
+  background: linear-gradient(160deg, rgba(34, 44, 78, 0.92), rgba(14, 18, 34, 0.96));
   pointer-events: none;
 }
 
@@ -964,13 +959,15 @@ html, body, #root {
   height: 92%;
 }
 
-.kart-map-outline {
+.kart-map-shade,
+.kart-map-road {
   fill: none;
-  stroke: rgba(235, 242, 255, 0.62);
-  stroke-width: 9;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
+
+.kart-map-shade { stroke: rgba(10, 14, 30, 0.35); stroke-width: 11; }
+.kart-map-road { stroke: rgba(235, 242, 255, 0.62); stroke-width: 7; }
 
 .kart-map-start { stroke: rgba(255, 255, 255, 0.95); stroke-width: 3; }
 .kart-map-marker circle { stroke: #fff; stroke-width: 2.5; }
@@ -986,7 +983,7 @@ html, body, #root {
 }
 
 .kart-countdown {
-  top: 50%;
+  top: 34%;
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 40cqmin;

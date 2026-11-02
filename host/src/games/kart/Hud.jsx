@@ -39,11 +39,12 @@ export function Pane({ view, racer, label }) {
   );
 }
 
-// Translucent track outline over the 3D scene; markers are moved from the RAF loop through dotRefs.
+// Translucent track (dark rim, light road band) over the 3D scene; markers are moved from the RAF loop through dotRefs.
 export function Minimap({ map, dotRefs }) {
   return (
     <svg className="kart-minimap" viewBox={`0 0 ${map.w} ${map.h}`}>
-      <path d={map.path} className="kart-map-outline" />
+      <path d={map.path} className="kart-map-shade" />
+      <path d={map.path} className="kart-map-road" />
       <line x1={map.tick[0]} y1={map.tick[1]} x2={map.tick[2]} y2={map.tick[3]} className="kart-map-start" />
       {map.entrants.map((e, slot) => (
         <g key={e.id} ref={(el) => { dotRefs.current[e.id] = el; }} className="kart-map-marker" data-slot={slot}>
