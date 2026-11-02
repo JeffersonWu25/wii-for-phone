@@ -1,0 +1,32 @@
+# Brief 10: P5 verify harness for the kart controls rework
+
+User's goal: the Kart Racer phone controls now work like Mario Kart. The phone has no GAS button (the kart always accelerates). It has a 2D free stick (`#kart-zone` / `#kart-joystick` / `#kart-knob`; X steers, pushing down brakes and then reverses), a hold DRIFT button (`#btn-drift`) and a placeholder USE ITEM button (`#btn-item`) that sends `{ type: 'use_item' }` and does nothing on the host. Holding drift while steering at speed slides the kart and charges a mini-turbo: level 1 after 1 s of sliding (blue sparks), 2 after 2 s (orange), 3 after 3 s (purple). Releasing drift fires a boost that grows with the level, and the boost flames take the level color. Pushing the stick down cancels the drift with no boost. Respawns are removed; the WRONG WAY banner stays. All of this is built and on the branch. Your job is to prove it through the real app, with the real phone controls, using the existing verify harness.
+
+Where you work: the git worktree `/Users/jeffersonwu/Desktop/projects/wii-for-phone/.claude/worktrees/harness-build`, branch `build/harness`. Do every edit and commit there.
+
+Files you own: everything under `.claude/skills/verify/` (`scripts/drive.mjs`, `features/*.md`, `features/README.md`, `SKILL.md`, `artifacts/`). Edit no app code. If the app misbehaves, stop and report the exact failure with evidence instead of working around it.
+
+Read first: `.claude/skills/verify/SKILL.md`, `features/README.md`, `features/kart-race.md`, `features/kart-split.md`, and `scripts/drive.mjs` in full. Then read the app code you drive: `phone/src/games/kart/index.js`, `host/src/games/kart/KartApp.jsx` (the debug snapshot `window.__kartState.karts[i]` now also has `vx`, `vz`, `boost`, `boostLevel` and `drift = { sliding, dir, charge, level }`), `host/src/games/kart/physics.js` (drift tunables), and the run contract in `.claude/runs/kart-controls-rework/RUN.md`.
+
+Harness rules (from the orchestrate skill): one feature means one drive entry, one `features/<id>.md` doc and one `artifacts/<id>/` folder. A shared helper goes in its own module only once two features use it. A feature never depends on another feature's code or artifacts. Update `features/README.md` and `SKILL.md` to list the new feature and the new element handles (drop `#btn-gas`, add `#btn-drift`, `#btn-item`).
+
+Do:
+1. **kart-race:** remove the GAS touch. The kart drives on its own from GO; keep steering through the real joystick touch. Replace the "drive frames carried gas" check with one that the drive frames carry `steer`, `brake` and `drift` and varied steer. Keep the other checks (laps, lap times, pads, corridor, height, results, phones' frames). Re-check the wall test: without respawn, the drive must steer the kart off the wall itself, and the check that the kart still finishes must hold. Update `kart-race.md` to match.
+2. **kart-split:** remove `holdGas` and every GAS step. Karts move from GO with no input; `every-view-moves` must still pass. Update `kart-split.md`.
+3. **New feature `kart-drift`:** one host, two phones (so the race runs with a rival), the first phone drives with real CDP touches on the stick and DRIFT. Steer by moving the stick touch to an x offset your controller computes from `window.__kartState` and `window.__kartTrack` (reuse the approach in kart-race, inside this feature's own code, not by importing kart-race's). Checks, each with the observed value:
+   - The phone shows `#btn-drift` and `#btn-item` and no `#btn-gas`.
+   - With no touch at all after GO, the kart reaches over 10 m/s within 3 s (gas is always on).
+   - Holding DRIFT while steering into a corner makes `drift.sliding` true with the matching `dir`. Holding it long enough reaches `level` 1, 2 and 3 in that order, at about 1, 2 and 3 s of sliding (record the charge times). Pick a long corner such as the sweeper so level 3 is reachable while staying on the road (`|lateral|` within the corridor limit throughout the drift).
+   - Releasing DRIFT at level 3 sets `boostLevel` 3 and `boost` above 0, and speed rises above 22 m/s. A second drift released at level 1 or 2 sets the matching `boostLevel`.
+   - Brake cancel: during a charged drift (level 1 or more), pushing the stick down ends the slide with `boost` 0 and `boostLevel` 0.
+   - Reverse: holding the stick down from a slow speed takes the speed below 0 (no lower than -6), and releasing it brings the speed back above 0.
+   - An ITEM tap sends exactly one `use_item` frame that reaches the host (check `frames.jsonl`) and does not change the kart's speed, drift or boost.
+   - The phone's drive frames carry `steer`, `brake` and `drift`, with `drift: true` frames while the button is held.
+4. **Screenshots for `kart-drift`**, each also with the accessibility snapshot as the harness does: host TV while drifting at each level 0, 1, 2, 3 (the gameplay camera, so the sparks show as a player sees them), the host during a level-3 boost (flames), the host during the brake cancel, the host while reversing, the phone idle, the phone with the stick pushed down-left and DRIFT held, and the phone right after an ITEM tap. Look at every screenshot yourself and say in the report what each shows. If the sparks cannot be seen in a host shot, say so plainly.
+5. Write `features/kart-drift.md` in the same entry contract as the other feature files (H1 plus one paragraph, then Sub-features, How to get to it (user POV), Driving it with Playwright, Gotchas).
+
+Run it: launch your own instance with `VERIFY_PORT_OFFSET=400` (export it for every launch, doctor, drive and cleanup command; another instance is running at offset 0, do not touch it). Symlink node_modules from the main checkout first (`for d in host phone relay; do ln -s /Users/jeffersonwu/Desktop/projects/wii-for-phone/$d/node_modules $d/node_modules; done`) and never commit them. Run every drive, not only yours: `join-lobby`, `select-game`, `bowling-throw`, `kart-race`, `kart-split`, `kart-drift`. All must exit 0. Clean up the instance at the end.
+
+Commit the harness changes and the new and refreshed artifacts (message ends with `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`). Do not push or merge.
+
+Final report: commit sha; files changed with one line each; for every drive the exit code and the PASS/FAIL lines; for kart-drift every check's observed value; every screenshot path with one line on what it shows; and anything the app did that looked wrong.

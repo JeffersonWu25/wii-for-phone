@@ -14,9 +14,10 @@ const MAP_LONG = 260;
 const MAP_SHORT = 150;
 const MAX_RACERS = 4;
 const DEBUG_ENTRANT = { id: 'debug', name: 'Debug' };
-// Gas is always on: a racer with no phone input yet still drives, a disconnected one coasts.
+// The kart always accelerates: a racer with no phone input yet still drives, a disconnected one coasts.
 const IDLE = { steer: 0, brake: 0, drift: false };
 const COAST = { steer: 0, brake: 0, drift: false, throttle: 0 };
+const PHONE_STALE_MS = 500; // a phone that stops streaming (backgrounded tab) falls back to IDLE
 const DRIVE_KEYS = ['ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'];
 
 // Self-contained Kart Racer host component. Props mirror BowlingApp.
@@ -77,6 +78,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
         steer: Math.max(-1, Math.min(1, Number(msg.steer) || 0)),
         brake: Math.max(0, Math.min(1, Number(msg.brake) || 0)),
         drift: msg.drift === true,
+        at: performance.now(),
       };
     }
     ws?.addEventListener('message', onMessage);
@@ -157,7 +159,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       last = now;
 
       for (const k of race.karts) {
-        inputs[k.id] = disconnectedRef.current.has(k.id) ? COAST : phoneInputs[k.id] ?? IDLE;
+        const phone = phoneInputs[k.id];
+        inputs[k.id] = disconnectedRef.current.has(k.id) ? COAST : phone && now - phone.at < PHONE_STALE_MS ? phone : IDLE;
       }
       const kb = keyboardInput();
       if (kb) inputs[keyboardId] = kb;

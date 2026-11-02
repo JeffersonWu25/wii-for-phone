@@ -280,14 +280,31 @@ test('charging pauses off-road', () => {
 test('a boost pad reads as level 0 and never shortens a running drift boost', () => {
   const pad = track.boostPads[0];
   const pads = kartAt(pad.s - 8, pad.lateral, { speed: 20, vx: 20 });
+  pads.boost = 0.3;
   pads.boostLevel = 2;
-  run(pads, {}, 2);
+  let tookOver = false;
+  for (let i = 0; i < 120 && !tookOver; i++) {
+    stepKart(pads, {}, DT, track);
+    tookOver = pads.boost > 0.5;
+  }
+  assert.ok(tookOver, 'the pad took over the nearly spent drift boost');
   assert.equal(pads.boostLevel, 0);
   const drifter = kartAt(pad.s - 2, pad.lateral, { speed: 20, vx: 20 });
   drifter.boost = 2;
   drifter.boostLevel = 3;
   stepKart(drifter, {}, DT, track);
   assert.ok(drifter.boost > 1.9 && drifter.boostLevel === 3);
+});
+
+test('a weaker drift release never cuts short or recolors a stronger running boost', () => {
+  const kart = straight();
+  kart.boost = 5;
+  kart.boostLevel = 3;
+  runFlat(kart, DRIFT_RIGHT, 1.2);
+  const left = kart.boost;
+  runFlat(kart, { steer: 0 }, DT);
+  assert.equal(kart.boostLevel, 3);
+  assert.ok(kart.boost > left - 0.05, `boost ${kart.boost} kept from ${left}`);
 });
 
 test('brake stops the kart, reverses to REVERSE_TOP, and releasing resumes forward', () => {

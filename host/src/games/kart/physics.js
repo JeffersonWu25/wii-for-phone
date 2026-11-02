@@ -73,7 +73,7 @@ export function createKart({ id, color, slot } = {}) {
   };
 }
 
-// Slide state machine. A slide needs drift held, enough steer and speed, ground contact and no
+// Slide state machine. A slide needs drift held, enough steer and speed, and no
 // brake; the direction locks at the start. Charging pauses off-road, a wall hit only costs speed.
 // Releasing the button at level 1+ grants the boost; a brake cancel or running out of speed
 // grants nothing. Holding drift after a cancel starts a new slide once the conditions hold again.
@@ -82,12 +82,14 @@ function updateDrift(kart, input, steer, brake, offroad, dt) {
   const held = !!input.drift;
   if (d.sliding) {
     const released = !held;
-    if (released && brake === 0 && kart.speed >= DRIFT_MIN_SPEED && d.level >= 1) {
-      kart.boost = Math.max(kart.boost, DRIFT_BOOST_TIME[d.level - 1]);
+    // The release only takes over when it outlasts the boost already running, so a weak release
+    // never cuts short or recolors a stronger one.
+    if (released && brake === 0 && kart.speed >= DRIFT_MIN_SPEED && d.level >= 1 && DRIFT_BOOST_TIME[d.level - 1] >= kart.boost) {
+      kart.boost = DRIFT_BOOST_TIME[d.level - 1];
       kart.boostLevel = d.level;
     }
     if (released || brake > 0 || kart.speed < DRIFT_MIN_SPEED) Object.assign(d, { sliding: false, dir: 0, charge: 0, level: 0 });
-  } else if (held && brake === 0 && Math.abs(steer) >= DRIFT_MIN_STEER && kart.speed >= DRIFT_MIN_SPEED && !kart.airborne) {
+  } else if (held && brake === 0 && Math.abs(steer) >= DRIFT_MIN_STEER && kart.speed >= DRIFT_MIN_SPEED) {
     Object.assign(d, { sliding: true, dir: Math.sign(steer), charge: 0, level: 0 });
     // Start from the slip the kart already has so the body does not snap.
     if (Math.hypot(kart.vx, kart.vz) > 0.5) kart.slip = wrapAngle(kart.h - Math.atan2(kart.vz, kart.vx));
@@ -185,7 +187,8 @@ export function stepKart(kart, input, dt, track) {
       const nAcross = -across * WALL_RESTITUTION * loss;
       kart.vx = fr.fx * nAlong + fr.rx * nAcross;
       kart.vz = fr.fz * nAlong + fr.rz * nAcross;
-      kart.speed = kart.vx * Math.cos(kart.h) + kart.vz * Math.sin(kart.h);
+      // Mid-slide the heading points past the travel direction, so keep the full speed there.
+      kart.speed = kart.drift.sliding ? Math.hypot(kart.vx, kart.vz) : kart.vx * Math.cos(kart.h) + kart.vz * Math.sin(kart.h);
       // Slide along the wall: swing the heading toward the tangent.
       const toTangent = wrapAngle(Math.atan2(fr.fz, fr.fx) - kart.h);
       if (Math.abs(toTangent) < Math.PI / 2) kart.h += toTangent * 0.2;

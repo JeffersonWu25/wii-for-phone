@@ -8,7 +8,7 @@ export const COUNTDOWN_SECONDS = 3;
 export const GO_SECONDS = 1;
 export const FINISH_GRACE = 30; // s after the first finisher before the race ends
 const MAX_DT = 0.05;
-const MAX_JUMP = 20; // m of s change per step still treated as driving, not teleporting
+const MAX_JUMP = 20; // m of s change per step still treated as driving; more is a projection glitch
 const WRONG_WAY_DOT = -0.3;
 const WRONG_WAY_SHOW = 1; // s
 
@@ -71,18 +71,17 @@ export function stepRace(race, inputsById, dt, track) {
   race.time += dt;
   race.goTimer = Math.max(0, race.goTimer - dt);
 
-  const moved = [];
+  const prevS = [];
   for (const kart of race.karts) {
     const input = inputsById?.[kart.id] ?? {};
-    const prevS = kart.s;
+    prevS.push(kart.s);
     stepKart(kart, kart.finished ? { steer: 0, throttle: 0 } : input, dt, track);
-    moved.push(prevS);
   }
   resolveKartCollisions(race.karts);
 
   race.karts.forEach((kart, i) => {
     if (kart.finished) return;
-    trackProgress(race, kart, moved[i], track);
+    trackProgress(race, kart, prevS[i], track);
     watchWrongWay(kart, dt, track);
   });
 
@@ -103,7 +102,7 @@ function forwardDelta(track, from, to) {
 
 function trackProgress(race, kart, prevS, track) {
   const delta = forwardDelta(track, prevS, kart.s);
-  if (Math.abs(delta) > MAX_JUMP) return; // teleport: no gates, no progress
+  if (Math.abs(delta) > MAX_JUMP) return; // not a real move: no gates, no progress
   kart.progress += delta;
   if (delta <= 0) return;
 

@@ -32,6 +32,7 @@ const WHEELS = [[-0.9, 1.02], [-0.9, -1.02]]; // x, z of the ground point just o
 
 // ── Textures, drawn once ─────────────────────────────────────────────────────
 
+// Seeded so the baked bolt textures come out the same on every load.
 let seed = 7;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
@@ -142,9 +143,9 @@ function buildWheel(group, [wx, wz]) {
   group.add(glow, flash);
   const arcs = [];
   for (let i = 0; i < ARC_POOL; i++) {
-    const bolt = makeSprite(t.arcs[0][0], 4, false); // no depth test: a tall billboard through the road would show a hard cut
+    const bolt = makeSprite(t.arcs[0][0], 4, false); // no depth test, as for the glow
     group.add(bolt);
-    arcs.push({ bolt, t: rnd() * 0.08, len: 0, ox: 0, flick: 1 });
+    arcs.push({ bolt, t: 0, shape: 0, len: 0, ox: 0, flick: 1 }); // t: 0 rolls a bolt on the first update
   }
   const streaks = [];
   for (let i = 0; i < STREAK_POOL; i++) {
@@ -204,9 +205,9 @@ function updateWheel(w, level, dt) {
       arc.flick = 0.7 + Math.random() * 0.3;
       arc.t = 0.04 + Math.random() * 0.06;
     }
-    arc.bolt.material.map = textures().arcs[level][arc.shape ?? 0];
+    arc.bolt.material.map = textures().arcs[level][arc.shape];
     d.aim = true;
-    const len = arc.len || ARC_LEN[level];
+    const len = arc.len;
     arc.bolt.scale.set(len, len * 0.5, 1);
     // The sprite's center sits half a length out along the bolt so its root touches the wheel.
     arc.bolt.position.set(w.wx + arc.ox + d.dx * len * 0.5, 0.28 + d.dy * len * 0.5, w.wz + d.dz * len * 0.5);

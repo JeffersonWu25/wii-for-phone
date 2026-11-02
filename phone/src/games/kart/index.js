@@ -70,6 +70,7 @@ export function mount(app, sendMsg, myPlayerId) {
     brake = 0;
     knob.style.transition = 'transform 0.12s ease-out';
     knob.style.transform = 'translate(0, 0)';
+    sendDrive(); // let go of brake and steer now, not on the next tick
     base.style.left = '50%';
     base.style.top = '50%';
   }
