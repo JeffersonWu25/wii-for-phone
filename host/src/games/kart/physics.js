@@ -26,8 +26,9 @@ export const ATTITUDE_RATE = 12; // 1/s smoothing for pitch / roll
 // Drift: travel direction and body heading are tracked apart while sliding.
 export const DRIFT_MIN_STEER = 0.3; // |steer| needed to start a slide
 export const DRIFT_MIN_SPEED = 8; // m/s needed to start and keep a slide
-export const DRIFT_TURN = 1.1; // rad/s the travel direction swings into the turn
-export const DRIFT_STEER_MOD = 0.4; // steering into the turn adds up to this much, out of it removes it
+export const DRIFT_TURN = 1.0; // rad/s the travel direction swings into the turn with neutral steer
+export const DRIFT_STEER_MOD = 0.9; // steering into the turn scales the swing up by this much, out of it down
+export const DRIFT_TURN_MIN = 0.15; // rad/s floor so a slide never straightens or reverses
 export const DRIFT_SLIP = 0.52; // rad (30 deg) the body points past the travel direction
 export const DRIFT_SLIP_IN = 9; // 1/s slip eases in on drift start
 export const DRIFT_SLIP_OUT = 7; // 1/s slip eases out after the slide ends
@@ -66,7 +67,7 @@ export function createKart({ id, color, slot } = {}) {
     boost: 0,
     boostLevel: 0, // level of the drift boost running, 0 for pads or no boost
     drift: { sliding: false, dir: 0, charge: 0, level: 0 },
-    slip: 0, // rad, heading minus travel direction while sliding, eased out after
+    slip: 0, // physics-internal, the renderer must not read it: heading minus travel direction, rad
     airborne: false,
     steerVis: 0,
   };
@@ -96,6 +97,38 @@ function updateDrift(kart, input, steer, brake, offroad, dt) {
   d.level = DRIFT_LEVEL_TIMES.filter((t) => d.charge >= t).length;
 }
 
+// Slide: the travel direction swings into the turn, the body points past it by the slip angle.
+function slideHeading(kart, steer, v, dt) {
+  const { dir } = kart.drift;
+  const moving = Math.hypot(kart.vx, kart.vz) > 0.5;
+  let travel = moving ? Math.atan2(kart.vz, kart.vx) : kart.h - kart.slip;
+  travel += dir * Math.max(DRIFT_TURN_MIN, DRIFT_TURN * (1 + DRIFT_STEER_MOD * steer * dir)) * dt;
+  kart.slip += (dir * DRIFT_SLIP - kart.slip) * (1 - Math.exp(-DRIFT_SLIP_IN * dt));
+  kart.h = travel + kart.slip;
+  kart.vx = Math.cos(travel) * v;
+  kart.vz = Math.sin(travel) * v;
+}
+
+// Grip: steer the heading, ease out leftover slip, let the velocity vector lag the heading.
+// Returns the forward speed after slip scrub.
+function gripHeading(kart, steer, v, offroad, dt) {
+  const turn = (TURN_RATE / (1 + (Math.abs(v) / TURN_FALLOFF) ** 2)) * Math.min(1, Math.abs(v) / 3);
+  kart.h += steer * turn * Math.sign(v) * dt;
+  if (kart.slip !== 0) {
+    const eased = Math.abs(kart.slip) < 0.005 ? 0 : kart.slip * Math.exp(-DRIFT_SLIP_OUT * dt);
+    kart.h += eased - kart.slip;
+    kart.slip = eased;
+  }
+  const fx = Math.cos(kart.h);
+  const fz = Math.sin(kart.h);
+  const catchUp = 1 - Math.exp(-(offroad ? GRIP_OFFROAD : GRIP_ROAD) * dt);
+  kart.vx += (fx * v - kart.vx) * catchUp;
+  kart.vz += (fz * v - kart.vz) * catchUp;
+  const vmag = Math.hypot(kart.vx, kart.vz);
+  if (vmag > 1) v *= Math.max(0, 1 - (SCRUB * Math.abs(kart.vx * fz - kart.vz * fx) * dt) / vmag);
+  return v;
+}
+
 export function stepKart(kart, input, dt, track) {
   const steer = clamp(input.steer || 0, -1, 1);
   const throttle = clamp(input.throttle ?? 1, 0, 1);
@@ -122,35 +155,8 @@ export function stepKart(kart, input, dt, track) {
   if (v > top) v = Math.max(top, v - (OVERSPEED_DRAG + 2.5 * (v - top)) * dt);
   kart.steerVis += (steer - kart.steerVis) * (1 - Math.exp(-10 * dt));
 
-  if (sliding) {
-    // Travel direction swings into the turn; the body points past it by the slip angle.
-    const { dir } = kart.drift;
-    const moving = Math.hypot(kart.vx, kart.vz) > 0.5;
-    let travel = moving ? Math.atan2(kart.vz, kart.vx) : kart.h - kart.slip;
-    travel += dir * DRIFT_TURN * Math.max(0.2, 1 + DRIFT_STEER_MOD * steer * dir) * dt;
-    kart.slip += (dir * DRIFT_SLIP - kart.slip) * (1 - Math.exp(-DRIFT_SLIP_IN * dt));
-    kart.h = travel + kart.slip;
-    kart.vx = Math.cos(travel) * v;
-    kart.vz = Math.sin(travel) * v;
-  } else {
-    // Heading.
-    const turn = (TURN_RATE / (1 + (Math.abs(v) / TURN_FALLOFF) ** 2)) * Math.min(1, Math.abs(v) / 3);
-    kart.h += steer * turn * Math.sign(v) * dt;
-    if (kart.slip !== 0) {
-      const eased = Math.abs(kart.slip) < 0.005 ? 0 : kart.slip * Math.exp(-DRIFT_SLIP_OUT * dt);
-      kart.h += eased - kart.slip;
-      kart.slip = eased;
-    }
-
-    // Velocity vector lags the heading; slip scrubs speed.
-    const fx = Math.cos(kart.h);
-    const fz = Math.sin(kart.h);
-    const catchUp = 1 - Math.exp(-(offroad ? GRIP_OFFROAD : GRIP_ROAD) * dt);
-    kart.vx += (fx * v - kart.vx) * catchUp;
-    kart.vz += (fz * v - kart.vz) * catchUp;
-    const vmag = Math.hypot(kart.vx, kart.vz);
-    if (vmag > 1) v *= Math.max(0, 1 - (SCRUB * Math.abs(kart.vx * fz - kart.vz * fx) * dt) / vmag);
-  }
+  if (sliding) slideHeading(kart, steer, v, dt);
+  else v = gripHeading(kart, steer, v, offroad, dt);
   kart.speed = v;
 
   kart.x += kart.vx * dt;

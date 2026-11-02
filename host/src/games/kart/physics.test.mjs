@@ -316,3 +316,41 @@ test('throttle 0 coasts, a missing throttle drives', () => {
   run(drive, {}, 2);
   assert.ok(drive.speed > 10);
 });
+
+// Travel-direction turn rate (rad/s, positive = right) over 1 s of a held drift, after the slip settles.
+function driftTurnRate(steer) {
+  const kart = straight();
+  runFlat(kart, { steer: 1, drift: true }, 0.3);
+  const angle = () => Math.atan2(kart.vz, kart.vx);
+  const before = angle();
+  runFlat(kart, { steer, drift: true }, 1);
+  return angle() - before;
+}
+
+test('steering out of a drift turns less than neutral, neutral less than in, and none reverse', () => {
+  const out = driftTurnRate(-1);
+  const neutral = driftTurnRate(0);
+  const inward = driftTurnRate(1);
+  assert.ok(out > 0, 'steering fully out still curves the same way');
+  assert.ok(out < neutral && neutral < inward);
+  assert.ok(out <= 0.2 * 1.05, `fully out turns at ${out}`);
+});
+
+test('a drift can follow a gentle R85 arc at 20 m/s without turning faster than the arc needs', () => {
+  const need = 20 / 85; // rad/s
+  let lo = -1;
+  let hi = 0;
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    if (driftTurnRate(mid) > need) hi = mid;
+    else lo = mid;
+  }
+  assert.ok(lo > -1, 'a steer value inside the range matches the arc');
+  const rate = driftTurnRate(lo);
+  assert.ok(rate <= need * 1.05 && rate > need * 0.9, `rate ${rate} vs needed ${need}`);
+  const kart = straight();
+  runFlat(kart, { steer: 1, drift: true }, 0.3);
+  runFlat(kart, { steer: lo, drift: true }, 3);
+  assert.equal(kart.drift.sliding, true);
+  assert.ok(kart.speed > 16);
+});
