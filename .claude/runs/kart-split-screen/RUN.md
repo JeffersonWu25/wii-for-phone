@@ -60,3 +60,4 @@ Only one part gets a competing run: the HUD look. The renderer is mechanical Thr
 - 18:00 Started grafter G (offset 400).
 - 18:07 G finished (Sonnet, ~6 min): kart-split 68/68, kart-race passed, 43 unit tests pass. Reviewed the host diff myself (Hud.jsx Pane/Minimap, KartApp wiring, rotated `fitMinimap`, projected `startTick`, `ordinal` 11–13 fix): matches the graft plan. Fast-forwarded the feature branch to a40c709, removed the G, B1 and B2 worktrees and the G/B1 branches; kept branch `worktree-agent-a2cf540c8e0e94e60` (losing B2) locally for reference, not pushed.
 - 18:09 Looked at n1/n2/n3-racing myself: placement matches the spec in each layout; 3p panel reads as a map panel; the 2p map markers overlap the right pane's kart near the start line (known, by design of a centred map). Starting code review.
+- 18:11 Started reviewer R (Sonnet, read-only, did not write any code). Brief: `briefs/06-review.md`.
