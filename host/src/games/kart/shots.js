@@ -27,6 +27,9 @@ export const SHOTS = {
   boost: { s: pieceStart('back') + 35, lateral: 6, up: 4, back: 14, lookAhead: 18 },
   sweeper: { s: mid('sweeper', 0.3), lateral: 9, up: 6, back: 22, lookAhead: 30 },
   finish: { s: 0, lateral: -8, up: 6, back: 24, lookAhead: 20 },
+  // Close views of the preview's posed kart at s = 60 (see preview.js ?drift / ?boost).
+  driftRear: { s: 60, lateral: 0, up: 1.7, back: 4.5, lookAhead: 6 },
+  driftQuarter: { s: 60, lateral: 3.2, up: 1.4, back: 3.2, lookAhead: 3.5 },
 };
 
 export function shotCamera(track, name) {

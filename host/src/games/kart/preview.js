@@ -3,6 +3,9 @@
 //   /kart-preview.html?shot=<name>     fixed debug camera (see shots.js); karts are placed around the shot
 //   /kart-preview.html?ai=1            karts 1-3 drive themselves
 //   /kart-preview.html?views=N         split screen with one view per kart, N = 1..4
+//   /kart-preview.html?drift=L&dir=D   kart 0 frozen mid-drift at charge level L (0..3), direction D (1 or -1)
+//   /kart-preview.html?boost=L         kart 0 frozen mid-boost at boost level L (1..3)
+//   Keys: arrows / WASD steer, down / S brakes and reverses, Space / Shift drifts.
 import { buildTrack } from './track.js';
 import { createRace, stepRace } from './race.js';
 import { createKartScene } from './scene/createKartScene.js';
@@ -38,12 +41,32 @@ function placeKartsForShot(name) {
   });
 }
 
+// Freeze kart p1 mid-drift (?drift=0..3, &dir=-1|1) or mid-boost (?boost=1..3) on the start
+// straight, for comparing the drift effects. Pair with &shot=driftRear or driftQuarter for a close camera.
+const pose = params.has('drift') ? 'drift' : params.has('boost') ? 'boost' : null;
+
 function setShot(name) {
   scene.setShot(name || null);
-  if (name) placeKartsForShot(name);
+  if (name && !pose) placeKartsForShot(name);
 }
 window.__kartShot = setShot;
 setShot(params.get('shot'));
+
+if (pose) {
+  const level = Number(params.get(pose)) || 0;
+  const dir = Number(params.get('dir')) === -1 ? -1 : 1;
+  const k = race.karts[0];
+  const s = 60;
+  const fr = track.frameAt(s);
+  Object.assign(k, { s, lateral: 0, x: fr.x, z: fr.z, y: track.heightAt(s, 0), h: fr.h, speed: 18, vx: fr.fx * 18, vz: fr.fz * 18 });
+  if (pose === 'drift') {
+    k.drift = { sliding: true, dir, charge: level === 0 ? 0.5 : level + 0.5, level };
+    k.steerVis = dir;
+  } else {
+    k.boost = 1;
+    k.boostLevel = level;
+  }
+}
 
 // ── Input ────────────────────────────────────────────────────────────────────
 
@@ -52,8 +75,8 @@ window.addEventListener('keydown', (e) => keys.add(e.code));
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 const drive = () => ({
   steer: (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0),
-  gas: keys.has('ArrowUp') || keys.has('KeyW'),
-  brake: keys.has('ArrowDown') || keys.has('KeyS'),
+  brake: keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0,
+  drift: keys.has('Space') || keys.has('ShiftLeft') || keys.has('ShiftRight'),
 });
 
 // ── Loop ─────────────────────────────────────────────────────────────────────
@@ -65,7 +88,7 @@ function frame(now) {
   last = now;
   const inputs = { p1: drive() };
   if (params.get('ai')) for (const k of race.karts.slice(1)) inputs[k.id] = autopilotInput(track, k);
-  if (!params.get('shot')) stepRace(race, inputs, dt, track);
+  if (!params.get('shot') && !pose) stepRace(race, inputs, dt, track);
   scene.update(race, dt);
   if (++frames === 10) window.__kartReady = true;
   requestAnimationFrame(frame);
