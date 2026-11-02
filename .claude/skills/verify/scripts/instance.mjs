@@ -7,7 +7,8 @@
 //
 // Ports 18080 / 15173 / 15174 belong to this instance only. Anything already
 // listening on them makes launch refuse. The repo's own dev servers (5173,
-// 5174, 8080) are never touched.
+// 5174, 8080) are never touched. VERIFY_PORT_OFFSET shifts all three ports, so
+// two checkouts can each run an instance at the same time.
 
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -21,7 +22,12 @@ export const REPO = path.resolve(SKILL_DIR, '../../..');
 export const RUN_DIR = path.join(SKILL_DIR, 'run');
 const RECORD = path.join(RUN_DIR, 'instance.json');
 
-export const PORTS = { relay: 18080, host: 15173, phone: 15174 };
+const PORT_OFFSET = Number(process.env.VERIFY_PORT_OFFSET ?? 0);
+if (!Number.isInteger(PORT_OFFSET)) {
+  console.error(`VERIFY_PORT_OFFSET must be an integer, got "${process.env.VERIFY_PORT_OFFSET}"`);
+  process.exit(2);
+}
+export const PORTS = { relay: 18080 + PORT_OFFSET, host: 15173 + PORT_OFFSET, phone: 15174 + PORT_OFFSET };
 export const URLS = {
   relay: `http://127.0.0.1:${PORTS.relay}`,
   host: `http://127.0.0.1:${PORTS.host}`,

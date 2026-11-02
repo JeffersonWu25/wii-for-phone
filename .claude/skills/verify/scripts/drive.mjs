@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw, kart-race.
+// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -90,7 +90,7 @@ class Run {
       const record = (dir) => (event) => {
         let msg;
         try { msg = JSON.parse(event.payload); } catch { msg = { raw: String(event.payload).slice(0, 120) }; }
-        this.frames.push({ at: new Date().toISOString(), page: label, dir, msg });
+        this.frames.push({ at: new Date().toISOString(), page: label, ...(this.round && { round: this.round }), dir, msg });
       };
       ws.on('framesent', record('out'));
       ws.on('framereceived', record('in'));
@@ -356,9 +356,9 @@ async function kartRace(run) {
   await ada.waitForSelector('#screen-kart', { timeout: 15_000 });
   await bo.waitForSelector('#screen-kart', { timeout: 15_000 });
   await host.waitForSelector('.kart-canvas canvas', { timeout: 15_000 });
-  await host.waitForSelector('.kart-lap', { timeout: 15_000 });
+  await host.waitForSelector('.kart-pane', { timeout: 15_000 });
   run.check('both phones show #screen-kart', (await ada.isVisible('#screen-kart')) && (await bo.isVisible('#screen-kart')));
-  run.check('host shows the canvas and the HUD', (await host.isVisible('.kart-canvas canvas')) && (await host.isVisible('.kart-lap')) && (await host.isVisible('.kart-timer')) && (await host.isVisible('.kart-minimap')));
+  run.check('host shows the canvas and the HUD', (await host.isVisible('.kart-canvas canvas')) && (await host.isVisible('.kart-pane')) && (await host.isVisible('.kart-lapcount')) && (await host.isVisible('.kart-minimap')));
 
   // Real controls: a CDP touch on #btn-gas and a second touch on the joystick zone.
   // Chrome turns these into the pointer events the phone listens for.
@@ -396,7 +396,7 @@ async function kartRace(run) {
   await host.waitForFunction(() => window.__kartState.phase === 'racing', null, { polling: 30, timeout: 8000 });
   await host.waitForSelector('.kart-countdown.go', { timeout: 3000 }).catch(() => {});
   await host.screenshot({ path: path.join(run.dir, '03-go.png') });
-  run.check('GO! label shows right after the lights', (await host.locator('.kart-countdown').textContent().catch(() => '')).includes('GO'));
+  run.check('GO! label shows right after the lights', (await host.locator('.kart-countdown').first().textContent().catch(() => '')).includes('GO'));
 
   // ── Drive 3 laps ──
   const track = await host.evaluate(() => {
@@ -498,8 +498,8 @@ async function kartRace(run) {
       await bo.setViewportSize(KART_PHONE_VIEWPORT);
     }
     if (tickNo++ % 10 === 0) {
-      const hud = await host.locator('.kart-lap').textContent().catch(() => '');
-      const m = hud.match(/LAP\s*(\d)\/(\d)/);
+      const hud = await host.locator('.kart-pane[data-slot="0"] .kart-lapcount').textContent().catch(() => '');
+      const m = hud.match(/(\d)\/(\d)/);
       if (m && sec.hudLaps[sec.hudLaps.length - 1] !== m[1]) sec.hudLaps.push(m[1]);
     }
     prev = last;
@@ -560,11 +560,148 @@ async function kartRace(run) {
   await run.capture(host, 'host-back-to-games');
 }
 
+// ── Kart Racer split screen ───────────────────────────────────────────────────
+
+const SPLIT_GEOMETRY_TOLERANCE_PX = 4;
+const SPLIT_DRIVE_MS = 4000;
+const SPLIT_PLAYERS = ['Ada', 'Bo', 'Cy', 'Di', 'Eve'];
+const SPLIT_SIDES = { 1: ['left'], 2: ['left', 'right'], 3: ['left', 'right', 'left'], 4: ['left', 'right', 'left', 'right'] };
+
+// Pane i of an n-racer layout on a viewport: 1p full, 2p halves, 3p and 4p quadrants.
+function expectedPane(n, i, vp) {
+  const cols = n === 1 ? 1 : 2;
+  const rows = n <= 2 ? 1 : 2;
+  const w = vp.width / cols;
+  const h = vp.height / rows;
+  return { x: (i % 2) * w * (cols - 1), y: Math.floor(i / 2) * h * (rows - 1), w, h };
+}
+
+const boxMatches = (box, want) =>
+  box && ['x', 'y', 'w', 'h'].every((key) => Math.abs(box[key] - want[key]) <= SPLIT_GEOMETRY_TOLERANCE_PX);
+const fmtBox = (b) => (b ? `${b.x.toFixed(0)},${b.y.toFixed(0)} ${b.w.toFixed(0)}x${b.h.toFixed(0)}` : 'missing');
+
+// Reads every contract element in one pass so the checks compare a single frame.
+function readSplitHud() {
+  const box = (el) => {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  };
+  const text = (el, sel) => el.querySelector(sel)?.textContent.trim() ?? null;
+  const minimap = document.querySelector('.kart-minimap');
+  const quadrant = document.querySelector('.kart-map-quadrant');
+  const st = window.__kartState;
+  return {
+    players: document.querySelector('.kart-app')?.dataset.players ?? null,
+    panes: [...document.querySelectorAll('.kart-pane')].map((el) => ({
+      slot: el.dataset.slot,
+      side: el.dataset.side,
+      box: box(el),
+      main: el.querySelectorAll('.kart-item-slot.main').length,
+      reserve: el.querySelectorAll('.kart-item-slot.reserve').length,
+      coins: text(el, '.kart-coins'),
+      lap: text(el, '.kart-lapcount'),
+      place: text(el, '.kart-place'),
+    })),
+    minimaps: document.querySelectorAll('.kart-minimap').length,
+    minimapBox: box(minimap),
+    markers: minimap ? minimap.querySelectorAll('.kart-map-marker').length : 0,
+    quadrantBox: box(quadrant),
+    minimapInQuadrant: Boolean(quadrant && minimap && quadrant.contains(minimap)),
+    timers: document.querySelectorAll('.kart-timer').length,
+    standings: document.querySelectorAll('.kart-standings').length,
+    karts: st ? st.karts.map((k) => ({ name: k.name, s: k.s })) : null,
+    trackLength: st?.trackLength ?? null,
+  };
+}
+
+// Holds GAS through a real CDP touch, the same path a thumb takes.
+async function holdGas(page) {
+  const at = await page.evaluate(() => {
+    const r = document.getElementById('btn-gas').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...at, id: 1 }] });
+  return page.evaluate(() => document.getElementById('btn-gas').classList.contains('pressed'));
+}
+
+async function splitRound(run, n) {
+  const tag = `N=${n}`;
+  const racers = Math.min(n, 4);
+  const contextsBefore = run.contexts.length;
+  run.round = `n${n}`;
+  const host = await run.openHost({ viewport: KART_HOST_VIEWPORT });
+  const phones = [];
+  for (const name of SPLIT_PLAYERS.slice(0, n)) {
+    const phone = await run.openPhone(name, { viewport: KART_PHONE_VIEWPORT, isMobile: true });
+    await waitForWaitingLabel(phone);
+    await host.waitForSelector(`.player-item:has-text("${name}")`, { timeout: 10_000 });
+    phones.push(phone);
+  }
+
+  await selectGame(run, 'Kart Racer');
+  for (const phone of phones.slice(0, racers)) await phone.waitForSelector('#screen-kart', { timeout: 15_000 });
+  await host.waitForSelector('.kart-canvas canvas', { timeout: 15_000 });
+  const pressed = await Promise.all(phones.slice(0, racers).map(holdGas));
+  run.check(`${tag}: GAS touch registers on every racer's phone`, pressed.every(Boolean), pressed.join(','));
+
+  await host.waitForFunction(() => window.__kartState?.phase === 'countdown' && window.__kartState.countdown < 2.5, null, { polling: 30, timeout: 10_000 });
+  await host.screenshot({ path: path.join(run.dir, `n${n}-countdown.png`) });
+  await host.waitForFunction(() => window.__kartState.phase === 'racing', null, { polling: 30, timeout: 10_000 });
+  const before = await host.evaluate(readSplitHud);
+  await sleep(SPLIT_DRIVE_MS / 2);
+  await run.capture(host, `n${n}-racing`);
+  await sleep(SPLIT_DRIVE_MS / 2);
+  const hud = await host.evaluate(readSplitHud);
+
+  run.check(`${tag}: .kart-app[data-players] is ${racers}`, hud.players === String(racers), `data-players ${hud.players}`);
+  const panes = [...hud.panes].sort((a, b) => Number(a.slot) - Number(b.slot));
+  run.check(`${tag}: exactly ${racers} .kart-pane with slots 0..${racers - 1}`, panes.map((p) => p.slot).join() === [...Array(racers).keys()].join(), `slots ${panes.map((p) => p.slot).join()}`);
+  run.check(`${tag}: pane sides are ${SPLIT_SIDES[racers].join(',')}`, panes.map((p) => p.side).join() === SPLIT_SIDES[racers].join(), `sides ${panes.map((p) => p.side).join()}`);
+  const boxes = panes.map((p, i) => ({ got: p.box, want: expectedPane(racers, i, KART_HOST_VIEWPORT) }));
+  run.check(`${tag}: pane boxes match the layout within ${SPLIT_GEOMETRY_TOLERANCE_PX}px`, boxes.length === racers && boxes.every((b) => boxMatches(b.got, b.want)), boxes.map((b) => fmtBox(b.got)).join(' | '));
+  run.check(`${tag}: every pane has a main and a reserve item slot`, panes.length === racers && panes.every((p) => p.main === 1 && p.reserve === 1), panes.map((p) => `${p.main}/${p.reserve}`).join(' '));
+  run.check(`${tag}: every pane shows coins 00`, panes.length === racers && panes.every((p) => p.coins?.includes('00')), panes.map((p) => p.coins).join(' | '));
+  run.check(`${tag}: every pane shows lap 1/3`, panes.length === racers && panes.every((p) => p.lap?.includes('1/3')), panes.map((p) => p.lap).join(' | '));
+  run.check(`${tag}: every pane shows a place like 1st`, panes.length === racers && panes.every((p) => /^\d+(st|nd|rd|th)$/.test(p.place ?? '')), panes.map((p) => p.place).join(' | '));
+
+  run.check(`${tag}: one .kart-minimap with ${racers} markers`, hud.minimaps === 1 && hud.markers === racers, `minimaps ${hud.minimaps}, markers ${hud.markers}`);
+  const m = hud.minimapBox;
+  const centre = m && { x: (m.x + m.w / 2) / KART_HOST_VIEWPORT.width, y: (m.y + m.h / 2) / KART_HOST_VIEWPORT.height };
+  const centreText = centre ? `centre ${(centre.x * 100).toFixed(0)}%, ${(centre.y * 100).toFixed(0)}% of the screen` : 'no minimap';
+  if (racers === 1) {
+    run.check(`${tag}: minimap centre is in the right 25% and the middle third`, centre && centre.x > 0.75 && centre.y >= 1 / 3 && centre.y <= 2 / 3, centreText);
+  } else if (racers === 3) {
+    const quadrant = { x: KART_HOST_VIEWPORT.width / 2, y: KART_HOST_VIEWPORT.height / 2, w: KART_HOST_VIEWPORT.width / 2, h: KART_HOST_VIEWPORT.height / 2 };
+    run.check(`${tag}: minimap sits inside .kart-map-quadrant`, hud.minimapInQuadrant);
+    run.check(`${tag}: .kart-map-quadrant is the bottom-right quadrant`, boxMatches(hud.quadrantBox, quadrant), fmtBox(hud.quadrantBox));
+  } else {
+    run.check(`${tag}: minimap centre is within 5% of the screen centre`, centre && Math.abs(centre.x - 0.5) <= 0.05 && Math.abs(centre.y - 0.5) <= 0.05, centreText);
+  }
+  run.check(`${tag}: no .kart-timer and no .kart-standings`, hud.timers === 0 && hud.standings === 0, `timers ${hud.timers}, standings ${hud.standings}`);
+
+  const L = hud.trackLength;
+  const advanced = hud.karts.map((k, i) => {
+    const delta = (((k.s - before.karts[i].s) % L) + L) % L;
+    return { name: k.name, delta };
+  });
+  run.check(`${tag}: ${racers} karts, each advanced along the track while racing`, advanced.length === racers && advanced.every((a) => a.delta > 1 && a.delta < L / 2), advanced.map((a) => `${a.name} +${a.delta.toFixed(1)} m`).join(', '));
+  if (n > 4) run.check(`${tag}: the 5th player is not in __kartState.karts`, !hud.karts.some((k) => k.name === SPLIT_PLAYERS[4]), hud.karts.map((k) => k.name).join(','));
+
+  await Promise.all(run.contexts.splice(contextsBefore).map((ctx) => ctx.close().catch(() => {})));
+}
+
+async function kartSplit(run) {
+  for (const n of [1, 2, 3, 4, 5]) await splitRound(run, n);
+}
+
 const FEATURES = {
   'join-lobby': joinLobby,
   'select-game': selectGameFeature,
   'bowling-throw': bowlingThrow,
   'kart-race': kartRace,
+  'kart-split': kartSplit,
 };
 
 async function main() {
