@@ -6,10 +6,14 @@
 //   /kart-preview.html?drift=L&dir=D   kart 0 frozen mid-drift at charge level L (0..3), direction D (1 or -1)
 //   /kart-preview.html?boost=L         kart 0 frozen mid-boost at boost level L (1..3)
 //   /kart-preview.html?item=green&reserve=banana   kart 0 starts holding items (mushroom|banana|green|red)
+//   /kart-preview.html?items=1         a banana, a green and a red shell sit near the item row at start+80 (pair with shot=itemRow)
+//   /kart-preview.html?items=1&break=1 also breaks box b0_1 ~0.3 s after load, for a shard-burst frame
+//   /kart-preview.html?hit=spin|tumble&t=0..1   kart 0 frozen at that point of its hit (pair with shot=hitSide)
 //   /kart-preview.html?seed=N          item RNG seed
 //   Keys: arrows / WASD steer, Up / Down aim, E / Enter uses an item, Space / Shift drifts.
 import { buildTrack } from './track.js';
 import { createRace, stepRace } from './race.js';
+import { pushEvent } from './items.js';
 import { createKartScene } from './scene/createKartScene.js';
 import { SHOTS } from './shots.js';
 import { autopilotInput } from './autopilot.js';
@@ -25,6 +29,7 @@ const entrants = [
 ];
 
 const race = createRace(track, entrants, { seed: Number(params.get('seed')) || 1 });
+window.__race = race; // dev-only: lets screenshot tooling read race state
 const container = document.getElementById('app');
 const scene = createKartScene(container, track);
 scene.setKarts(entrants);
@@ -45,17 +50,17 @@ function placeKartsForShot(name) {
 
 // Freeze kart p1 mid-drift (?drift=0..3, &dir=-1|1) or mid-boost (?boost=1..3) on the start
 // straight, for comparing the drift effects. Pair with &shot=driftRear or driftQuarter for a close camera.
-const pose = params.has('drift') ? 'drift' : params.has('boost') ? 'boost' : null;
+const pose = params.has('drift') ? 'drift' : params.has('boost') ? 'boost' : params.has('hit') ? 'hit' : null;
 
 function setShot(name) {
   scene.setShot(name || null);
-  if (name && !pose) placeKartsForShot(name);
+  if (name && !pose && !params.get('items')) placeKartsForShot(name); // item shots keep the karts on the grid, out of frame
 }
 window.__kartShot = setShot;
 setShot(params.get('shot'));
 
 if (pose) {
-  const level = Number(params.get(pose)) || 0;
+  const level = pose === 'hit' ? 0 : Number(params.get(pose)) || 0;
   const dir = Number(params.get('dir')) === -1 ? -1 : 1;
   const k = race.karts[0];
   const s = 60;
@@ -64,10 +69,35 @@ if (pose) {
   if (pose === 'drift') {
     k.drift = { sliding: true, dir, charge: level === 0 ? 0.5 : level + 0.5, level };
     k.steerVis = dir;
+  } else if (pose === 'hit') {
+    const kind = params.get('hit') === 'tumble' ? 'tumble' : 'spin';
+    const total = kind === 'spin' ? 1.2 : 1.4;
+    const t = Math.min(1, Math.max(0, Number(params.get('t')) || 0));
+    k.hit = { kind, t: total * (1 - t), total };
   } else {
     k.boost = 1;
     k.boostLevel = level;
   }
+}
+
+// Drop one of each entity beside the first item row so a still shot can see them.
+if (params.get('items')) {
+  const row = track.itemRows[0].s;
+  const at = (kind, ds, lateral) => {
+    const fr = track.frameAt(row + ds);
+    const y = track.heightAt(row + ds, lateral) + (kind === 'banana' ? 0 : 0.45);
+    race.entities.push({ id: `e${race.entitySeq++}`, kind, owner: 'p2', x: fr.x + fr.rx * lateral, y, z: fr.z + fr.rz * lateral, vx: 0, vy: 0, vz: 0, s: row + ds, lateral, age: 0.4, state: kind === 'banana' ? 'ground' : 'moving', bounces: 0, target: null });
+  };
+  at('banana', 3, -3);
+  at('green', 5, 1);
+  at('red', 7, 4.5);
+}
+if (params.get('break')) {
+  setTimeout(() => {
+    const b = race.boxes.find((x) => x.id === 'b0_1');
+    Object.assign(b, { ready: false, respawn: 1.5 });
+    pushEvent(race, { type: 'box_break', boxId: b.id, kartId: 'p1', x: b.x, y: b.y, z: b.z });
+  }, 300);
 }
 
 if (params.get('item')) Object.assign(race.karts[0].item, { main: params.get('item'), reserve: params.get('reserve') || null });
@@ -92,7 +122,7 @@ const drive = () => ({
 let last = performance.now();
 let frames = 0;
 function frame(now) {
-  const dt = Math.min((now - last) / 1000, 0.05);
+  const dt = Math.min(Math.max((now - last) / 1000, 0), 0.05);
   last = now;
   const inputs = { p1: { ...drive(), useItem: usePending } };
   usePending = false;

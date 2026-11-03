@@ -17,6 +17,46 @@ const FLAME_COLOR = 0xffa020; // boost pads and level 0
 const FLAME_SCALE = [1, 1.1, 1.25, 1.45]; // by boost level
 const IDLE_DRIFT = { sliding: false, dir: 0, charge: 0, level: 0 };
 
+// ── Hit pose ─────────────────────────────────────────────────────────────────
+const SPIN_TURNS = 2; // banana: body yaw turns over the hit, ease-out
+const SPIN_WOBBLE = 0.07; // rad
+const TUMBLE_TURNS = 1.5;
+const TUMBLE_POP = 1; // m
+const TUMBLE_ROLL = (25 * Math.PI) / 180;
+const TUMBLE_LAND = 0.85; // fraction of the hit spent in the main arc; the rest is the landing bounce
+const STAR_COUNT = 3;
+let starGeo;
+
+const easeOutCubic = (t) => 1 - (1 - t) ** 3;
+
+// Body offsets for a hit at progress p (0..1): yaw added to the body, roll, lift. Heading is never touched.
+export function hitPose(kind, p) {
+  if (kind === 'spin') {
+    return { yaw: Math.PI * 2 * SPIN_TURNS * easeOutCubic(p), roll: Math.sin(p * 22) * SPIN_WOBBLE * (1 - p), lift: 0 };
+  }
+  const u = Math.min(1, p / TUMBLE_LAND);
+  const v = Math.max(0, (p - TUMBLE_LAND) / (1 - TUMBLE_LAND));
+  const lift = p < TUMBLE_LAND ? TUMBLE_POP * 4 * u * (1 - u) : TUMBLE_POP * 0.15 * 4 * v * (1 - v);
+  return { yaw: Math.PI * 2 * TUMBLE_TURNS * easeOutCubic(p), roll: TUMBLE_ROLL * Math.sin(p * Math.PI * 2) * (1 - p * 0.5), lift };
+}
+
+function createStars() {
+  if (!starGeo) {
+    const shape = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 ? 0.1 : 0.24;
+      const a = (i / 10) * Math.PI * 2 + Math.PI / 2;
+      shape[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+    }
+    starGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false });
+  }
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffe040 });
+  for (let i = 0; i < STAR_COUNT; i++) g.add(new THREE.Mesh(starGeo, mat));
+  g.visible = false;
+  return g;
+}
+
 export function createKartMesh(color) {
   const root = new THREE.Group();
   const group = new THREE.Group(); // visible body, yaws and leans into a drift
@@ -108,18 +148,19 @@ export function createKartMesh(color) {
   blob.rotation.x = -Math.PI / 2;
   blob.position.y = 0.05;
   blob.renderOrder = 2;
-  root.add(blob, group);
+  const stars = createStars();
+  root.add(blob, group, stars);
 
   const sparks = createDriftSparks();
   group.add(sparks.group);
 
-  root.userData = { body: group, tires, pivots, driver, flames, sparks, driftVis: 0, flameLevel: -1 };
+  root.userData = { body: group, tires, pivots, driver, flames, sparks, stars, driftVis: 0, flameLevel: -1 };
   return root;
 }
 
 export function updateKartMesh(mesh, kart, dt) {
   const ud = mesh.userData;
-  const { body, tires, pivots, driver, flames, sparks } = ud;
+  const { body, tires, pivots, driver, flames, sparks, stars } = ud;
   for (const t of tires) t.tire.rotation.z -= (kart.speed / t.r) * dt;
   for (const p of pivots) p.rotation.y = -kart.steerVis * 0.5;
   driver.rotation.x = -kart.steerVis * 0.18;
@@ -127,8 +168,20 @@ export function updateKartMesh(mesh, kart, dt) {
 
   const drift = kart.drift ?? IDLE_DRIFT;
   ud.driftVis += ((drift.sliding ? drift.dir : 0) - ud.driftVis) * (1 - Math.exp(-DRIFT_EASE * dt));
-  body.rotation.y = -ud.driftVis * DRIFT_YAW;
-  body.rotation.x = -ud.driftVis * DRIFT_LEAN;
+  const hit = kart.hit;
+  const pose = hit ? hitPose(hit.kind, 1 - hit.t / hit.total) : null;
+  body.rotation.y = -ud.driftVis * DRIFT_YAW + (pose ? pose.yaw : 0);
+  body.rotation.x = -ud.driftVis * DRIFT_LEAN + (pose ? pose.roll : 0);
+  body.position.y = pose ? pose.lift : 0;
+  stars.visible = !!hit;
+  if (hit) {
+    ud.starT = (ud.starT ?? 0) + dt;
+    stars.children.forEach((s, i) => {
+      const a = ud.starT * 6 + (i / STAR_COUNT) * Math.PI * 2;
+      s.position.set(Math.cos(a) * 0.7, 2.15 + (pose ? pose.lift : 0) + Math.sin(a * 2) * 0.08, Math.sin(a) * 0.7);
+      s.rotation.y = a * 2;
+    });
+  }
   updateDriftSparks(sparks, drift, dt);
 
   const boosting = kart.boost > 0;
