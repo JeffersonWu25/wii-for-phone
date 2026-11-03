@@ -6,13 +6,9 @@ import * as THREE from 'three';
 
 // ── Tunables ──
 const PAL = {
-  green: { plate: 0x2fd14a, groove: 0x1d6b1f },
-  red: { plate: 0xe8401e, groove: 0x7a1a10 },
-  rim: 0xf2f2ee, under: 0xf0dfa0, underDark: 0xc9b46a,
   peel: 0xf7e21b, tint: 0xa6d43a, tip: 0x6b3b1a,
   boxA: 0x9fe8a8, boxB: 0x8fe8ee, edge: 0xe8fff0, glyph: 0xffffff, glyphLine: 0x5aa0ff,
 };
-const SHELL = { rimY: 0.2, domeR: 0.41, domeH: 0.48, rimR: 0.37, rimTube: 0.1, rings: 18, around: 48 };
 const BOX = { half: 0.65, round: 0.2, segs: 8 };
 
 // ── Helpers ──
@@ -60,62 +56,6 @@ function tube(points, rings, seg, size, tint, { ridge = 0, ribs = 5, fixedUp = n
     const v = P.clone().addScaledVector(side, Math.cos(a) * w * k).addScaledVector(nrm, Math.sin(a) * h * k);
     return { p: [v.x, v.y, v.z], c: tint(t) };
   });
-}
-
-// ── Shell ──
-function shellGeometries(kind) {
-  const { plate, groove } = PAL[kind];
-  const seeds = [new THREE.Vector3(0, 1, 0)];
-  for (let k = 0; k < 5; k++) {
-    for (const [pol, off] of [[0.8, 0], [1.42, 0.5]]) {
-      const az = ((k + off) / 5) * Math.PI * 2;
-      seeds.push(new THREE.Vector3(Math.sin(pol) * Math.cos(az), Math.cos(pol), Math.sin(pol) * Math.sin(az)));
-    }
-  }
-  const cPlate = col(plate), cGroove = col(groove), n = new THREE.Vector3();
-  const { rings, around, domeR, domeH, rimY } = SHELL;
-  const dome = grid(rings, around, (i, j) => {
-    const th = (i / rings) * 1.72, ph = (j / around) * Math.PI * 2;
-    n.set(Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph));
-    let a1 = 9, a2 = 9;
-    for (const s of seeds) {
-      const a = Math.acos(Math.min(1, n.dot(s)));
-      if (a < a1) { a2 = a1; a1 = a; } else if (a < a2) a2 = a;
-    }
-    const border = (a2 - a1) / 2;
-    const raise = smooth(0.02, 0.3, border) * 0.05 - 0.03;
-    const r = 1 + raise;
-    return {
-      p: [n.x * domeR * r, rimY + n.y * domeH * r, n.z * domeR * r],
-      c: cGroove.clone().lerp(cPlate, smooth(0.03, 0.085, border)),
-    };
-  }, true);
-
-  const rim = new THREE.TorusGeometry(SHELL.rimR, SHELL.rimTube, 6, 20);
-  rim.rotateX(Math.PI / 2); rim.scale(1, 0.9, 1); rim.translate(0, rimY, 0);
-  const profile = [[0, 0], [0.15, 0], [0.26, 0.04], [0.33, 0.12], [0.34, rimY]];
-  const under = new THREE.LatheGeometry(profile.map(([x, y]) => new THREE.Vector2(x, y)), 24);
-  const ridges = [[0.33, 0.12], [0.285, 0.07], [0.215, 0.025]].map(([r, y]) => {
-    const g = new THREE.TorusGeometry(r, 0.02, 4, 20); g.rotateX(Math.PI / 2); g.translate(0, y, 0); return g;
-  });
-  return { dome, rim, under, ridges };
-}
-
-function buildShell(kind, store) {
-  const g = (store[kind] ??= (() => {
-    const geo = shellGeometries(kind);
-    return {
-      geo,
-      domeMat: gloss({ vertexColors: true, roughness: 0.22 }),
-      rimMat: gloss({ color: PAL.rim, roughness: 0.3 }),
-      underMat: flat(PAL.under),
-      ridgeMat: flat(PAL.underDark),
-    };
-  })());
-  const grp = new THREE.Group();
-  grp.add(new THREE.Mesh(g.geo.dome, g.domeMat), new THREE.Mesh(g.geo.rim, g.rimMat), new THREE.Mesh(g.geo.under, g.underMat));
-  for (const r of g.geo.ridges) grp.add(new THREE.Mesh(r, g.ridgeMat));
-  return grp;
 }
 
 // ── Banana ──
@@ -241,7 +181,7 @@ export function createSculptedModel(kind) {
   let g;
   if (kind === 'box') g = buildBox(store);
   else if (kind === 'banana') g = buildBanana(store);
-  else g = buildShell(kind, store);
+  else throw new Error(`sculptedModels: unknown kind ${kind}`);
   g.traverse((o) => { o.castShadow = o.isMesh && kind !== 'box'; });
   return g;
 }

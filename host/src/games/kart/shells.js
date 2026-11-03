@@ -4,7 +4,7 @@
 //
 // aim = { dir: 'forward'|'backward', angle } with angle in rad, positive toward the kart's right:
 // the shell flies along h + angle (forward) or h + PI - angle (backward).
-import { pushEvent } from './items.js';
+import { pushEvent } from './events.js';
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 
@@ -80,7 +80,6 @@ export function fireShell(race, kart, kind, aim, track) {
     bounces: 0,
     target: kind === 'red' && aim.dir !== 'backward' ? redTarget(race, kart.id) : null,
     homing: kind === 'red' && aim.dir !== 'backward',
-    flight: 0,
   };
   race.entities.push(shell);
   return shell;
@@ -113,7 +112,6 @@ function advanceInTrack(shell, target, track, fr, dt) {
 
 // Returns false when the shell is spent.
 export function stepShell(shell, race, track, dt) {
-  shell.flight = (shell.flight ?? 0) + dt;
   const cur = track.project(shell.x, shell.z, shell.s); // re-sync s/lateral so externally placed entities work
   shell.s = cur.s;
   shell.lateral = cur.lateral;
@@ -158,10 +156,10 @@ export function stepShell(shell, race, track, dt) {
     if (across * side > 0) {
       shell.vx -= 2 * across * fr.rx;
       shell.vz -= 2 * across * fr.rz;
+      shell.bounces += 1;
+      pushEvent(race, { type: 'bounce', entityId: shell.id, kind: shell.kind, x: shell.x, y: shell.y, z: shell.z });
     }
-    shell.bounces += 1;
-    pushEvent(race, { type: 'bounce', entityId: shell.id, kind: shell.kind, x: shell.x, y: shell.y, z: shell.z });
   }
-  const life = shell.kind === 'red' ? RED_LIFE : SHELL_LIFE;
-  return shell.flight < life && shell.bounces <= GREEN_MAX_BOUNCES;
+  if (shell.kind === 'red') return shell.age < RED_LIFE;
+  return shell.age < SHELL_LIFE && shell.bounces <= GREEN_MAX_BOUNCES;
 }

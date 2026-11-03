@@ -159,3 +159,17 @@ test('status carries the hit kind', () => {
   race.karts[0].hit = { kind: 'spin', t: 1, total: 1.2 };
   assert.equal(buildStatus(race, { a: '#111', b: '#222' }).players.a.hit, 'spin');
 });
+
+// ── Phone copy parity ────────────────────────────────────────────────────────
+
+test('the phone roulette, bump and icons match the host copies', async () => {
+  const phone = await import('../../../../phone/src/games/kart/itemSlot.js');
+  const { ITEM_ICONS: hostIcons } = await import('./itemIcons.js');
+  const { ITEM_ICONS: phoneIcons } = await import('../../../../phone/src/games/kart/itemIcons.js');
+  assert.deepEqual(phoneIcons, hostIcons);
+  assert.equal(phone.ROLL_TOTAL, ROLL_TOTAL);
+  for (let t = 0; t <= 2; t += 0.01) {
+    assert.equal(phone.rouletteFrame(t), rouletteFrame(t), `frame at ${t}`);
+    assert.equal(phone.landingScale(t / 4), landingScale(t / 4), `bump at ${t / 4}`);
+  }
+});

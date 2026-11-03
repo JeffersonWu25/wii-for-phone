@@ -34,7 +34,7 @@ export function createKartScene(container, track) {
   if (world.background) scene.background = world.background;
   if (world.fog) scene.fog = new THREE.Fog(world.fog.color, world.fog.near, world.fog.far);
 
-  const itemsView = createItemsView(scene, track);
+  const itemsView = createItemsView(scene);
   window.__kartInfo = renderer.info; // dev-only: lets screenshot tooling read draw calls / triangles
   const meshes = new Map();
   let views = [];

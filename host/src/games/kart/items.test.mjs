@@ -418,3 +418,84 @@ test('a mushroom use through stepRace speeds the kart past normal top speed', ()
   for (let i = 0; i < 60; i++) stepRace(race, { a: { useItem: i === 0 } }, DT, track);
   assert.ok(kart.speed > 24, `speed ${kart.speed}`);
 });
+
+// ── Review fixes ─────────────────────────────────────────────────────────────
+
+test('pickup.got is false when every slot is already full, stacked or not', () => {
+  const race = newRace();
+  const kart = race.karts[0];
+  Object.assign(kart.item, { main: 'banana', reserve: 'green', rollMain: 0, rollReserve: 0 });
+  const stacked = race.boxes.find((b) => b.row === 0 && b.stacked);
+  const plain = race.boxes.find((b) => b.row === 0 && !b.stacked);
+  onBox(race, kart, stacked);
+  tick(race, DT);
+  race.pickupAt = {};
+  onBox(race, kart, plain);
+  tick(race, DT);
+  assert.deepEqual(events(race, 'pickup').map((e) => e.got), [false, false]);
+  assert.equal(kart.item.main, 'banana');
+  assert.equal(kart.item.reserve, 'green');
+});
+
+test('pickup.got is true when a slot was filled', () => {
+  const race = newRace();
+  const kart = race.karts[0];
+  Object.assign(kart.item, { main: 'banana', rollMain: 0 });
+  onBox(race, kart, race.boxes.find((b) => b.row === 0 && !b.stacked));
+  tick(race, DT);
+  assert.equal(events(race, 'pickup')[0].got, true);
+  assert.ok(kart.item.reserve);
+});
+
+test('a use press while the slot is rolling or the kart is hit or finished is dropped, not buffered', () => {
+  const race = newRace();
+  const kart = race.karts[0];
+  Object.assign(kart.item, { main: 'banana', rollMain: 0 });
+  kart.hit = { kind: 'spin', t: 1, total: 1.2 };
+  tick(race, DT, { a: { useItem: true } });
+  assert.equal(kart.item.main, 'banana');
+  kart.hit = null;
+  tick(race, DT);
+  assert.equal(kart.item.main, 'banana', 'the earlier press is not replayed');
+  kart.finished = true;
+  tick(race, DT, { a: { useItem: true } });
+  assert.equal(kart.item.main, 'banana');
+  assert.equal(race.entities.length, 0);
+});
+
+test('a mushroom never shortens a running drift boost nor drops its level', () => {
+  const race = newRace();
+  const kart = race.karts[0];
+  place(kart, 200, 0, 20);
+  Object.assign(kart.item, { main: 'mushroom', rollMain: 0 });
+  Object.assign(kart, { boost: BOOST_TIME + 1, boostLevel: 3 });
+  useItem(race, kart, {}, track);
+  assert.equal(kart.boost, BOOST_TIME + 1);
+  assert.equal(kart.boostLevel, 3);
+  assert.equal(kart.mushroom, BOOST_TIME);
+});
+
+test('a thrown banana lands inside the road corridor', () => {
+  const race = newRace();
+  const kart = race.karts[0];
+  place(kart, 200, 0, 20);
+  kart.h += 1.2; // aim hard to the side so the arc would leave the road
+  Object.assign(kart.item, { main: 'banana', rollMain: 0 });
+  useItem(race, kart, { aimY: -1, steer: 1 }, track);
+  tick(race, 3);
+  const b = race.entities.find((e) => e.kind === 'banana');
+  assert.equal(b.state, 'ground');
+  const surf = track.surfaceAt(b.s, b.lateral);
+  assert.ok(b.lateral <= surf.limitR + 1e-6 && b.lateral >= -surf.limitL - 1e-6, `lateral ${b.lateral}`);
+});
+
+test('entities pass through a finished kart', () => {
+  const race = newRace();
+  const kart = race.karts[1];
+  place(kart, 300, 0, 0);
+  kart.finished = true;
+  race.entities.push({ id: 'e9', kind: 'banana', owner: 'a', x: kart.x, y: kart.y, z: kart.z, vx: 0, vy: 0, vz: 0, s: kart.s, lateral: 0, age: 1, state: 'ground', bounces: 0, target: null });
+  tick(race, DT);
+  assert.equal(kart.hit ?? null, null);
+  assert.equal(race.entities.length, 1);
+});

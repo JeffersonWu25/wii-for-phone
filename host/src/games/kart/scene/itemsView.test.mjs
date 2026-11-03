@@ -33,3 +33,12 @@ test('shards fly up and out, inheriting 30% of kart velocity', () => {
     assert.ok(Math.abs(b.vz - a.vz + 3) < 1e-9);
   }
 });
+
+test('hitPose: spin ends at 2 turns, tumble at 1.5 turns and 1 m up at peak, both settle at p=1', async () => {
+  const { hitPose } = await import('./kartMesh.js');
+  const peak = (kind) => Math.max(...Array.from({ length: 101 }, (_, i) => hitPose(kind, i / 100).lift));
+  assert.ok(Math.abs(hitPose('spin', 1).yaw - Math.PI * 4) < 0.05);
+  assert.ok(Math.abs(hitPose('tumble', 1).yaw - Math.PI * 3) < 0.05);
+  assert.ok(Math.abs(peak('tumble') - 1) < 0.05, `peak ${peak('tumble')}`);
+  assert.ok(Math.abs(hitPose('tumble', 1).lift) < 0.01);
+});

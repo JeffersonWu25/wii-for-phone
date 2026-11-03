@@ -12,9 +12,6 @@ const PAL = {
   rim: '#f2f2ee',
   under: '#f0dfa0',
   underLine: '#b89f55',
-  peel: '#f7e21b',
-  peelTop: '#a6d43a',
-  tip: '#6b3b1a',
 };
 const SHELL = { R: 0.4, H: 0.54, rimY: 0.2, rimTube: 0.085, underR: 0.36 };
 
@@ -155,7 +152,6 @@ function rimGeo() {
   return g;
 }
 
-// Elliptical tube swept along a curve. `rad(t)` -> [ra, rb]: ra across `side`, rb across the other axis.
 // ── Per-kind cache: geometry, materials and textures built once, shared by every model ──
 let cache = null;
 
@@ -200,10 +196,9 @@ function kindData(kind) {
 export function createItemModel(kind) {
   if (SCULPTED.has(kind)) return createSculptedModel(kind);
   const g = new THREE.Group();
-  for (const { geo, mat, order } of kindData(kind).parts) {
+  for (const { geo, mat } of kindData(kind).parts) {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = !mat.transparent;
-    if (order !== undefined) mesh.renderOrder = order;
     g.add(mesh);
   }
   return g;

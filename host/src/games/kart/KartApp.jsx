@@ -3,7 +3,7 @@ import { buildTrack } from './track.js';
 import { createRace, stepRace, formatTime } from './race.js';
 import { createKartScene } from './scene/createKartScene.js';
 import {
-  buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, itemState, ordinal, playerColor, splitLayout, startTick, statusKey,
+  buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, isIncoming, itemState, ordinal, playerColor, splitLayout, startTick, statusKey,
 } from './hud.js';
 import { Minimap, Pane } from './Hud.jsx';
 
@@ -144,7 +144,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
         const k = race.karts.find((r) => r.id === e.id);
         return {
           lap: Math.min(k.lap + 1, race.laps), laps: race.laps, place: k.place, wrongWay: k.wrongWay,
-          ...itemState(k), hit: k.hit?.kind ?? null, incoming: race.entities.some((en) => en.kind === 'red' && en.target === k.id),
+          ...itemState(k), hit: k.hit?.kind ?? null, incoming: isIncoming(race, k),
         };
       }),
     });

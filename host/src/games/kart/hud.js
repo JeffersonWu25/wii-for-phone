@@ -1,5 +1,6 @@
 // Pure helpers for the Kart Racer host: player colors, countdown, minimap fit, relay payloads.
 import { COUNTDOWN_SECONDS } from './race.js';
+import { RESERVE_DELAY, ROLL_TIME } from './items.js';
 
 // ── Colors ───────────────────────────────────────────────────────────────────
 
@@ -105,8 +106,8 @@ export function itemState(kart) {
 // ── Item roulette ────────────────────────────────────────────────────────────
 
 export const ROULETTE_KINDS = ['mushroom', 'banana', 'green', 'red'];
-export const ROLL_TOTAL = 1.6;
-export const ROLL_TOTAL_STACKED = 1.9;
+export const ROLL_TOTAL = ROLL_TIME;
+export const ROLL_TOTAL_STACKED = ROLL_TIME + RESERVE_DELAY;
 const ROULETTE_FAST = 12; // icons per second
 const ROULETTE_SLOW = 0.6; // seconds of slow-down before landing
 const ROULETTE_END_RATE = 2;
@@ -141,6 +142,9 @@ export function slotView(clock, kind, now) {
   return { icon: kind ?? null, scale: kind && clock?.landed ? landingScale(now - clock.since) : 1, rolling: false };
 }
 
+// A red shell is homing on this kart.
+export const isIncoming = (race, kart) => race.entities.some((e) => e.kind === 'red' && e.target === kart.id);
+
 export function buildStatus(race, cssById) {
   const players = {};
   for (const k of race.karts) {
@@ -152,7 +156,7 @@ export function buildStatus(race, cssById) {
       finished: k.finished,
       ...itemState(k),
       hit: k.hit?.kind ?? null,
-      incoming: race.entities.some((e) => e.kind === 'red' && e.target === k.id),
+      incoming: isIncoming(race, k),
     };
   }
   return { type: 'kart_status', phase: race.phase, players };

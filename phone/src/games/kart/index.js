@@ -1,5 +1,5 @@
 // Kart Racer phone controller: landscape free stick (X steers, Y aims thrown items),
-// a hold DRIFT button and a placeholder USE ITEM button. The kart accelerates on its own.
+// a hold DRIFT button and a USE ITEM button that shows the roulette. The kart accelerates on its own.
 // Sends { type:'drive', steer, aimY, drift } at 20 Hz and { type:'use_item' } on tap.
 // Exported mount(app, sendMsg, myPlayerId) returns { onMessage, onMotion, unmount }.
 
@@ -164,9 +164,14 @@ export function mount(app, sendMsg, myPlayerId) {
   }
   function setItem(item) {
     const next = buttonView(item);
-    if (next.state === 'rolling' && itemView.state !== 'rolling') rollStart = performance.now() / 1000;
-    if (next.state !== 'rolling' && itemView.state === 'rolling') { landedAt = performance.now() / 1000; rollStart = null; }
-    else if (next.state === 'ready' && next.main !== itemView.main) landedAt = performance.now() / 1000;
+    const now = performance.now() / 1000;
+    const wasRolling = itemView.state === 'rolling';
+    if (next.state === 'rolling') {
+      if (!wasRolling) rollStart = now; // startRoll
+    } else if (wasRolling || (next.state === 'ready' && next.main !== itemView.main)) {
+      landedAt = now; // landRoll
+      rollStart = null;
+    }
     itemView = next;
     itemBtn.className = `${next.state}${itemBtn.classList.contains('pressed') ? ' pressed' : ''}`;
     itemBtn.setAttribute('aria-disabled', String(!next.usable));

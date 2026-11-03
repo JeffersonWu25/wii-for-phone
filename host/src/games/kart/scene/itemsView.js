@@ -2,6 +2,7 @@
 // Reads race.boxes / race.entities each frame and race.events by `seq`; never mutates race.
 import * as THREE from 'three';
 import { createItemModel, disposeItemModels } from './itemModels.js';
+import { SHELL_RADIUS } from '../shells.js';
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 
@@ -16,7 +17,6 @@ const SHARD_LIFE = 0.6;
 const SHARD_GRAVITY = 14;
 const SHARD_INHERIT = 0.3; // share of the kart's velocity
 const FLASH_LIFE = 0.15;
-const SHELL_RADIUS = 0.45;
 const SHELL_SPIN = Math.PI * 2 * 3; // rad/s
 const SQUASH_TIME = 0.2;
 const SQUASH_MIN = 0.6;
@@ -71,7 +71,7 @@ function glowTexture() {
   return tex;
 }
 
-export function createItemsView(scene, track) {
+export function createItemsView(scene) {
   const root = new THREE.Group();
   scene.add(root);
   const glow = glowTexture();

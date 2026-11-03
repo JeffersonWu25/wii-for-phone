@@ -80,6 +80,7 @@ function tracker(sh) {
 function run(race, sh, maxT, onStep) {
   const steps = Math.round(maxT / DT);
   for (let i = 1; i <= steps; i++) {
+    sh.age += DT; // stepEntities owns age in the game
     if (stepShell(sh, race, track, DT) === false) return { removedAt: i * DT, steps: i };
     if (onStep?.(sh, i * DT) === 'stop') return { stopped: true, at: i * DT, steps: i };
   }
@@ -351,7 +352,10 @@ test('S7: same inputs give identical entity state after 200 steps', () => {
     const race = lineup();
     const k = kartOf(race, 'c');
     const sh = fireShell(race, k, kind, { dir, angle }, track);
-    for (let i = 0; i < 200; i++) if (stepShell(sh, race, track, DT) === false) break;
+    for (let i = 0; i < 200; i++) {
+      sh.age += DT;
+      if (stepShell(sh, race, track, DT) === false) break;
+    }
     return JSON.stringify([sh, race.events ?? []]);
   };
   for (const args of [['green', 'forward', 0.2], ['green', 'backward', -0.3], ['red', 'forward', 0], ['red', 'backward', 0.1]]) {

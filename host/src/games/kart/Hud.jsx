@@ -20,7 +20,7 @@ function ItemSlot({ className, kind, rolling, total }) {
       if (view.rolling || view.scale !== 1) raf = requestAnimationFrame(frame);
     };
     frame();
-    if (!rolling && clock.current.landed && kind) raf = requestAnimationFrame(frame);
+    if (!raf && !rolling && clock.current.landed && kind) raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
   }, [kind, rolling, total]);
   return <div className={`kart-item-slot ${className}`} data-rolling={rolling ? '1' : undefined} data-kind={kind ?? undefined}><div className="kart-item-icon" ref={box} /></div>;

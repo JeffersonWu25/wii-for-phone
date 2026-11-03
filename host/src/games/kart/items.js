@@ -1,20 +1,22 @@
 // Items — pure. Item boxes, the 2-slot roulette, use dispatch, banana flight, entity-vs-kart hits.
 // Shell flight lives in shells.js; hit physics in physics.js. No Math.random: everything draws from race.rng.
 import { applyHit, BOOST_TIME, KART_RADIUS } from './physics.js';
+import { pushEvent } from './events.js';
 import { fireShell, stepShell } from './shells.js';
+
+export { mulberry32, pushEvent } from './events.js';
 
 // ── Tunables ─────────────────────────────────────────────────────────────────
 
 export const BOX_RESPAWN = 1.5; // s
 export const ROLL_TIME = 1.6; // s a freshly picked kind stays hidden
-const RESERVE_DELAY = 0.3; // s the reserve lands after main on a stacked pickup
+export const RESERVE_DELAY = 0.3; // s the reserve lands after main on a stacked pickup
 const PICKUP_RADIUS = KART_RADIUS + 0.7;
 const ROW_COOLDOWN = 1.0; // s before a kart can take from the same row again
 const BOX_HOVER = 1.0; // m, box centre above the surface
 const HIT_RADIUS = KART_RADIUS + 0.5;
 const OWNER_IMMUNE = 0.3; // s
 const BREAK_DIST = 1.0; // m between shell and shell / banana
-const MAX_EVENTS = 64;
 
 const GRAVITY = 20; // m/s^2 for thrown bananas
 const BANANA_DROP_BACK = 2; // m behind the kart
@@ -32,25 +34,6 @@ export const ITEM_ODDS = {
   last: { banana: 0, green: 15, red: 40, mushroom: 45 },
 };
 const KINDS = ['banana', 'green', 'red', 'mushroom'];
-
-// ── RNG / events ─────────────────────────────────────────────────────────────
-
-export function mulberry32(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// Append-only log for the renderer; it remembers the last seq it consumed.
-export function pushEvent(race, ev) {
-  race.events.push({ seq: ++race.eventSeq, t: race.time, ...ev });
-  if (race.events.length > MAX_EVENTS) race.events.splice(0, race.events.length - MAX_EVENTS);
-}
 
 // ── Odds ─────────────────────────────────────────────────────────────────────
 
@@ -126,20 +109,19 @@ function pickUp(race, kart, box) {
   box.respawn = BOX_RESPAWN;
   const slots = kart.item;
   const roll = () => rollItem(kart.place, race.karts.length, race.rng);
-  let got = null;
-  if (box.stacked) {
-    if (!slots.main) [slots.main, slots.rollMain] = [roll(), ROLL_TIME];
-    if (!slots.reserve) [slots.reserve, slots.rollReserve] = [roll(), ROLL_TIME + RESERVE_DELAY];
-    got = slots.main;
-  } else if (!slots.main) {
-    [slots.main, slots.rollMain] = [roll(), ROLL_TIME];
-    got = slots.main;
-  } else if (!slots.reserve) {
-    [slots.reserve, slots.rollReserve] = [roll(), ROLL_TIME];
-    got = slots.reserve;
+  let got = false;
+  if (!slots.main) {
+    slots.main = roll();
+    slots.rollMain = ROLL_TIME;
+    got = true;
+  }
+  if (!slots.reserve && (box.stacked || !got)) {
+    slots.reserve = roll();
+    slots.rollReserve = box.stacked ? ROLL_TIME + RESERVE_DELAY : ROLL_TIME;
+    got = true;
   }
   pushEvent(race, { type: 'box_break', boxId: box.id, kartId: kart.id, x: box.x, y: box.y, z: box.z });
-  pushEvent(race, { type: 'pickup', boxId: box.id, kartId: kart.id, stacked: box.stacked, got: got !== null });
+  pushEvent(race, { type: 'pickup', boxId: box.id, kartId: kart.id, stacked: box.stacked, got });
 }
 
 // ── Use ──────────────────────────────────────────────────────────────────────
@@ -169,8 +151,10 @@ export function useItem(race, kart, input, track) {
   pushEvent(race, { type: 'use', kartId: kart.id, kind, x: kart.x, y: kart.y, z: kart.z });
 
   if (kind === 'mushroom') {
-    kart.boost = Math.max(kart.boost, BOOST_TIME);
-    kart.boostLevel = 0;
+    if (kart.boost <= BOOST_TIME) {
+      kart.boost = BOOST_TIME;
+      kart.boostLevel = 0; // a longer drift boost keeps its level
+    }
     kart.mushroom = BOOST_TIME;
   } else if (kind === 'banana') {
     spawnBanana(race, kart, aim, track);
@@ -184,24 +168,37 @@ export function useItem(race, kart, input, track) {
 
 function spawnBanana(race, kart, aim, track) {
   const base = { id: `e${race.entitySeq++}`, kind: 'banana', owner: kart.id, age: 0, bounces: 0, target: null };
+  const h = aimHeading(kart, aim);
   let x, z, y, vx = 0, vz = 0, vy = 0;
   let state = 'ground';
   if (aim.zone === 'up') {
-    const h = aimHeading(kart, aim);
     const speed = kart.speed + BANANA_THROW_BOOST;
-    [x, z, y] = [kart.x + Math.cos(h) * KART_RADIUS, kart.z + Math.sin(h) * KART_RADIUS, kart.y + 0.8];
-    [vx, vz, vy, state] = [Math.cos(h) * speed, Math.sin(h) * speed, BANANA_THROW_VY, 'air'];
+    x = kart.x + Math.cos(h) * KART_RADIUS;
+    z = kart.z + Math.sin(h) * KART_RADIUS;
+    y = kart.y + 0.8;
+    vx = Math.cos(h) * speed;
+    vz = Math.sin(h) * speed;
+    vy = BANANA_THROW_VY;
+    state = 'air';
   } else if (aim.zone === 'back') {
-    const h = aimHeading(kart, aim);
-    [x, z, y] = [kart.x + Math.cos(h) * KART_RADIUS, kart.z + Math.sin(h) * KART_RADIUS, kart.y + 0.6];
-    [vx, vz, vy, state] = [Math.cos(h) * BANANA_TOSS_SPEED, Math.sin(h) * BANANA_TOSS_SPEED, BANANA_TOSS_VY, 'air'];
+    x = kart.x + Math.cos(h) * KART_RADIUS;
+    z = kart.z + Math.sin(h) * KART_RADIUS;
+    y = kart.y + 0.6;
+    vx = Math.cos(h) * BANANA_TOSS_SPEED;
+    vz = Math.sin(h) * BANANA_TOSS_SPEED;
+    vy = BANANA_TOSS_VY;
+    state = 'air';
   } else {
-    [x, z, y] = [kart.x - Math.cos(kart.h) * BANANA_DROP_BACK, kart.z - Math.sin(kart.h) * BANANA_DROP_BACK, kart.y];
+    x = kart.x - Math.cos(kart.h) * BANANA_DROP_BACK;
+    z = kart.z - Math.sin(kart.h) * BANANA_DROP_BACK;
+    y = kart.y;
   }
   const p = track.project(x, z, kart.s);
   if (state === 'ground') y = track.surfaceAt(p.s, p.lateral).y;
   race.entities.push({ ...base, x, y, z, vx, vy, vz, s: p.s, lateral: p.lateral, state });
 }
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 function stepBanana(b, track, dt) {
   if (b.state !== 'air') return;
@@ -214,7 +211,10 @@ function stepBanana(b, track, dt) {
   b.lateral = p.lateral;
   const ground = track.surfaceAt(p.s, p.lateral).y;
   if (b.y <= ground && b.vy < 0) {
-    Object.assign(b, { y: ground, vx: 0, vy: 0, vz: 0, state: 'ground' });
+    const surf = track.surfaceAt(p.s, p.lateral);
+    const lateral = clamp(p.lateral, -surf.limitL, surf.limitR); // never rest outside the corridor
+    const fr = track.frameAt(p.s);
+    Object.assign(b, { x: fr.x + fr.rx * lateral, z: fr.z + fr.rz * lateral, lateral, y: track.surfaceAt(p.s, lateral).y, vx: 0, vy: 0, vz: 0, state: 'ground' });
   }
 }
 
@@ -243,7 +243,7 @@ function resolveEntityHits(race) {
   for (const e of list) {
     if (e.dead) continue;
     for (const kart of race.karts) {
-      if (kart.hit || kart.invuln > 0) continue;
+      if (kart.hit || kart.invuln > 0 || kart.finished) continue;
       if (kart.id === e.owner && e.age < OWNER_IMMUNE) continue;
       if (Math.hypot(kart.x - e.x, kart.z - e.z) >= HIT_RADIUS) continue;
       const kind = e.kind === 'banana' ? 'spin' : 'tumble';

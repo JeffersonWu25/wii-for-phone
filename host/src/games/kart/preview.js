@@ -18,6 +18,9 @@ import { createKartScene } from './scene/createKartScene.js';
 import { SHOTS } from './shots.js';
 import { autopilotInput } from './autopilot.js';
 import { splitLayout } from './hud.js';
+import { ITEM_ICONS } from './itemIcons.js';
+
+const ITEM_KINDS = Object.keys(ITEM_ICONS);
 
 const params = new URLSearchParams(location.search);
 const track = buildTrack();
@@ -100,7 +103,8 @@ if (params.get('break')) {
   }, 300);
 }
 
-if (params.get('item')) Object.assign(race.karts[0].item, { main: params.get('item'), reserve: params.get('reserve') || null });
+const itemParam = (name) => (ITEM_KINDS.includes(params.get(name)) ? params.get(name) : null);
+if (itemParam('item')) Object.assign(race.karts[0].item, { main: itemParam('item'), reserve: itemParam('reserve') });
 
 // ── Input ────────────────────────────────────────────────────────────────────
 
