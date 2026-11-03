@@ -5,7 +5,9 @@
 //   /kart-preview.html?views=N         split screen with one view per kart, N = 1..4
 //   /kart-preview.html?drift=L&dir=D   kart 0 frozen mid-drift at charge level L (0..3), direction D (1 or -1)
 //   /kart-preview.html?boost=L         kart 0 frozen mid-boost at boost level L (1..3)
-//   Keys: arrows / WASD steer, down / S brakes and reverses, Space / Shift drifts.
+//   /kart-preview.html?item=green&reserve=banana   kart 0 starts holding items (mushroom|banana|green|red)
+//   /kart-preview.html?seed=N          item RNG seed
+//   Keys: arrows / WASD steer, Up / Down aim, E / Enter uses an item, Space / Shift drifts.
 import { buildTrack } from './track.js';
 import { createRace, stepRace } from './race.js';
 import { createKartScene } from './scene/createKartScene.js';
@@ -22,7 +24,7 @@ const entrants = [
   { id: 'p4', name: 'Green', color: 0x3fb55a },
 ];
 
-const race = createRace(track, entrants);
+const race = createRace(track, entrants, { seed: Number(params.get('seed')) || 1 });
 const container = document.getElementById('app');
 const scene = createKartScene(container, track);
 scene.setKarts(entrants);
@@ -68,14 +70,20 @@ if (pose) {
   }
 }
 
+if (params.get('item')) Object.assign(race.karts[0].item, { main: params.get('item'), reserve: params.get('reserve') || null });
+
 // ── Input ────────────────────────────────────────────────────────────────────
 
 const keys = new Set();
-window.addEventListener('keydown', (e) => keys.add(e.code));
+let usePending = false;
+window.addEventListener('keydown', (e) => {
+  keys.add(e.code);
+  if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) usePending = true;
+});
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 const drive = () => ({
   steer: (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0),
-  brake: keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0,
+  aimY: (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0),
   drift: keys.has('Space') || keys.has('ShiftLeft') || keys.has('ShiftRight'),
 });
 
@@ -86,7 +94,8 @@ let frames = 0;
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
-  const inputs = { p1: drive() };
+  const inputs = { p1: { ...drive(), useItem: usePending } };
+  usePending = false;
   if (params.get('ai')) for (const k of race.karts.slice(1)) inputs[k.id] = autopilotInput(track, k);
   if (!params.get('shot') && !pose) stepRace(race, inputs, dt, track);
   scene.update(race, dt);

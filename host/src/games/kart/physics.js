@@ -11,8 +11,6 @@ export const OFFROAD_TOP = 0.5;
 export const COAST_BASE = 2; // m/s^2
 export const COAST_PROP = 0.07; // 1/s
 export const OVERSPEED_DRAG = 4; // m/s^2 base plus 2.5 * excess
-export const BRAKE = 25; // m/s^2
-export const REVERSE_TOP = 6;
 export const TURN_RATE = 2.4; // rad/s at low speed
 export const TURN_FALLOFF = 18; // m/s where turn rate halves-ish
 export const GRIP_ROAD = 9; // 1/s velocity-vector catch-up
@@ -22,6 +20,11 @@ export const KART_RADIUS = 0.9;
 export const WALL_SPEED_LOSS = 0.35;
 export const WALL_RESTITUTION = 0.3;
 export const ATTITUDE_RATE = 12; // 1/s smoothing for pitch / roll
+
+// Hits: a banana spins the kart out, a shell tumbles it. Steering and items are locked meanwhile.
+export const HIT_TIME = { spin: 1.2, tumble: 1.4 }; // s
+export const HIT_INVULN = 1.0; // s of immunity after a hit ends
+export const HIT_DECAY = 8; // 1/s, speed falls to under 10% of the entry speed within 0.3 s
 
 // Drift: travel direction and body heading are tracked apart while sliding.
 export const DRIFT_MIN_STEER = 0.3; // |steer| needed to start a slide
@@ -66,6 +69,10 @@ export function createKart({ id, color, slot } = {}) {
     surface: 'road',
     boost: 0,
     boostLevel: 0, // level of the drift boost running, 0 for pads or no boost
+    mushroom: 0, // s left of a mushroom boost; while > 0 off-road does not lower top speed
+    hit: null, // { kind: 'spin'|'tumble', t, total } while spinning out; t counts down
+    invuln: 0, // s of hit immunity left
+    item: { main: null, reserve: null, rollMain: 0, rollReserve: 0 }, // see items.js
     drift: { sliding: false, dir: 0, charge: 0, level: 0 },
     slip: 0, // physics-internal, the renderer must not read it: heading minus travel direction, rad
     airborne: false,
@@ -73,23 +80,23 @@ export function createKart({ id, color, slot } = {}) {
   };
 }
 
-// Slide state machine. A slide needs drift held, enough steer and speed, and no
-// brake; the direction locks at the start. Charging pauses off-road, a wall hit only costs speed.
-// Releasing the button at level 1+ grants the boost; a brake cancel or running out of speed
-// grants nothing. Holding drift after a cancel starts a new slide once the conditions hold again.
-function updateDrift(kart, input, steer, brake, offroad, dt) {
+// Slide state machine. A slide needs drift held plus enough steer and speed; the direction locks
+// at the start. Charging pauses off-road, a wall hit only costs speed. Releasing the button at
+// level 1+ grants the boost; running out of speed grants nothing. Holding drift after that
+// starts a new slide once the conditions hold again.
+function updateDrift(kart, input, steer, offroad, dt) {
   const d = kart.drift;
   const held = !!input.drift;
   if (d.sliding) {
     const released = !held;
     // The release only takes over when it outlasts the boost already running, so a weak release
     // never cuts short or recolors a stronger one.
-    if (released && brake === 0 && kart.speed >= DRIFT_MIN_SPEED && d.level >= 1 && DRIFT_BOOST_TIME[d.level - 1] >= kart.boost) {
+    if (released && kart.speed >= DRIFT_MIN_SPEED && d.level >= 1 && DRIFT_BOOST_TIME[d.level - 1] >= kart.boost) {
       kart.boost = DRIFT_BOOST_TIME[d.level - 1];
       kart.boostLevel = d.level;
     }
-    if (released || brake > 0 || kart.speed < DRIFT_MIN_SPEED) Object.assign(d, { sliding: false, dir: 0, charge: 0, level: 0 });
-  } else if (held && brake === 0 && Math.abs(steer) >= DRIFT_MIN_STEER && kart.speed >= DRIFT_MIN_SPEED) {
+    if (released || kart.speed < DRIFT_MIN_SPEED) Object.assign(d, { sliding: false, dir: 0, charge: 0, level: 0 });
+  } else if (held && Math.abs(steer) >= DRIFT_MIN_STEER && kart.speed >= DRIFT_MIN_SPEED) {
     Object.assign(d, { sliding: true, dir: Math.sign(steer), charge: 0, level: 0 });
     // Start from the slip the kart already has so the body does not snap.
     if (Math.hypot(kart.vx, kart.vz) > 0.5) kart.slip = wrapAngle(kart.h - Math.atan2(kart.vz, kart.vx));
@@ -131,27 +138,46 @@ function gripHeading(kart, steer, v, offroad, dt) {
   return v;
 }
 
+// Starts a spin-out (banana) or tumble (shell). No-op while already hit or immune.
+// Drift and boost are cancelled; the heading is left alone.
+export function applyHit(kart, kind) {
+  if (kart.hit || kart.invuln > 0) return false;
+  const total = HIT_TIME[kind];
+  if (!total) return false;
+  kart.hit = { kind, t: total, total };
+  Object.assign(kart.drift, { sliding: false, dir: 0, charge: 0, level: 0 });
+  kart.boost = 0;
+  kart.boostLevel = 0;
+  kart.mushroom = 0;
+  kart.slip = 0;
+  return true;
+}
+
 export function stepKart(kart, input, dt, track) {
+  const hit = kart.hit;
+  if (hit) input = { steer: 0, throttle: 0, drift: false };
   const steer = clamp(input.steer || 0, -1, 1);
   const throttle = clamp(input.throttle ?? 1, 0, 1);
-  const brake = clamp(input.brake || 0, 0, 1);
   const offroad = kart.surface === 'grass' || kart.surface === 'sand';
 
-  updateDrift(kart, input, steer, brake, offroad, dt);
+  updateDrift(kart, input, steer, offroad, dt);
   const sliding = kart.drift.sliding;
   const boostTop = kart.boostLevel > 0 ? DRIFT_BOOST_TOP[kart.boostLevel - 1] : BOOST_TOP;
-  const top = TOP_SPEED * (offroad ? OFFROAD_TOP : 1) * (kart.boost > 0 ? boostTop : 1);
+  const top = TOP_SPEED * (offroad && kart.mushroom <= 0 ? OFFROAD_TOP : 1) * (kart.boost > 0 ? boostTop : 1);
 
-  // Speed along the heading. Brake overrides throttle.
+  // Speed along the heading; it never goes negative.
   let v = kart.speed;
-  if (brake > 0) {
-    v = v > 0 ? Math.max(0, v - BRAKE * brake * dt) : Math.max(-REVERSE_TOP, v - BRAKE * 0.4 * brake * dt);
-  } else if (throttle > 0) {
-    if (v < 0) v = Math.min(0, v + BRAKE * dt);
-    else if (v < top) v = Math.min(top, v + (kart.boost > 0 ? BOOST_ACCEL_RATE : ACCEL_RATE) * throttle * (top * 1.05 - v) * dt);
+  if (throttle > 0) {
+    if (v < top) v = Math.min(top, v + (kart.boost > 0 ? BOOST_ACCEL_RATE : ACCEL_RATE) * throttle * (top * 1.05 - v) * dt);
   } else if (v !== 0) {
     const drag = (COAST_BASE + COAST_PROP * Math.abs(v)) * dt;
     v = Math.abs(v) <= drag ? 0 : v - Math.sign(v) * drag;
+  }
+  if (hit) {
+    const k = Math.exp(-HIT_DECAY * dt);
+    v *= k;
+    kart.vx *= k;
+    kart.vz *= k;
   }
   if (sliding) v = Math.max(0, v - DRIFT_DRAG * dt);
   if (v > top) v = Math.max(top, v - (OVERSPEED_DRAG + 2.5 * (v - top)) * dt);
@@ -210,7 +236,15 @@ export function stepKart(kart, input, dt, track) {
 
   // Boost pads. A pad never shortens a running boost; once it takes over the boost reads level 0.
   kart.boost = Math.max(0, kart.boost - dt);
-  for (const pad of track.boostPads) {
+  kart.mushroom = Math.max(0, kart.mushroom - dt);
+  if (hit) {
+    hit.t -= dt;
+    if (hit.t <= 0) {
+      kart.hit = null;
+      kart.invuln = HIT_INVULN;
+    }
+  } else kart.invuln = Math.max(0, kart.invuln - dt);
+  for (const pad of hit ? [] : track.boostPads) {
     let ds = kart.s - pad.s;
     ds -= track.length * Math.round(ds / track.length);
     if (Math.abs(ds) <= pad.length / 2 && Math.abs(kart.lateral - pad.lateral) <= pad.width / 2 + 0.5 && kart.boost < BOOST_TIME) {

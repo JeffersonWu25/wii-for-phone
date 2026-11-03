@@ -41,12 +41,14 @@ export const BOOST_PADS = [
 const PAD_LENGTH = 6;
 const PAD_WIDTH = 4;
 
-// Data only for the item system; nothing consumes these in v1.
+export const ITEM_ROW_LATERALS = [-4.5, -1.5, 1.5, 4.5];
+export const ITEM_ROWS = [
+  { piece: 'start', at: 80 },
+  { piece: 'back', at: 90 },
+].map((r) => ({ ...r, laterals: ITEM_ROW_LATERALS }));
+
+// Data only for the ramp; nothing consumes it yet.
 export const RESERVED = {
-  itemRows: [
-    { piece: 'short', at: 15, laterals: [-4, 0, 4] },
-    { piece: 'back', at: 90, laterals: [-4, 0, 4] },
-  ],
   ramps: [{ piece: 'back', at: 150, lateral: 0, length: 8, width: 6 }],
 };
 
@@ -436,7 +438,7 @@ export function buildTrack(pieces = PIECES) {
 
   const checkpoints = Array.from({ length: CHECKPOINT_COUNT }, (_, index) => ({ index, s: (index * length) / CHECKPOINT_COUNT }));
   const boostPads = BOOST_PADS.map((p) => ({ s: resolve(p.piece, p.at), lateral: p.lateral, length: PAD_LENGTH, width: PAD_WIDTH }));
-  const itemRows = RESERVED.itemRows.map((r) => ({ s: resolve(r.piece, r.at), laterals: r.laterals }));
+  const itemRows = ITEM_ROWS.map((r) => ({ s: resolve(r.piece, r.at), laterals: r.laterals }));
   const ramps = RESERVED.ramps.map((r) => ({ s: resolve(r.piece, r.at), lateral: r.lateral, length: r.length, width: r.width }));
 
   function gridSlots(n) {

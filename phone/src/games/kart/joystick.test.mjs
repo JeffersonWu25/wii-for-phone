@@ -5,17 +5,17 @@ import { stickFromOffset, clampToRadius } from './joystick.js';
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} !~ ${b}`);
 
 test('inside the radial dead zone gives zero for both axes', () => {
-  assert.deepEqual(stickFromOffset(0, 0, 100), { steer: 0, brake: 0 });
-  assert.deepEqual(stickFromOffset(11, 0, 100), { steer: 0, brake: 0 });
-  assert.deepEqual(stickFromOffset(8, 8, 100), { steer: 0, brake: 0 });
-  assert.deepEqual(stickFromOffset(0, 11, 100), { steer: 0, brake: 0 });
+  assert.deepEqual(stickFromOffset(0, 0, 100), { steer: 0, aimY: 0 });
+  assert.deepEqual(stickFromOffset(11, 0, 100), { steer: 0, aimY: 0 });
+  assert.deepEqual(stickFromOffset(8, 8, 100), { steer: 0, aimY: 0 });
+  assert.deepEqual(stickFromOffset(0, 11, 100), { steer: 0, aimY: 0 });
 });
 
 test('full sideways deflection and beyond clamps to +/-1', () => {
   close(stickFromOffset(100, 0, 100).steer, 1);
   close(stickFromOffset(500, 0, 100).steer, 1);
   close(stickFromOffset(-500, 0, 100).steer, -1);
-  assert.equal(stickFromOffset(500, 0, 100).brake, 0);
+  assert.equal(stickFromOffset(500, 0, 100).aimY, 0);
 });
 
 test('steer is continuous at the dead-zone edge and symmetric', () => {
@@ -24,22 +24,26 @@ test('steer is continuous at the dead-zone edge and symmetric', () => {
   close(stickFromOffset(56, 0, 100).steer, 0.5);
 });
 
-test('pushing up gives no brake', () => {
-  assert.equal(stickFromOffset(0, -100, 100).brake, 0);
-  assert.equal(stickFromOffset(0, -500, 100).brake, 0);
+test('pushing up gives negative aimY rescaled past the dead zone', () => {
+  close(stickFromOffset(0, -100, 100).aimY, -1);
+  close(stickFromOffset(0, -500, 100).aimY, -1);
+  close(stickFromOffset(0, -56, 100).aimY, -0.5);
+  assert.equal(stickFromOffset(0, -100, 100).steer, 0);
 });
 
-test('pushing down gives brake rescaled past the dead zone', () => {
-  close(stickFromOffset(0, 100, 100).brake, 1);
-  close(stickFromOffset(0, 500, 100).brake, 1);
-  close(stickFromOffset(0, 56, 100).brake, 0.5);
+test('pushing down gives positive aimY rescaled past the dead zone', () => {
+  close(stickFromOffset(0, 100, 100).aimY, 1);
+  close(stickFromOffset(0, 500, 100).aimY, 1);
+  close(stickFromOffset(0, 56, 100).aimY, 0.5);
   assert.equal(stickFromOffset(0, 100, 100).steer, 0);
 });
 
-test('diagonal gives both steer and brake', () => {
+test('diagonal gives both steer and aimY', () => {
   const s = stickFromOffset(-60, 60, 100);
-  assert.ok(s.steer < 0 && s.brake > 0);
-  close(s.brake, -s.steer);
+  assert.ok(s.steer < 0 && s.aimY > 0);
+  close(s.aimY, -s.steer);
+  const u = stickFromOffset(60, -60, 100);
+  assert.ok(u.steer > 0 && u.aimY < 0);
 });
 
 test('radial clamp: a far diagonal is limited to the circle, not the square', () => {
@@ -52,6 +56,6 @@ test('radial clamp: a far diagonal is limited to the circle, not the square', ()
 });
 
 test('invalid radius yields zero', () => {
-  assert.deepEqual(stickFromOffset(10, 10, 0), { steer: 0, brake: 0 });
-  assert.deepEqual(stickFromOffset(10, 10, NaN), { steer: 0, brake: 0 });
+  assert.deepEqual(stickFromOffset(10, 10, 0), { steer: 0, aimY: 0 });
+  assert.deepEqual(stickFromOffset(10, 10, NaN), { steer: 0, aimY: 0 });
 });
