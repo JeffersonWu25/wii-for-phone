@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Scene from './Scene.jsx';
 import { BowlingGame } from './BowlingGame.js';
-import FeelSettings from '../../shared/FeelSettings.jsx';
+import FeelSettings from './FeelSettings.jsx';
 import { launchFromMessage, parseThrow, rollReadout } from './launch.js';
 
 const RESET_DELAY_MS = 1500;
