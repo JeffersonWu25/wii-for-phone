@@ -125,6 +125,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     };
     window.__kartState = snapshot;
     window.__kartTrack = track;
+    window.__kartRace = race; // live race for the verify harness (read-only): events, entities
 
     // ── Loop ──────────────────────────────────────────────────────────────────
     let raf = 0;
@@ -242,6 +243,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       scene.dispose();
       delete window.__kartState;
       delete window.__kartTrack;
+      delete window.__kartRace;
     };
   // Mount-only: the race is built once from the lobby as it stands now.
   // eslint-disable-next-line react-hooks/exhaustive-deps
