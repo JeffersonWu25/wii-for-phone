@@ -6,6 +6,8 @@ import {
   buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, splitLayout, startTick, statusKey,
 } from './hud.js';
 import { Minimap, Pane } from './Hud.jsx';
+import KartSettings from './KartSettings.jsx';
+import { loadKartTuning } from './tuning.js';
 
 const STATUS_INTERVAL_MS = 250; // 4 Hz; the relay allows the host 60 msgs/s
 const HUD_INTERVAL_MS = 100;
@@ -27,6 +29,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
   const [results, setResults] = useState(null);
   const [map, setMap] = useState(null);
   const [layout, setLayout] = useState(null);
+  const [tuning, setTuning] = useState(loadKartTuning);
 
   const containerRef = useRef(null);
   const dotRefs = useRef({});
@@ -34,7 +37,9 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
   const disconnectedRef = useRef(disconnectedPlayerIds);
   const callbacks = useRef({});
   const resultsShownRef = useRef(false);
+  const tuningRef = useRef(tuning);
 
+  tuningRef.current = tuning;
   disconnectedRef.current = disconnectedPlayerIds;
   callbacks.current = { send, onGameOver, onAbandon };
 
@@ -165,7 +170,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       const kb = keyboardInput();
       if (kb) inputs[keyboardId] = kb;
 
-      stepRace(race, inputs, dt, track);
+      stepRace(race, inputs, dt, track, tuningRef.current);
       scene.update(race, dt);
 
       const lights = countdownLights(race);
@@ -241,6 +246,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       {map && (layout.map === 'quadrant'
         ? <div className="kart-map-quadrant"><Minimap map={map} dotRefs={dotRefs} /></div>
         : <Minimap map={map} dotRefs={dotRefs} />)}
+      <KartSettings tuning={tuning} onChange={setTuning} />
       <button className="kart-quit" onClick={onAbandon}>Quit</button>
       {results && (
         <div className="kart-results">

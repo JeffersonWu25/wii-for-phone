@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FEEL_CONTROLS, clampTuning, loadHostFeel, saveHostFeel } from '../../../phone/src/games/bowling/tuning.js';
+import { FEEL_CONTROLS, clampTuning, loadHostFeel, saveHostFeel } from '../../../../phone/src/games/bowling/tuning.js';
 
 export default function FeelSettings({ send, status }) {
   const [open, setOpen] = useState(false);
