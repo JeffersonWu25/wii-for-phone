@@ -102,6 +102,45 @@ export function itemState(kart) {
   };
 }
 
+// ── Item roulette ────────────────────────────────────────────────────────────
+
+export const ROULETTE_KINDS = ['mushroom', 'banana', 'green', 'red'];
+export const ROLL_TOTAL = 1.6;
+export const ROLL_TOTAL_STACKED = 1.9;
+const ROULETTE_FAST = 12; // icons per second
+const ROULETTE_SLOW = 0.6; // seconds of slow-down before landing
+const ROULETTE_END_RATE = 2;
+const BUMP_TIME = 0.25;
+const BUMP_PEAK = 1.25;
+
+// Icon shown `elapsed` s into a roll of `total` s: constant fast cycle, then a linear slow-down to a crawl.
+export function rouletteFrame(elapsed, total = ROLL_TOTAL, kinds = ROULETTE_KINDS) {
+  const t = Math.max(0, Math.min(elapsed, total));
+  const t0 = Math.max(0, total - ROULETTE_SLOW);
+  const d = t - t0;
+  const decel = (ROULETTE_FAST - ROULETTE_END_RATE) / ROULETTE_SLOW;
+  const pos = ROULETTE_FAST * Math.min(t, t0) + (d > 0 ? ROULETTE_FAST * d - 0.5 * decel * d * d : 0);
+  return kinds[Math.floor(pos) % kinds.length];
+}
+
+// 1 -> 1.25 -> 1 over BUMP_TIME after the icon lands; 1 outside the bump.
+export function landingScale(sinceLand) {
+  if (sinceLand < 0 || sinceLand >= BUMP_TIME) return 1;
+  return 1 + (BUMP_PEAK - 1) * Math.sin((Math.PI * sinceLand) / BUMP_TIME);
+}
+
+// Per-slot clock fed with each HUD snapshot: remembers when the slot started rolling and when it landed.
+export function nextSlotClock(clock, rolling, now, total = ROLL_TOTAL) {
+  if (rolling) return clock?.rolling ? clock : { rolling: true, since: now, total };
+  return clock?.rolling ? { rolling: false, since: now, landed: true } : clock ?? { rolling: false, since: -Infinity };
+}
+
+// What a slot shows at `now`: the cycling icon while rolling, else the landed kind (or empty), scaled by the bump.
+export function slotView(clock, kind, now) {
+  if (clock?.rolling) return { icon: rouletteFrame(now - clock.since, clock.total), scale: 1, rolling: true };
+  return { icon: kind ?? null, scale: kind && clock?.landed ? landingScale(now - clock.since) : 1, rolling: false };
+}
+
 export function buildStatus(race, cssById) {
   const players = {};
   for (const k of race.karts) {
@@ -112,6 +151,7 @@ export function buildStatus(race, cssById) {
       color: cssById[k.id],
       finished: k.finished,
       ...itemState(k),
+      hit: k.hit?.kind ?? null,
       incoming: race.entities.some((e) => e.kind === 'red' && e.target === k.id),
     };
   }
