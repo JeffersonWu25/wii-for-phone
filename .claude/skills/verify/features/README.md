@@ -43,7 +43,8 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Bowl a throw](./bowling-throw.md) covers starting Bowling, the phone's turn screen, a hold-and-release throw, the result, and the host scoreboard.
 - [Race Kart Racer](./kart-race.md) covers starting Kart Racer with two phones, the countdown, a full 3-lap drive steering with the real phone joystick (no GAS button, the kart drives itself), boost pads, the corridor wall without respawn, the results card, and returning to the hub.
 - [Kart Racer split screen](./kart-split.md) covers one view per racer for 1 to 4 players, the pane layout and per-pane HUD, the shared minimap, the cap at 4 racers, and karts moving from GO with no input.
-- [Kart drift](./kart-drift.md) covers the phone's stick, DRIFT and ITEM buttons: gas always on, the slide, charge levels 1 to 3, the boost on release, the brake cancel, reverse, and the ITEM tap that sends `use_item`.
+- [Kart drift](./kart-drift.md) covers the phone's stick, DRIFT and ITEM buttons: gas always on, the slide, charge levels 1 to 3, the boost on release, and the ITEM tap that sends `use_item`. The stick Y is item aim only (no brake or reverse).
+- [Kart items](./kart-items.md) covers item boxes: driving through the first box row, the phone ITEM button and TV slot roulette, the landed icon, tapping ITEM to use the item (mushroom boost, banana or shell entity), and the hit spin-out followed by invulnerability when it happens.
 
 ## Not mapped yet
 
