@@ -41,8 +41,9 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Join the lobby](./join-lobby.md) covers the host lobby and QR, the phone's name entry, empty and duplicate names, and players appearing on the host.
 - [Select a game](./select-game.md) covers the game hub, with Bowling and Kart Racer enabled and the unbuilt games disabled.
 - [Bowl a throw](./bowling-throw.md) covers starting Bowling, the phone's turn screen, a hold-and-release throw, the result, and the host scoreboard.
-- [Race Kart Racer](./kart-race.md) covers starting Kart Racer with two phones, the countdown, a full 3-lap drive with the real phone controls, boost pads, the corridor wall, the results card, and returning to the hub.
-- [Kart Racer split screen](./kart-split.md) covers one view per racer for 1 to 4 players, the pane layout and per-pane HUD, the shared minimap, and the cap at 4 racers.
+- [Race Kart Racer](./kart-race.md) covers starting Kart Racer with two phones, the countdown, a full 3-lap drive steering with the real phone joystick (no GAS button, the kart drives itself), boost pads, the corridor wall without respawn, the results card, and returning to the hub.
+- [Kart Racer split screen](./kart-split.md) covers one view per racer for 1 to 4 players, the pane layout and per-pane HUD, the shared minimap, the cap at 4 racers, and karts moving from GO with no input.
+- [Kart drift](./kart-drift.md) covers the phone's stick, DRIFT and ITEM buttons: gas always on, the slide, charge levels 1 to 3, the boost on release, the brake cancel, reverse, and the ITEM tap that sends `use_item`.
 
 ## Not mapped yet
 

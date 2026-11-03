@@ -3,12 +3,24 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { toonMat, blobShadowTexture } from './textures.js';
+import { createDriftSparks, updateDriftSparks, LEVEL_COLORS } from './driftSparks.js';
 
 const rbox = (w, h, d, r = 0.12) => new RoundedBoxGeometry(w, h, d, 3, r);
 let shadowMat;
+let flameGeo;
+
+// ── Drift pose ───────────────────────────────────────────────────────────────
+const DRIFT_YAW = 0.22; // rad, body turns this far into the slide on top of the physics heading
+const DRIFT_LEAN = 0.1; // rad, roll toward the outside of the turn
+const DRIFT_EASE = 9; // 1/s
+const FLAME_COLOR = 0xffa020; // boost pads and level 0
+const FLAME_SCALE = [1, 1.1, 1.25, 1.45]; // by boost level
+const IDLE_DRIFT = { sliding: false, dir: 0, charge: 0, level: 0 };
 
 export function createKartMesh(color) {
-  const group = new THREE.Group();
+  const root = new THREE.Group();
+  const group = new THREE.Group(); // visible body, yaws and leans into a drift
+  group.rotation.order = 'YXZ'; // yaw first, then lean about the turned axis
   const paint = toonMat({ color, rim: 0.4 });
   const white = toonMat({ color: 0xffffff, rim: 0.3 });
   const dark = toonMat({ color: 0x1b1c22, rim: 0.15 });
@@ -37,7 +49,8 @@ export function createKartMesh(color) {
   const flames = [];
   for (const z of [-0.25, 0.25]) {
     add(pipeGeo, grey, -1.4, 0.7, z);
-    const f = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.9, 8), new THREE.MeshBasicMaterial({ color: 0xffa020 }));
+    flameGeo ??= new THREE.ConeGeometry(0.14, 0.9, 8);
+    const f = new THREE.Mesh(flameGeo, new THREE.MeshBasicMaterial({ color: FLAME_COLOR }));
     f.rotation.z = Math.PI / 2;
     f.position.set(-1.95, 0.7, z);
     f.visible = false;
@@ -95,21 +108,37 @@ export function createKartMesh(color) {
   blob.rotation.x = -Math.PI / 2;
   blob.position.y = 0.05;
   blob.renderOrder = 2;
-  group.add(blob);
+  root.add(blob, group);
 
-  group.userData = { tires, pivots, driver, flames };
-  return group;
+  const sparks = createDriftSparks();
+  group.add(sparks.group);
+
+  root.userData = { body: group, tires, pivots, driver, flames, sparks, driftVis: 0, flameLevel: -1 };
+  return root;
 }
 
 export function updateKartMesh(mesh, kart, dt) {
-  const { tires, pivots, driver, flames } = mesh.userData;
+  const ud = mesh.userData;
+  const { body, tires, pivots, driver, flames, sparks } = ud;
   for (const t of tires) t.tire.rotation.z -= (kart.speed / t.r) * dt;
   for (const p of pivots) p.rotation.y = -kart.steerVis * 0.5;
   driver.rotation.x = -kart.steerVis * 0.18;
   driver.rotation.z = Math.min(0.1, kart.speed * 0.004);
+
+  const drift = kart.drift ?? IDLE_DRIFT;
+  ud.driftVis += ((drift.sliding ? drift.dir : 0) - ud.driftVis) * (1 - Math.exp(-DRIFT_EASE * dt));
+  body.rotation.y = -ud.driftVis * DRIFT_YAW;
+  body.rotation.x = -ud.driftVis * DRIFT_LEAN;
+  updateDriftSparks(sparks, drift, dt);
+
   const boosting = kart.boost > 0;
+  const level = kart.boostLevel ?? 0;
+  if (boosting && level !== ud.flameLevel) {
+    ud.flameLevel = level;
+    for (const f of flames) f.material.color.setHex(level > 0 ? LEVEL_COLORS[level] : FLAME_COLOR);
+  }
   for (const f of flames) {
     f.visible = boosting;
-    if (boosting) f.scale.set(1 + Math.random() * 0.5, 1, 1);
+    if (boosting) f.scale.set((1 + Math.random() * 0.5) * FLAME_SCALE[level], FLAME_SCALE[level], FLAME_SCALE[level]);
   }
 }

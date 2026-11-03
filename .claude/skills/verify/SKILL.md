@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Drive the Wii Bowling web app (host TV screen in host/, phone controller in phone/, and the relay in relay/) to prove the lobby join, game selection, a bowling throw, and a full Kart Racer race, using real Chrome and real WebSocket traffic. Use after changes to host, phone, or relay, or when asked to prove a user-facing flow works.
+description: Drive the Wii Bowling web app (host TV screen in host/, phone controller in phone/, and the relay in relay/) to prove the lobby join, game selection, a bowling throw, a full Kart Racer race, and the Kart Racer drift controls, using real Chrome and real WebSocket traffic. Use after changes to host, phone, or relay, or when asked to prove a user-facing flow works.
 ---
 
 # Verify Wii Bowling
@@ -57,6 +57,7 @@ node .claude/skills/verify/scripts/drive.mjs select-game
 node .claude/skills/verify/scripts/drive.mjs bowling-throw
 node .claude/skills/verify/scripts/drive.mjs kart-race   # about 2.5 minutes
 node .claude/skills/verify/scripts/drive.mjs kart-split  # about 2 minutes
+node .claude/skills/verify/scripts/drive.mjs kart-drift  # about 1.5 minutes
 ```
 
 Set `HEADED=1` to watch it run. Exit 0 means every check passed. Each check prints `PASS` or `FAIL` with the observed value.
@@ -70,7 +71,7 @@ Stable handles, from the source:
 - Phone: `#screen-permission` and `#btn-permission` (motion permission), `#screen-name`, `#input-name`, `#btn-join`, `.input-error`, `#screen-waiting` and `#waiting-label`.
 - Phone bowling: `#screen-bowl`, `#btn-bowl` (hold for a throw), `#screen-result`.
 - Host bowling scoreboard: `.scoreboard-player`, `.roll-cell`.
-- Phone kart: `#screen-kart`, `#kart-zone` (joystick area), `#kart-joystick`, `#btn-gas`, `#kart-finish`. Host kart: `.kart-canvas canvas`, `.kart-app[data-players]`, `.kart-pane[data-slot][data-side]` (with `.kart-item-slot.main` and `.reserve`, `.kart-coins`, `.kart-lapcount`, `.kart-place`), `.kart-minimap` with `.kart-map-marker`, `.kart-map-quadrant`, `.kart-results`, `.kart-countdown` (one per pane, read `.first()`); debug reads `window.__kartState` and `window.__kartTrack`.
+- Phone kart: `#screen-kart`, `#kart-zone` (free stick: X steers, down brakes then reverses), `#kart-joystick`, `#kart-knob`, `#btn-drift` (hold), `#btn-item` (tap, sends `use_item`), `#kart-finish`. There is no GAS button; the kart always accelerates. Host kart: `.kart-canvas canvas`, `.kart-app[data-players]`, `.kart-pane[data-slot][data-side]` (with `.kart-item-slot.main` and `.reserve`, `.kart-coins`, `.kart-lapcount`, `.kart-place`), `.kart-minimap` with `.kart-map-marker`, `.kart-map-quadrant`, `.kart-results`, `.kart-countdown` (one per pane, read `.first()`); debug reads `window.__kartState` (each kart also carries `vx`, `vz`, `boost`, `boostLevel` and `drift = { sliding, dir, charge, level }`) and `window.__kartTrack`.
 
 Motion permission: Chrome on desktop exposes `DeviceMotionEvent.requestPermission`, so the controller opens on the permission screen. The driver clicks the real button, and Chrome grants it. This is not a stub. The iOS Safari grant path is not exercised here.
 
@@ -82,6 +83,7 @@ Each run writes to `artifacts/<feature-id>/`:
 
 - `result.json`: `passed`, the list of checks with observed values, `error` if the run threw, and `finishedAt`.
 - `frames.jsonl`: every relay frame, in both directions, tagged with the page (`host`, `phone:<name>`). This is the side-effect proof. A throw is proven by the phone's outbound `throw` frame, the host's inbound `throw` frame, and the phone's inbound `throw_result`.
+- `drift-summary.json` and `drift-trace.jsonl` (kart-drift only): the per-drift record and one controller sample per line.
 - `<step>.png` and `<step>.aria.txt`: a screenshot and the accessibility snapshot of each captured state. The screenshot shows the screen title.
 - `relay.log.txt` (join-lobby only): the relay log lines for this run's joins.
 - `failure.png`: the host screen at the moment a feature threw.

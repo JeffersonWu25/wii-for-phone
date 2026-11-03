@@ -34,7 +34,7 @@ test('countdown freezes the karts for 3 s, then racing starts', () => {
   const start = race.karts.map((k) => [k.x, k.z]);
   let t = 0;
   while (race.phase === 'countdown') {
-    stepRace(race, { a: { steer: 0, gas: true } }, DT, track);
+    stepRace(race, { a: { steer: 0 } }, DT, track);
     t += DT;
     if (race.phase === 'countdown') assert.equal(race.karts[0].speed, 0);
   }
@@ -42,7 +42,7 @@ test('countdown freezes the karts for 3 s, then racing starts', () => {
   assert.equal(race.phase, 'racing');
   assert.ok(race.goTimer > 0);
   race.karts.forEach((k, i) => assert.deepEqual([k.x, k.z], start[i]));
-  stepRace(race, { a: { steer: 0, gas: true } }, DT, track);
+  stepRace(race, { a: { steer: 0 } }, DT, track);
   assert.ok(race.karts[0].speed > 0);
 });
 
@@ -82,29 +82,54 @@ test('wrong-way driving is flagged after a second', () => {
   kart.vx = Math.cos(kart.h) * 5;
   kart.vz = Math.sin(kart.h) * 5;
   kart.speed = 5;
-  for (let i = 0; i < 40; i++) stepRace(race, { a: { steer: 0, gas: true } }, DT, track);
+  for (let i = 0; i < 40; i++) stepRace(race, { a: { steer: 0 } }, DT, track);
   assert.equal(kart.wrongWay, false);
-  for (let i = 0; i < 60; i++) stepRace(race, { a: { steer: 0, gas: true } }, DT, track);
+  for (let i = 0; i < 60; i++) stepRace(race, { a: { steer: 0 } }, DT, track);
   assert.equal(kart.wrongWay, true);
 });
 
-test('a stuck kart respawns at its last checkpoint', () => {
+test('a stuck kart stays where it is: no respawn', () => {
   const race = startRace([ENTRANTS[0]]);
   const kart = race.karts[0];
   for (let i = 0; i < 60 * 12; i++) stepRace(race, autopilotInputs(race), DT, track);
-  assert.ok(kart.lastCheckpointIndex >= 1);
-  const gateS = track.checkpoints[kart.lastCheckpointIndex].s;
   // Pin the kart against the right wall facing it.
   const fr = track.frameAt(kart.s);
   const lim = track.surfaceAt(kart.s, 0).limitR - 0.9;
   Object.assign(kart, { x: fr.x + fr.rx * lim, z: fr.z + fr.rz * lim, h: Math.atan2(fr.rz, fr.rx), speed: 0, vx: 0, vz: 0, s: fr.s });
-  let respawned = false;
-  for (let i = 0; i < 60 * 6 && !respawned; i++) {
-    stepRace(race, { a: { steer: 0, gas: true } }, DT, track);
-    if (Math.abs(kart.speed) < 1e-9 && kart.stuckTime === 0 && Math.abs(kart.s - gateS) < 1) respawned = true;
+  for (let i = 0; i < 60 * 6; i++) stepRace(race, { a: { steer: 0 } }, DT, track);
+  assert.ok(kart.lateral > lim - 1, `lateral ${kart.lateral}`);
+  assert.ok(Math.abs(kart.s - fr.s) < 5, `s moved ${kart.s - fr.s}`);
+});
+
+test('driving the wrong way keeps the flag and never respawns', () => {
+  const race = startRace([ENTRANTS[0]]);
+  const kart = race.karts[0];
+  for (let i = 0; i < 60 * 8; i++) stepRace(race, autopilotInputs(race), DT, track);
+  kart.h += Math.PI;
+  kart.vx = Math.cos(kart.h) * 5;
+  kart.vz = Math.sin(kart.h) * 5;
+  kart.speed = 5;
+  let flagged = false;
+  let jumped = false;
+  let prev = kart.s;
+  for (let i = 0; i < 60 * 8; i++) {
+    stepRace(race, { a: { steer: 0 } }, DT, track);
+    if (kart.wrongWay) flagged = true;
+    if (Math.abs(kart.s - prev) > 2) jumped = true;
+    prev = kart.s;
   }
-  assert.ok(respawned, 'kart should be back at the checkpoint');
-  assert.ok(Math.abs(kart.lateral) < 1e-6);
+  assert.ok(flagged, 'wrong-way flag should have shown');
+  assert.ok(!jumped, 'kart should never be teleported');
+});
+
+test('finished karts coast to a stop', () => {
+  const race = startRace([ENTRANTS[0], ENTRANTS[1]]);
+  const [a, b] = race.karts;
+  for (let i = 0; i < 60 * 3; i++) stepRace(race, autopilotInputs(race), DT, track);
+  a.finished = true;
+  const v0 = a.speed;
+  for (let i = 0; i < 60; i++) stepRace(race, { a: { steer: 0 }, b: { steer: 0 } }, DT, track);
+  assert.ok(a.speed < v0 - 2 && b.speed > a.speed, `a ${a.speed} b ${b.speed}`);
 });
 
 test('standings order karts by progress', () => {
@@ -112,7 +137,7 @@ test('standings order karts by progress', () => {
   const lead = race.karts[3];
   for (let i = 0; i < 60 * 8; i++) {
     const inputs = autopilotInputs(race);
-    for (const k of race.karts) if (k !== lead) inputs[k.id] = { steer: 0, gas: false };
+    for (const k of race.karts) if (k !== lead) inputs[k.id] = { steer: 0, throttle: 0 };
     stepRace(race, inputs, DT, track);
   }
   assert.equal(race.standings[0], lead.id);

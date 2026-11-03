@@ -14,7 +14,11 @@ const MAP_LONG = 260;
 const MAP_SHORT = 150;
 const MAX_RACERS = 4;
 const DEBUG_ENTRANT = { id: 'debug', name: 'Debug' };
-const DRIVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
+// The kart always accelerates: a racer with no phone input yet still drives, a disconnected one coasts.
+const IDLE = { steer: 0, brake: 0, drift: false };
+const COAST = { steer: 0, brake: 0, drift: false, throttle: 0 };
+const PHONE_STALE_MS = 500; // a phone that stops streaming (backgrounded tab) falls back to IDLE
+const DRIVE_KEYS = ['ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'];
 
 // Self-contained Kart Racer host component. Props mirror BowlingApp.
 export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon }) {
@@ -72,7 +76,9 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       if (msg.type !== 'drive' || !cssById[msg.playerId]) return;
       phoneInputs[msg.playerId] = {
         steer: Math.max(-1, Math.min(1, Number(msg.steer) || 0)),
-        gas: msg.gas === true,
+        brake: Math.max(0, Math.min(1, Number(msg.brake) || 0)),
+        drift: msg.drift === true,
+        at: performance.now(),
       };
     }
     ws?.addEventListener('message', onMessage);
@@ -99,8 +105,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       if (!keys.size) return null;
       return {
         steer: (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0),
-        gas: keys.has('ArrowUp') || keys.has('KeyW'),
-        brake: keys.has('ArrowDown') || keys.has('KeyS'),
+        brake: keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0,
+        drift: keys.has('Space') || keys.has('ShiftLeft') || keys.has('ShiftRight'),
       };
     }
 
@@ -153,7 +159,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       last = now;
 
       for (const k of race.karts) {
-        inputs[k.id] = disconnectedRef.current.has(k.id) ? { steer: 0, gas: false } : phoneInputs[k.id] ?? { steer: 0, gas: false };
+        const phone = phoneInputs[k.id];
+        inputs[k.id] = disconnectedRef.current.has(k.id) ? COAST : phone && now - phone.at < PHONE_STALE_MS ? phone : IDLE;
       }
       const kb = keyboardInput();
       if (kb) inputs[keyboardId] = kb;
@@ -189,6 +196,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
         o.x = k.x; o.y = k.y; o.z = k.z;
         o.speed = k.speed; o.lap = k.lap; o.place = k.place; o.finished = k.finished;
         o.surface = k.surface; o.wrongWay = k.wrongWay; o.nextCheckpoint = k.nextCheckpoint;
+        o.vx = k.vx; o.vz = k.vz; o.boost = k.boost; o.boostLevel = k.boostLevel;
+        o.drift = Object.assign(o.drift ?? {}, k.drift);
       });
 
       publish(now);

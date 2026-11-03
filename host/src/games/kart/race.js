@@ -1,4 +1,4 @@
-// Race state machine — pure. Steps karts, tracks checkpoints / laps, standings, respawns.
+// Race state machine — pure. Steps karts, tracks checkpoints / laps, standings, wrong-way flag.
 import { createKart, stepKart, resolveKartCollisions } from './physics.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -8,12 +8,9 @@ export const COUNTDOWN_SECONDS = 3;
 export const GO_SECONDS = 1;
 export const FINISH_GRACE = 30; // s after the first finisher before the race ends
 const MAX_DT = 0.05;
-const MAX_JUMP = 20; // m of s change per step still treated as driving, not teleporting
+const MAX_JUMP = 20; // m of s change per step still treated as driving; more is a projection glitch
 const WRONG_WAY_DOT = -0.3;
 const WRONG_WAY_SHOW = 1; // s
-const WRONG_WAY_RESPAWN = 6; // s
-const STUCK_SPEED = 1;
-const STUCK_RESPAWN = 3; // s
 
 export function formatTime(sec) {
   const total = Math.max(0, Math.round(sec * 100));
@@ -33,7 +30,6 @@ export function createRace(track, entrants) {
     lap: 0, // completed laps
     started: false, // crossed the line once
     nextCheckpoint: 0,
-    lastCheckpointIndex: 0,
     lapStart: 0,
     lapTimes: [],
     finished: false,
@@ -41,7 +37,6 @@ export function createRace(track, entrants) {
     place: i + 1,
     wrongWay: false,
     wrongWayTime: 0,
-    stuckTime: 0,
     progress: slots[i].s - track.length,
   }));
   return {
@@ -76,20 +71,18 @@ export function stepRace(race, inputsById, dt, track) {
   race.time += dt;
   race.goTimer = Math.max(0, race.goTimer - dt);
 
-  const moved = [];
+  const prevS = [];
   for (const kart of race.karts) {
     const input = inputsById?.[kart.id] ?? {};
-    const prevS = kart.s;
-    stepKart(kart, kart.finished ? { steer: 0, gas: false } : input, dt, track);
-    moved.push(prevS);
+    prevS.push(kart.s);
+    stepKart(kart, kart.finished ? { steer: 0, throttle: 0 } : input, dt, track);
   }
   resolveKartCollisions(race.karts);
 
   race.karts.forEach((kart, i) => {
     if (kart.finished) return;
-    const input = inputsById?.[kart.id] ?? {};
-    trackProgress(race, kart, moved[i], track);
-    watchKart(race, kart, !!input.gas, dt, track);
+    trackProgress(race, kart, prevS[i], track);
+    watchWrongWay(kart, dt, track);
   });
 
   updateStandings(race);
@@ -109,7 +102,7 @@ function forwardDelta(track, from, to) {
 
 function trackProgress(race, kart, prevS, track) {
   const delta = forwardDelta(track, prevS, kart.s);
-  if (Math.abs(delta) > MAX_JUMP) return; // respawn or teleport: no gates, no progress
+  if (Math.abs(delta) > MAX_JUMP) return; // not a real move: no gates, no progress
   kart.progress += delta;
   if (delta <= 0) return;
 
@@ -118,7 +111,6 @@ function trackProgress(race, kart, prevS, track) {
   if (d1 === 0) d1 = track.length;
   if (d1 > delta) return;
 
-  kart.lastCheckpointIndex = gate.index;
   kart.nextCheckpoint = (gate.index + 1) % track.checkpoints.length;
   if (gate.index !== 0) return;
   if (!kart.started) {
@@ -136,39 +128,12 @@ function trackProgress(race, kart, prevS, track) {
   }
 }
 
-function watchKart(race, kart, gasHeld, dt, track) {
+function watchWrongWay(kart, dt, track) {
   const fr = track.frameAt(kart.s);
   const dot = Math.cos(kart.h) * fr.fx + Math.sin(kart.h) * fr.fz;
   if (Math.abs(kart.speed) > 1 && dot < WRONG_WAY_DOT) kart.wrongWayTime += dt;
   else kart.wrongWayTime = 0;
   kart.wrongWay = kart.wrongWayTime > WRONG_WAY_SHOW;
-
-  if (gasHeld && kart.speed < STUCK_SPEED) kart.stuckTime += dt;
-  else kart.stuckTime = 0;
-
-  if (kart.stuckTime > STUCK_RESPAWN || kart.wrongWayTime > WRONG_WAY_RESPAWN) respawn(kart, track);
-}
-
-function respawn(kart, track) {
-  const gate = track.checkpoints[kart.lastCheckpointIndex];
-  // Before the first crossing, the line itself is still ahead of the kart.
-  const behindLine = gate.index === 0 && !kart.started;
-  const s = behindLine ? track.length - 2 : gate.s;
-  const fr = track.frameAt(s);
-  kart.x = fr.x;
-  kart.z = fr.z;
-  kart.h = fr.h;
-  kart.s = fr.s;
-  kart.lateral = 0;
-  kart.y = track.heightAt(fr.s, 0);
-  kart.speed = 0;
-  kart.vx = 0;
-  kart.vz = 0;
-  kart.boost = 0;
-  kart.wrongWayTime = 0;
-  kart.wrongWay = false;
-  kart.stuckTime = 0;
-  kart.progress = behindLine ? -2 : kart.lap * track.length + gate.s;
 }
 
 function updateStandings(race) {
