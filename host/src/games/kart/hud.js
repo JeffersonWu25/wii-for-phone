@@ -89,6 +89,19 @@ export function startTick(project, sample, half = 6) {
 
 // ── Relay payloads ───────────────────────────────────────────────────────────
 
+// Slot kinds only once the roll has landed; `rolling` flags a slot still spinning.
+export function itemState(kart) {
+  const { main, reserve, rollMain, rollReserve } = kart.item;
+  return {
+    item: {
+      main: main && rollMain <= 0 ? main : null,
+      reserve: reserve && rollReserve <= 0 ? reserve : null,
+      rolling: !!main && rollMain > 0,
+      rollingReserve: !!reserve && rollReserve > 0,
+    },
+  };
+}
+
 export function buildStatus(race, cssById) {
   const players = {};
   for (const k of race.karts) {
@@ -98,6 +111,8 @@ export function buildStatus(race, cssById) {
       place: k.place,
       color: cssById[k.id],
       finished: k.finished,
+      ...itemState(k),
+      incoming: race.entities.some((e) => e.kind === 'red' && e.target === k.id),
     };
   }
   return { type: 'kart_status', phase: race.phase, players };

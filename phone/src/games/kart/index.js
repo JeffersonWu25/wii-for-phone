@@ -1,6 +1,6 @@
-// Kart Racer phone controller: landscape free stick (X steers, pushing down brakes),
+// Kart Racer phone controller: landscape free stick (X steers, Y aims thrown items),
 // a hold DRIFT button and a placeholder USE ITEM button. The kart accelerates on its own.
-// Sends { type:'drive', steer, brake, drift } at 20 Hz and { type:'use_item' } on tap.
+// Sends { type:'drive', steer, aimY, drift } at 20 Hz and { type:'use_item' } on tap.
 // Exported mount(app, sendMsg, myPlayerId) returns { onMessage, onMotion, unmount }.
 
 import { stickFromOffset, clampToRadius } from './joystick.js';
@@ -14,7 +14,7 @@ const placeLabel = (n) => PLACES[n - 1] ?? `${n}th`;
 export function mount(app, sendMsg, myPlayerId) {
   // ── State ───────────────────────────────────────────────────────────────────
   let steer = 0;
-  let brake = 0;
+  let aimY = 0;
   let drift = false;
   let steerPointer = null;
   let driftPointer = null;
@@ -51,7 +51,7 @@ export function mount(app, sendMsg, myPlayerId) {
   // ── Drive output ────────────────────────────────────────────────────────────
   const round2 = (v) => Math.round(v * 100) / 100 || 0;
   function sendDrive() {
-    sendMsg({ type: 'drive', steer: round2(steer), brake: round2(brake), drift });
+    sendMsg({ type: 'drive', steer: round2(steer), aimY: round2(aimY), drift });
   }
 
   // ── Joystick ────────────────────────────────────────────────────────────────
@@ -61,16 +61,16 @@ export function mount(app, sendMsg, myPlayerId) {
   let radius = 60; // travel of the knob centre; set from the base on touch
   function moveStick(clientX, clientY) {
     const { x, y } = clampToRadius(clientX - baseCx, clientY - baseCy, radius);
-    ({ steer, brake } = stickFromOffset(x, y, radius, DEAD_ZONE));
+    ({ steer, aimY } = stickFromOffset(x, y, radius, DEAD_ZONE));
     knob.style.transform = `translate(${x}px, ${y}px)`;
   }
   function releaseStick() {
     steerPointer = null;
     steer = 0;
-    brake = 0;
+    aimY = 0;
     knob.style.transition = 'transform 0.12s ease-out';
     knob.style.transform = 'translate(0, 0)';
-    sendDrive(); // let go of brake and steer now, not on the next tick
+    sendDrive(); // let go of aim and steer now, not on the next tick
     base.style.left = '50%';
     base.style.top = '50%';
   }

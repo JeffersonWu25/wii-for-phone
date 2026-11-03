@@ -84,9 +84,10 @@ function fakeRace() {
   return {
     phase: 'racing',
     laps: 3,
+    entities: [],
     karts: [
-      { id: 'a', name: 'Ada', lap: 0, place: 2, finished: false, finishTime: null, lapTimes: [] },
-      { id: 'b', name: 'Bo', lap: 3, place: 1, finished: true, finishTime: 123.4, lapTimes: [45, 40, 38.4] },
+      { id: 'a', name: 'Ada', lap: 0, place: 2, finished: false, finishTime: null, lapTimes: [], item: { main: null, reserve: null, rollMain: 0, rollReserve: 0 } },
+      { id: 'b', name: 'Bo', lap: 3, place: 1, finished: true, finishTime: 123.4, lapTimes: [45, 40, 38.4], item: { main: 'green', reserve: 'red', rollMain: 0.5, rollReserve: 0 } },
     ],
   };
 }
@@ -96,7 +97,10 @@ test('status payload shows the current 1-based lap, capped at the lap count', ()
   const s = buildStatus(fakeRace(), css);
   assert.equal(s.type, 'kart_status');
   assert.equal(s.phase, 'racing');
-  assert.deepEqual(s.players.a, { lap: 1, laps: 3, place: 2, color: '#111111', finished: false });
+  assert.deepEqual(s.players.a, {
+    lap: 1, laps: 3, place: 2, color: '#111111', finished: false,
+    item: { main: null, reserve: null, rolling: false, rollingReserve: false }, incoming: false,
+  });
   assert.equal(s.players.b.lap, 3);
   assert.equal(statusKey(s), statusKey(buildStatus(fakeRace(), css)));
   const moved = fakeRace();
@@ -112,4 +116,14 @@ test('results are ordered by place with DNF as null time', () => {
   assert.deepEqual(results[0], { playerId: 'b', name: 'Bo', place: 1, time: 123.4, color: '#222222', bestLap: 38.4 });
   assert.equal(results[1].time, null);
   assert.equal(results[1].bestLap, null);
+});
+
+test('item status hides rolling kinds and flags the roll; incoming follows a red shell target', () => {
+  const race = fakeRace();
+  const css = { a: '#111111', b: '#222222' };
+  assert.deepEqual(buildStatus(race, css).players.b.item, { main: null, reserve: 'red', rolling: true, rollingReserve: false });
+  race.entities = [{ kind: 'green', target: 'a' }, { kind: 'red', target: 'a' }];
+  const s = buildStatus(race, css);
+  assert.equal(s.players.a.incoming, true);
+  assert.equal(s.players.b.incoming, false);
 });
