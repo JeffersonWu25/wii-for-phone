@@ -24,3 +24,7 @@ npm-debug.log*
 
 # Verification instance scratch (artifacts under .claude/skills/verify/artifacts are kept)
 .claude/skills/verify/run/
+
+# Orchestrate run logs and PR screenshots (local only)
+.claude/runs/
+docs/pr-screenshots/
