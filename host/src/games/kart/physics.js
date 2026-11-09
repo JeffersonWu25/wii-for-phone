@@ -80,19 +80,22 @@ export function createKart({ id, color, slot } = {}) {
   };
 }
 
+export const DEFAULT_TUNING = { speed: 1, turn: 1, driftTurn: 1, driftLevel: 1, driftBoost: 1 };
+
 // Slide state machine. A slide needs drift held plus enough steer and speed; the direction locks
 // at the start. Charging pauses off-road, a wall hit only costs speed. Releasing the button at
 // level 1+ grants the boost; running out of speed grants nothing. Holding drift after that
 // starts a new slide once the conditions hold again.
-function updateDrift(kart, input, steer, offroad, dt) {
+function updateDrift(kart, input, steer, offroad, dt, tune) {
   const d = kart.drift;
   const held = !!input.drift;
   if (d.sliding) {
     const released = !held;
     // The release only takes over when it outlasts the boost already running, so a weak release
     // never cuts short or recolors a stronger one.
-    if (released && kart.speed >= DRIFT_MIN_SPEED && d.level >= 1 && DRIFT_BOOST_TIME[d.level - 1] >= kart.boost) {
-      kart.boost = DRIFT_BOOST_TIME[d.level - 1];
+    const boostTime = DRIFT_BOOST_TIME[d.level - 1] * tune.driftBoost;
+    if (released && kart.speed >= DRIFT_MIN_SPEED && d.level >= 1 && boostTime >= kart.boost) {
+      kart.boost = boostTime;
       kart.boostLevel = d.level;
     }
     if (released || kart.speed < DRIFT_MIN_SPEED) Object.assign(d, { sliding: false, dir: 0, charge: 0, level: 0 });
@@ -103,15 +106,15 @@ function updateDrift(kart, input, steer, offroad, dt) {
   }
   if (!d.sliding) return;
   if (!offroad) d.charge += dt;
-  d.level = DRIFT_LEVEL_TIMES.filter((t) => d.charge >= t).length;
+  d.level = DRIFT_LEVEL_TIMES.filter((t) => d.charge * tune.driftLevel >= t).length;
 }
 
 // Slide: the travel direction swings into the turn, the body points past it by the slip angle.
-function slideHeading(kart, steer, v, dt) {
+function slideHeading(kart, steer, v, dt, tune) {
   const { dir } = kart.drift;
   const moving = Math.hypot(kart.vx, kart.vz) > 0.5;
   let travel = moving ? Math.atan2(kart.vz, kart.vx) : kart.h - kart.slip;
-  travel += dir * Math.max(DRIFT_TURN_MIN, DRIFT_TURN * (1 + DRIFT_STEER_MOD * steer * dir)) * dt;
+  travel += dir * Math.max(DRIFT_TURN_MIN, DRIFT_TURN * tune.driftTurn * (1 + DRIFT_STEER_MOD * steer * dir)) * dt;
   kart.slip += (dir * DRIFT_SLIP - kart.slip) * (1 - Math.exp(-DRIFT_SLIP_IN * dt));
   kart.h = travel + kart.slip;
   kart.vx = Math.cos(travel) * v;
@@ -120,8 +123,8 @@ function slideHeading(kart, steer, v, dt) {
 
 // Grip: steer the heading, ease out leftover slip, let the velocity vector lag the heading.
 // Returns the forward speed after slip scrub.
-function gripHeading(kart, steer, v, offroad, dt) {
-  const turn = (TURN_RATE / (1 + (Math.abs(v) / TURN_FALLOFF) ** 2)) * Math.min(1, Math.abs(v) / 3);
+function gripHeading(kart, steer, v, offroad, dt, tune) {
+  const turn = (TURN_RATE * tune.turn / (1 + (Math.abs(v) / TURN_FALLOFF) ** 2)) * Math.min(1, Math.abs(v) / 3);
   kart.h += steer * turn * Math.sign(v) * dt;
   if (kart.slip !== 0) {
     const eased = Math.abs(kart.slip) < 0.005 ? 0 : kart.slip * Math.exp(-DRIFT_SLIP_OUT * dt);
@@ -153,17 +156,17 @@ export function applyHit(kart, kind) {
   return true;
 }
 
-export function stepKart(kart, input, dt, track) {
+export function stepKart(kart, input, dt, track, tune = DEFAULT_TUNING) {
   const hit = kart.hit;
   if (hit) input = { steer: 0, throttle: 0, drift: false };
   const steer = clamp(input.steer || 0, -1, 1);
   const throttle = clamp(input.throttle ?? 1, 0, 1);
   const offroad = kart.surface === 'grass' || kart.surface === 'sand';
 
-  updateDrift(kart, input, steer, offroad, dt);
+  updateDrift(kart, input, steer, offroad, dt, tune);
   const sliding = kart.drift.sliding;
   const boostTop = kart.boostLevel > 0 ? DRIFT_BOOST_TOP[kart.boostLevel - 1] : BOOST_TOP;
-  const top = TOP_SPEED * (offroad && kart.mushroom <= 0 ? OFFROAD_TOP : 1) * (kart.boost > 0 ? boostTop : 1);
+  const top = TOP_SPEED * tune.speed * (offroad && kart.mushroom <= 0 ? OFFROAD_TOP : 1) * (kart.boost > 0 ? boostTop : 1);
 
   // Speed along the heading; it never goes negative.
   let v = kart.speed;
@@ -183,8 +186,8 @@ export function stepKart(kart, input, dt, track) {
   if (v > top) v = Math.max(top, v - (OVERSPEED_DRAG + 2.5 * (v - top)) * dt);
   kart.steerVis += (steer - kart.steerVis) * (1 - Math.exp(-10 * dt));
 
-  if (sliding) slideHeading(kart, steer, v, dt);
-  else v = gripHeading(kart, steer, v, offroad, dt);
+  if (sliding) slideHeading(kart, steer, v, dt, tune);
+  else v = gripHeading(kart, steer, v, offroad, dt, tune);
   kart.speed = v;
 
   kart.x += kart.vx * dt;

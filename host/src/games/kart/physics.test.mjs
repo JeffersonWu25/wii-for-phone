@@ -408,3 +408,17 @@ test('a drift can follow a gentle R85 arc at 20 m/s without turning faster than 
   assert.equal(kart.drift.sliding, true);
   assert.ok(kart.speed > 16);
 });
+
+test('tuning: speed scales the top speed, drift boost scales the boost time', () => {
+  const base = kartAt(10);
+  const fast = kartAt(10);
+  for (let i = 0; i < 60 * 4; i++) {
+    stepKart(base, { steer: 0 }, DT, track);
+    stepKart(fast, { steer: 0 }, DT, track, { speed: 1.3, turn: 1, driftTurn: 1, driftLevel: 1, driftBoost: 1 });
+  }
+  assert.ok(fast.speed > base.speed * 1.2, `speed ${fast.speed} vs ${base.speed}`);
+
+  const boosted = kartAt(10, 0, { speed: 15, drift: { sliding: true, dir: 1, charge: 1.5, level: 1 } });
+  stepKart(boosted, { steer: 0, drift: false }, DT, track, { speed: 1, turn: 1, driftTurn: 1, driftLevel: 1, driftBoost: 2 });
+  assert.ok(Math.abs(boosted.boost - 1.4) < 0.1, `boost ${boosted.boost}`);
+});

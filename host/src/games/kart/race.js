@@ -64,7 +64,7 @@ export function createRace(track, entrants, { seed = 1 } = {}) {
 
 // ── Step ─────────────────────────────────────────────────────────────────────
 
-export function stepRace(race, inputsById, dt, track) {
+export function stepRace(race, inputsById, dt, track, tune) {
   dt = Math.min(dt, MAX_DT);
   if (race.phase === 'finished') return;
 
