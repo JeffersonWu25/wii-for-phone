@@ -4,6 +4,7 @@ import { buildWorld } from './world.js';
 import { createKartMesh, updateKartMesh } from './kartMesh.js';
 import { shotCamera } from '../shots.js';
 import { viewFov, viewRect } from './views.js';
+import { createItemsView } from './itemsView.js';
 
 // ── Chase camera ─────────────────────────────────────────────────────────────
 
@@ -12,6 +13,10 @@ const CHASE_UP = 2.4;
 const CHASE_LOOK_AHEAD = 6;
 const POS_LAG = 5; // 1/s, higher = stiffer
 const LOOK_LAG = 9;
+const FOV_KICK = 8; // deg while a mushroom boost runs
+const FOV_KICK_RATE = 6; // 1/s
+const SHAKE_TIME = 0.25; // s after a hit
+const SHAKE_AMP = 0.15; // m
 const SUN_OFFSET = new THREE.Vector3(120, 180, 60);
 
 export function createKartScene(container, track) {
@@ -29,6 +34,7 @@ export function createKartScene(container, track) {
   if (world.background) scene.background = world.background;
   if (world.fog) scene.fog = new THREE.Fog(world.fog.color, world.fog.near, world.fog.far);
 
+  const itemsView = createItemsView(scene);
   window.__kartInfo = renderer.info; // dev-only: lets screenshot tooling read draw calls / triangles
   const meshes = new Map();
   let views = [];
@@ -56,6 +62,7 @@ export function createKartScene(container, track) {
       camPos: new THREE.Vector3(),
       camLook: new THREE.Vector3(),
       ready: false,
+      kick: 0,
     }));
     views.forEach(fitCamera);
   }
@@ -68,7 +75,8 @@ export function createKartScene(container, track) {
   function fitCamera(v) {
     const aspect = (v.w * width) / (v.h * height);
     v.camera.aspect = aspect;
-    v.camera.fov = viewFov(aspect);
+    v.baseFov = viewFov(aspect);
+    v.camera.fov = v.baseFov + v.kick;
     v.camera.updateProjectionMatrix();
   }
 
@@ -121,6 +129,26 @@ export function createKartScene(container, track) {
     camera.lookAt(v.camLook);
   }
 
+  // Per-view camera effects for that view's kart: FOV kick during a mushroom, a short shake after a hit.
+  function applyViewFx(v, race, dt) {
+    dt = Math.max(0, dt);
+    const kart = race.karts.find((k) => k.id === v.id) ?? race.karts[0];
+    v.kick += ((kart?.mushroom > 0 ? FOV_KICK : 0) - v.kick) * (1 - Math.exp(-FOV_KICK_RATE * dt));
+    const fov = (v.baseFov ?? v.camera.fov) + v.kick;
+    if (Math.abs(fov - v.camera.fov) > 1e-3) {
+      v.camera.fov = fov;
+      v.camera.updateProjectionMatrix();
+    }
+    const hit = kart?.hit;
+    const since = hit ? hit.total - hit.t : Infinity;
+    if (since < SHAKE_TIME) {
+      const amp = SHAKE_AMP * (1 - since / SHAKE_TIME);
+      v.camera.position.x += Math.sin(time * 97) * amp;
+      v.camera.position.y += Math.sin(time * 131 + 1.3) * amp;
+      v.camera.position.z += Math.sin(time * 113 + 2.1) * amp;
+    }
+  }
+
   // The shadow map re-renders on every render call, so the sun follows the view being drawn.
   function focusSun(v, useShot) {
     if (!world.sun) return;
@@ -140,10 +168,12 @@ export function createKartScene(container, track) {
   function update(race, dt) {
     time += dt;
     syncKarts(race, dt);
+    itemsView.update(race, dt, time);
     renderer.setScissorTest(true);
     views.forEach((v, i) => {
       const useShot = !!shotName && i === 0; // debug shots take over the first view only
       placeCamera(v, race, dt, useShot);
+      if (!useShot) applyViewFx(v, race, dt);
       world.tick?.(time, v.camera);
       focusSun(v, useShot);
       const { x, y, w, h } = viewRect(v, width, height);
@@ -154,6 +184,7 @@ export function createKartScene(container, track) {
   }
 
   function dispose() {
+    itemsView.dispose();
     scene.traverse((o) => {
       o.geometry?.dispose();
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];

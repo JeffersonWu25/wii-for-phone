@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift.
+// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -550,8 +550,8 @@ async function kartRace(run) {
   run.check('phones received kart_status frames', inFrames('phone:Ada', 'kart_status') > 5 && inFrames('phone:Bo', 'kart_status') > 5, `Ada ${inFrames('phone:Ada', 'kart_status')}, Bo ${inFrames('phone:Bo', 'kart_status')}`);
   run.check('phones received kart_results frames', inFrames('phone:Ada', 'kart_results') >= 1 && inFrames('phone:Bo', 'kart_results') >= 1, `Ada ${inFrames('phone:Ada', 'kart_results')}, Bo ${inFrames('phone:Bo', 'kart_results')}`);
   const drives = run.frames.filter((f) => f.page === 'phone:Ada' && f.dir === 'out' && f.msg.type === 'drive');
-  const shaped = drives.length > 0 && drives.every((f) => typeof f.msg.steer === 'number' && typeof f.msg.brake === 'number' && typeof f.msg.drift === 'boolean' && !('gas' in f.msg));
-  run.check('Ada\'s drive frames carry steer, brake and drift (no gas) and varied steer', shaped && new Set(drives.map((f) => f.msg.steer)).size > 10, `${drives.length} frames, ${new Set(drives.map((f) => f.msg.steer)).size} distinct steer values, brake max ${Math.max(...drives.map((f) => f.msg.brake))}, drift true ${drives.filter((f) => f.msg.drift).length}`);
+  const shaped = drives.length > 0 && drives.every((f) => typeof f.msg.steer === 'number' && typeof f.msg.aimY === 'number' && typeof f.msg.drift === 'boolean' && !('gas' in f.msg) && !('brake' in f.msg));
+  run.check('Ada\'s drive frames carry steer, aimY and drift (no gas, no brake) and varied steer', shaped && new Set(drives.map((f) => f.msg.steer)).size > 10, `${drives.length} frames, ${new Set(drives.map((f) => f.msg.steer)).size} distinct steer values, aimY max ${Math.max(...drives.map((f) => f.msg.aimY))}, drift true ${drives.filter((f) => f.msg.drift).length}`);
 
   await host.click('.kart-results .btn-start');
   await host.waitForSelector('.game-select-screen', { timeout: 10_000 });
@@ -686,7 +686,7 @@ async function kartSplit(run) {
   run.round = undefined;
 }
 
-// ── Kart Racer drift, boost, brake and reverse ────────────────────────────────
+// ── Kart Racer drift and boost ────────────────────────────────
 
 const DRIFT_STICK_ID = 1;
 const DRIFT_BUTTON_ID = 2;
@@ -765,15 +765,15 @@ async function kartDrift(run) {
   const lift = async (id) => { const p = down.get(id); down.delete(id); await touch('touchEnd', [p]); };
   const liftAll = async () => { down.clear(); await touch('touchEnd', []); };
   let base = null;
-  // steer and brake are the values the phone should send. Inverts stickFromOffset: a radial dead
+  // steer and aimY are the values the phone should send (aimY > 0 is stick down). Inverts stickFromOffset: a radial dead
   // zone, then linear to 1 at the base radius. The phone clamps a combined offset to the circle.
-  const stick = async (steer, brake = 0) => {
+  const stick = async (steer, aimY = 0) => {
     if (!down.has(DRIFT_STICK_ID)) {
       await press(DRIFT_STICK_ID, zoneAt);
       base = await ada.evaluate(() => { const r = document.getElementById('kart-joystick').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
     }
     const nx = Math.abs(steer) < 0.005 ? 0 : Math.sign(steer) * (JOYSTICK_DEAD_ZONE + Math.min(1, Math.abs(steer)) * (1 - JOYSTICK_DEAD_ZONE));
-    const ny = brake < 0.005 ? 0 : JOYSTICK_DEAD_ZONE + Math.min(1, brake) * (1 - JOYSTICK_DEAD_ZONE);
+    const ny = Math.abs(aimY) < 0.005 ? 0 : Math.sign(aimY) * (JOYSTICK_DEAD_ZONE + Math.min(1, Math.abs(aimY)) * (1 - JOYSTICK_DEAD_ZONE));
     down.set(DRIFT_STICK_ID, { x: base.x + nx * radius, y: base.y + ny * radius, id: DRIFT_STICK_ID });
     await touch('touchMove', [...down.values()]);
   };
@@ -797,7 +797,7 @@ async function kartDrift(run) {
 
   // One controller step per loop: read the host, send the stick, call onSample, test `until`.
   // touch:false leaves the screen alone. Returns the sample that satisfied `until`, or null on timeout.
-  async function drive(until, { timeout = 30_000, touchOn = true, cmd = (s) => s.steer, brake = 0, onSample } = {}) {
+  async function drive(until, { timeout = 30_000, touchOn = true, cmd = (s) => s.steer, aimY = 0, onSample } = {}) {
     const deadline = Date.now() + timeout;
     for (;;) {
       const t0 = Date.now();
@@ -805,7 +805,7 @@ async function kartDrift(run) {
       if (!s) throw new Error('kart debug state is gone');
       last = s;
       trace.push({ stage, t: +s.time.toFixed(3), sm: +s.sm.toFixed(1), ps: +s.ps.toFixed(1), lat: +s.lateral.toFixed(2), v: +s.speed.toFixed(2), boost: +s.boost.toFixed(2), bl: s.boostLevel, sl: s.drift.sliding, dir: s.drift.dir, charge: +s.drift.charge.toFixed(3), lvl: s.drift.level });
-      if (touchOn) await stick(cmd(s), brake);
+      if (touchOn) await stick(cmd(s), aimY);
       onSample?.(s);
       if (until(s)) return s;
       if (Date.now() > deadline) return null;
@@ -826,30 +826,10 @@ async function kartDrift(run) {
     run.check(
       'no touch after GO: the kart reaches over 10 m/s within 3 s',
       launch.speed > 10 && launch.time <= 3 && down.size === 0,
-      `${fx(launch.speed, 1)} m/s ${fx(launch.time)} s after GO with no touch; ${neutralFrames.length} Ada drive frames so far, all neutral: ${neutralFrames.every((f) => f.msg.steer === 0 && f.msg.brake === 0 && f.msg.drift === false)}`,
+      `${fx(launch.speed, 1)} m/s ${fx(launch.time)} s after GO with no touch; ${neutralFrames.length} Ada drive frames so far, all neutral: ${neutralFrames.every((f) => f.msg.steer === 0 && f.msg.aimY === 0 && f.msg.drift === false)}`,
     );
 
-    // ── 2. Reverse: hold the stick down from a slow speed ──
-    stage = 'reverse';
-    const rev = { min: Infinity, shot: false, speedAtPress: launch.speed };
-    const revDone = await drive((s) => s.speed <= -5.5, {
-      timeout: 4000, cmd: () => 0, brake: 1,
-      onSample: (s) => {
-        rev.min = Math.min(rev.min, s.speed);
-        if (s.speed <= -3 && !rev.shot) { rev.shot = true; hostShot('host-reversing'); }
-      },
-    });
-    await lift(DRIFT_STICK_ID);
-    stage = 'reverse-recover';
-    const recovered = await drive((s) => s.speed > 0.5, { timeout: 3000, touchOn: false, onSample: (s) => { rev.min = Math.min(rev.min, s.speed); } });
-    run.check(
-      'holding the stick down takes the speed below 0 and no lower than -6',
-      rev.min < 0 && rev.min >= -6.05 && revDone !== null,
-      `from ${fx(rev.speedAtPress, 1)} m/s, minimum ${fx(rev.min)} m/s`,
-    );
-    run.check('releasing the stick brings the speed back above 0', recovered !== null && recovered.speed > 0, `${fx(recovered?.speed ?? NaN)} m/s after release`);
-
-    // ── 3. Phone shot: stick down-left with DRIFT held (no slide: braking blocks it) ──
+    // ── 2. Phone shot: stick down-left with DRIFT held (down is aim only now) ──
     stage = 'phone-combo';
     await stick(-0.5, 0.7);
     await press(DRIFT_BUTTON_ID, driftAt);
@@ -857,25 +837,23 @@ async function kartDrift(run) {
     await sleepMs(450);
     await run.capture(ada, 'phone-stick-down-left-drift');
     const combo = adaDrives().slice(-4);
-    const comboState = await host.evaluate(driftHostTick, [coreSrc, bands]);
     await liftAll();
     await ticksFor(300, { touchOn: false });
     run.check(
-      'phone frames carry steer left, brake and drift true while the stick is down-left with DRIFT held',
-      combo.length > 0 && combo.every((f) => f.msg.steer < 0 && f.msg.brake > 0 && f.msg.drift === true),
-      combo.map((f) => `${f.msg.steer}/${f.msg.brake}/${f.msg.drift}`).join(' '),
+      'phone frames carry steer left, aimY down and drift true while the stick is down-left with DRIFT held',
+      combo.length > 0 && combo.every((f) => f.msg.steer < 0 && f.msg.aimY > 0 && f.msg.drift === true),
+      combo.map((f) => `${f.msg.steer}/${f.msg.aimY}/${f.msg.drift}`).join(' '),
     );
-    run.check('braking blocks the slide while DRIFT is held', comboState.drift.sliding === false, `sliding ${comboState.drift.sliding}`);
 
-    // ── 4. Drifts ──
+    // ── 3. Drifts ──
     // Runs one drift on a piece: cruise to the entry, hold DRIFT with an inward stick, then stop
-    // on `endWhen` by releasing DRIFT (boost) or pushing the stick down (cancel).
-    async function runDrift({ label, piece, entryOff, endWhen, cancel = false, shotLevels = [], boostShot = null }) {
+    // on `endWhen` by releasing DRIFT (boost).
+    async function runDrift({ label, piece, entryOff, endWhen, shotLevels = [], boostShot = null }) {
       stage = `${label}-approach`;
       const range = R[piece];
       const r = {
         label, piece, levels: [], dir: null, started: false, maxOver: -Infinity, maxAbsLat: 0, slidingSamples: 0, offroadSamples: 0,
-        entry: null, end: null, stopReason: null, cancelPost: [], release: null, postMaxSpeed: 0, postMaxLevel: 0, slideStart: null, wallMs: {},
+        entry: null, end: null, stopReason: null, release: null, postMaxSpeed: 0, postMaxLevel: 0, slideStart: null, wallMs: {},
       };
       const entry = await drive((s) => s.ps >= range.s0 + entryOff, { timeout: 70_000 });
       if (!entry) { r.stopReason = 'never reached the entry'; return r; }
@@ -904,7 +882,7 @@ async function kartDrift(run) {
             for (const lvl of shotLevels) {
               if (!taken.has(lvl) && s.drift.level === lvl && s.drift.charge >= (lvl === 0 ? 0.5 : lvl + 0.2)) { taken.add(lvl); hostShot(`host-drift-level${lvl}`); }
             }
-            if (endWhen(s)) r.stopReason = cancel ? 'cancel' : 'release';
+            if (endWhen(s)) r.stopReason = 'release';
           } else if (r.started) {
             r.stopReason = 'slide dropped by itself';
           } else if (s.time - entry.time > 2.5) {
@@ -929,25 +907,6 @@ async function kartDrift(run) {
             if (boostShot && !shot && r.release && Date.now() - relAt > 400) { shot = true; hostShot(boostShot); }
           },
         });
-      } else if (r.stopReason === 'cancel') {
-        stage = `${label}-cancel`;
-        const inward = (s) => Math.max(-0.5, Math.min(0.5, s.steer));
-        const pre = last;
-        let n = 0;
-        r.cancelPre = { level: pre.drift.level, charge: pre.drift.charge, boost: pre.boost, boostLevel: pre.boostLevel, speed: pre.speed };
-        await stick(inward(pre), 1);
-        await drive(() => n >= 5, {
-          cmd: inward, brake: 1,
-          onSample: (s) => {
-            n++;
-            r.cancelPost.push({ sliding: s.drift.sliding, level: s.drift.level, charge: s.drift.charge, boost: s.boost, boostLevel: s.boostLevel, speed: s.speed });
-            if (n === 2) hostShot('host-brake-cancel');
-          },
-        });
-        // DRIFT is still held here; letting it go after the cancel must not grant a boost either.
-        await lift(DRIFT_BUTTON_ID);
-        await ticksFor(400, { cmd: inward, brake: 1, onSample: (s) => r.cancelPost.push({ sliding: s.drift.sliding, level: s.drift.level, charge: s.drift.charge, boost: s.boost, boostLevel: s.boostLevel, speed: s.speed }) });
-        await lift(DRIFT_STICK_ID);
       } else {
         await lift(DRIFT_BUTTON_ID);
       }
@@ -956,12 +915,10 @@ async function kartDrift(run) {
 
     // Drift A: the t1 right-hander, released at level 1.
     const dA = await runDrift({ label: 't1', piece: 't1', entryOff: 3, endWhen: (s) => s.drift.level >= 1 && s.drift.charge >= DRIFT_RELEASE_CHARGE[1], boostShot: 'host-boost-level1' });
-    // Drift B: sRight, charged to level 1, then the stick goes down.
-    const dB = await runDrift({ label: 'sRight', piece: 'sRight', entryOff: 0, endWhen: (s) => s.drift.level >= 1 && s.drift.charge >= DRIFT_RELEASE_CHARGE[1], cancel: true });
     // Drift C: the sweeper, a long right-hander, held to level 3.
     const dC = await runDrift({ label: 'sweeper', piece: 'sweeper', entryOff: 8, endWhen: (s) => s.drift.level >= 3 && s.drift.charge >= DRIFT_RELEASE_CHARGE[3], shotLevels: [0, 1, 2, 3], boostShot: 'host-boost-level3' });
 
-    // ── 5. ITEM tap on a straight at steady speed ──
+    // ── 4. ITEM tap on a straight at steady speed ──
     stage = 'item-approach';
     const steady = await drive(
       (s) => s.ps >= R.sweeper.s0 + 120 && ((s.sm >= R.grid.s0 + 2 && s.sm <= R.grid.s1 - 24) || (s.sm >= 2 && s.sm <= 60))
@@ -974,6 +931,7 @@ async function kartDrift(run) {
       await lift(DRIFT_STICK_ID);
       await ticksFor(350, { touchOn: false });
       const before = last;
+      const heldKind = await host.evaluate(() => window.__kartState.karts[0].item.main);
       const itemFramesBefore = adaDrives().length;
       await press(DRIFT_ITEM_ID, itemAt);
       const itemPressed = await ada.evaluate(() => document.getElementById('btn-item').classList.contains('pressed'));
@@ -982,18 +940,18 @@ async function kartDrift(run) {
       await lift(DRIFT_ITEM_ID);
       await shot;
       await ticksFor(500, { touchOn: false });
-      item = { before, after: last, itemFramesBefore, itemPressed };
+      item = { before, after: last, itemFramesBefore, itemPressed, heldKind };
       hostShot('host-after-item');
     }
     await liftAll().catch(() => {});
 
     // ── Checks ──
     const lvlTxt = (r) => r.levels.map((l) => `L${l.level}@${fx(l.sinceSlide)}s (charge ${fx(l.charge)})`).join(' ');
-    const turnRight = (p) => (p === 't1' || p === 'sRight' || p === 'sweeper' ? 1 : -1); // all three drifted pieces turn right
-    for (const r of [dA, dB, dC]) {
+    const turnRight = () => 1; // both drifted pieces turn right
+    for (const r of [dA, dC]) {
       run.check(
-        `${r.label}: holding DRIFT while steering into the corner makes drift.sliding true with dir ${turnRight(r.piece)}`,
-        r.started && r.dir === turnRight(r.piece),
+        `${r.label}: holding DRIFT while steering into the corner makes drift.sliding true with dir ${turnRight()}`,
+        r.started && r.dir === turnRight(),
         `started ${r.started}, dir ${r.dir}, entered at ${r.entry ? fx(r.entry.speed, 1) : '?'} m/s, ${r.stopReason}`,
       );
     }
@@ -1016,15 +974,6 @@ async function kartDrift(run) {
       dA.release?.boostLevel === 1 && dA.release.boost > 0,
       dA.release ? `boostLevel ${dA.release.boostLevel}, boost ${fx(dA.release.boost)} s; levels ${lvlTxt(dA)}` : `no release (${dA.stopReason})`,
     );
-    const cp = dB.cancelPost;
-    const firstOff = cp.findIndex((p) => !p.sliding);
-    run.check(
-      'brake cancel: pushing the stick down during a charged drift ends the slide with boost 0 and boostLevel 0',
-      dB.stopReason === 'cancel' && (dB.cancelPre?.level ?? 0) >= 1 && firstOff >= 0 && firstOff <= 3 && cp.slice(firstOff).every((p) => !p.sliding) && cp.every((p) => p.boost === 0 && p.boostLevel === 0),
-      dB.cancelPre
-        ? `before: level ${dB.cancelPre.level}, charge ${fx(dB.cancelPre.charge)} s, boost ${fx(dB.cancelPre.boost)}; slide ended at sample ${firstOff + 1}; ${cp.length} samples after, max boost ${fx(Math.max(...cp.map((p) => p.boost)))}, max boostLevel ${Math.max(...cp.map((p) => p.boostLevel))}, speed ${fx(dB.cancelPre.speed, 1)} -> ${fx(cp[cp.length - 1].speed, 1)} m/s`
-        : dB.stopReason,
-    );
     run.check(
       'ITEM tap: exactly one use_item frame leaves the phone and reaches the host',
       run.frames.filter((f) => f.page === 'phone:Ada' && f.dir === 'out' && f.msg.type === 'use_item').length === 1
@@ -1033,23 +982,229 @@ async function kartDrift(run) {
     );
     run.check('ITEM tap lights the button (#btn-item.pressed) right after the touch', item?.itemPressed === true, `pressed ${item?.itemPressed}`);
     run.check(
-      'ITEM tap does not change the kart\'s speed, drift or boost',
-      item !== null && Math.abs(item.after.speed - item.before.speed) <= 0.3 && !item.before.drift.sliding && !item.after.drift.sliding && item.before.boost === 0 && item.after.boost === 0 && item.after.boostLevel === 0,
-      item ? `speed ${fx(item.before.speed)} -> ${fx(item.after.speed)} m/s, sliding ${item.before.drift.sliding} -> ${item.after.drift.sliding}, boost ${fx(item.before.boost)} -> ${fx(item.after.boost)}, boostLevel ${item.after.boostLevel}` : 'never reached a steady straight',
+      'ITEM tap leaves speed, drift and boost alone (a held mushroom boosts instead)',
+      item !== null && !item.before.drift.sliding && !item.after.drift.sliding && item.before.boost === 0 && (item.heldKind === 'mushroom'
+        ? item.after.boost > 0
+        : Math.abs(item.after.speed - item.before.speed) <= 0.3 && item.after.boost === 0 && item.after.boostLevel === 0),
+      item ? `held ${item.heldKind}, speed ${fx(item.before.speed)} -> ${fx(item.after.speed)} m/s, sliding ${item.before.drift.sliding} -> ${item.after.drift.sliding}, boost ${fx(item.before.boost)} -> ${fx(item.after.boost)}, boostLevel ${item.after.boostLevel}` : 'never reached a steady straight',
     );
     const drives = adaDrives();
-    const shaped = drives.length > 0 && drives.every((f) => typeof f.msg.steer === 'number' && typeof f.msg.brake === 'number' && typeof f.msg.drift === 'boolean' && !('gas' in f.msg));
+    const shaped = drives.length > 0 && drives.every((f) => typeof f.msg.steer === 'number' && typeof f.msg.aimY === 'number' && typeof f.msg.drift === 'boolean' && !('gas' in f.msg) && !('brake' in f.msg));
     const heldFrames = drives.filter((f) => f.msg.drift === true).length;
     run.check(
-      'Ada\'s drive frames carry steer, brake and drift (no gas), with drift true while the button is held',
-      shaped && heldFrames > 40 && drives.some((f) => f.msg.brake > 0) && new Set(drives.map((f) => f.msg.steer)).size > 10,
-      `${drives.length} frames, drift true ${heldFrames}, brake > 0 ${drives.filter((f) => f.msg.brake > 0).length}, ${new Set(drives.map((f) => f.msg.steer)).size} distinct steer values`,
+      'Ada\'s drive frames carry steer, aimY and drift (no gas, no brake), with drift true while the button is held',
+      shaped && heldFrames > 40 && drives.some((f) => f.msg.aimY > 0) && new Set(drives.map((f) => f.msg.steer)).size > 10,
+      `${drives.length} frames, drift true ${heldFrames}, aimY > 0 ${drives.filter((f) => f.msg.aimY > 0).length}, ${new Set(drives.map((f) => f.msg.steer)).size} distinct steer values`,
     );
-    fs.writeFileSync(path.join(run.dir, 'drift-summary.json'), JSON.stringify({ launch, rev, drifts: { t1: dA, sRight: dB, sweeper: dC }, item }, null, 2));
+    fs.writeFileSync(path.join(run.dir, 'drift-summary.json'), JSON.stringify({ launch, drifts: { t1: dA, sweeper: dC }, item }, null, 2));
   } finally {
     await liftAll().catch(() => {});
     await Promise.all(shots);
     fs.writeFileSync(path.join(run.dir, 'drift-trace.jsonl'), trace.map((t) => JSON.stringify(t)).join('\n') + '\n');
+  }
+}
+
+// ── Kart Racer items ──────────────────────────────────────────────────────────
+
+const ITEM_ROW_AIM_M = 1.5; // lateral Ada aims at through the first row (box columns sit at -4.5, -1.5, 1.5, 4.5)
+const ITEM_READY_MAX_MS = 3000; // roulette 1.6 s plus status latency; a stacked pickup's reserve lands later but main is first
+
+// Read-only view of Ada's item state and the race objects, shipped into the host page.
+function itemsHostSnap() {
+  const st = window.__kartState;
+  const k = st?.karts[0];
+  if (!k) return null;
+  return {
+    id: k.id, karts: st.karts.map((o) => ({ id: o.id, hit: o.hit, invuln: o.invuln })), item: { ...k.item }, boost: k.boost, mushroom: k.mushroom, hit: k.hit, invuln: k.invuln, speed: k.speed,
+    entities: (st.entities ?? []).map((e) => ({ id: e.id, kind: e.kind, owner: e.owner })),
+    brokenBoxes: (st.boxes ?? []).filter((b) => !b.ready).length,
+    events: (window.__kartRace?.events ?? []).slice(-24).map((e) => ({ seq: e.seq, t: +e.t.toFixed(2), type: e.type, kind: e.kind, kartId: e.kartId, by: e.by, entityId: e.entityId })),
+  };
+}
+
+async function kartItems(run) {
+  const host = await run.openHost({ viewport: KART_HOST_VIEWPORT });
+  const phoneOpts = { viewport: KART_PHONE_VIEWPORT, isMobile: true };
+  const ada = await run.openPhone('Ada', phoneOpts);
+  await waitForWaitingLabel(ada);
+  await host.waitForSelector('.player-item:has-text("Ada")', { timeout: 10_000 });
+  const bo = await run.openPhone('Bo', phoneOpts);
+  await waitForWaitingLabel(bo);
+  await host.waitForSelector('.player-item:has-text("Bo")', { timeout: 10_000 });
+  await selectGame(run, 'Kart Racer');
+  await ada.waitForSelector('#screen-kart', { timeout: 15_000 });
+  await bo.waitForSelector('#screen-kart', { timeout: 15_000 });
+  await host.waitForSelector('.kart-canvas canvas', { timeout: 15_000 });
+  await host.waitForSelector('.kart-pane', { timeout: 15_000 });
+
+  // Real controls: CDP touches on Ada's stick and ITEM button.
+  const rect = (sel) => ada.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+  const zoneAt = await rect('#kart-zone');
+  const itemAt = await rect('#btn-item');
+  const radius = await ada.evaluate(() => (document.getElementById('kart-joystick').offsetWidth - document.getElementById('kart-knob').offsetWidth) / 2);
+  const cdp = await ada.context().newCDPSession(ada);
+  const down = new Map();
+  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  let base = null;
+  const stick = async (steer) => {
+    if (!down.has(DRIFT_STICK_ID)) {
+      down.set(DRIFT_STICK_ID, { x: zoneAt.x, y: zoneAt.y, id: DRIFT_STICK_ID });
+      await touch('touchStart', [...down.values()]);
+      base = await ada.evaluate(() => { const r = document.getElementById('kart-joystick').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    }
+    const nx = Math.abs(steer) < 0.005 ? 0 : Math.sign(steer) * (JOYSTICK_DEAD_ZONE + Math.min(1, Math.abs(steer)) * (1 - JOYSTICK_DEAD_ZONE));
+    down.set(DRIFT_STICK_ID, { x: base.x + nx * radius, y: base.y, id: DRIFT_STICK_ID });
+    await touch('touchMove', [...down.values()]);
+  };
+
+  const rowS = await host.evaluate(() => window.__kartTrack.itemRows[0].s);
+  const bands = [{ s0: Math.max(0, rowS - 45), s1: rowS + 20, aim: ITEM_ROW_AIM_M }];
+  const coreSrc = driftSteer.toString();
+  const shots = [];
+  const hostShot = (name) => shots.push(run.capture(host, name).catch(() => {}));
+  const phoneShot = (name) => shots.push(run.capture(ada, name).catch(() => {}));
+  const fx = (n, d = 2) => Number(n).toFixed(d);
+  const phoneBtn = () => ada.evaluate(() => document.getElementById('btn-item').className);
+  const tvSlot = () => host.evaluate(() => {
+    const el = document.querySelector('.kart-pane[data-slot="0"] .kart-item-slot.main');
+    return el ? { kind: el.dataset.kind ?? null, rolling: el.dataset.rolling === '1', icon: !!el.querySelector('.kart-item-icon svg') } : null;
+  });
+
+  // One controller loop: steer along the aim line, call onSample, stop when `done` or on timeout (null).
+  async function until(done, timeout, onSample) {
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      const t0 = Date.now();
+      const s = await host.evaluate(driftHostTick, [coreSrc, bands]);
+      if (!s) throw new Error('kart debug state is gone');
+      await stick(s.steer);
+      const snap = await host.evaluate(itemsHostSnap);
+      await onSample?.(s, snap);
+      if (done(s, snap)) return { s, snap };
+      if (Date.now() > deadline) return null;
+      const wait = DRIFT_TICK_MS - (Date.now() - t0);
+      if (wait > 0) await sleep(wait);
+    }
+  }
+
+  try {
+    await host.waitForFunction(() => window.__kartState?.phase === 'racing', null, { polling: 30, timeout: 15_000 });
+
+    // ── 1. Drive through the first box row until a pickup lands ──
+    const pick = await until((s, snap) => snap.item.main !== null, 40_000);
+    run.check(
+      'driving through the first box row breaks a box and fills Ada\'s main slot',
+      pick !== null && pick.snap.brokenBoxes >= 1,
+      pick ? `race time ${fx(pick.s.time)} s at s ${fx(pick.s.sm, 1)} (row at ${fx(rowS, 1)}), ${pick.snap.brokenBoxes} box(es) broken, reserve ${pick.snap.item.reserve ?? 'none'}` : 'no pickup within 40 s',
+    );
+    if (!pick) throw new Error('no pickup within 40 s');
+    const pickedAt = Date.now();
+    const kind = pick.snap.item.main;
+
+    // ── 2. Roulette on the phone and the TV, then ready with an icon ──
+    const seen = { phoneRolling: false, tvRolling: false, ready: null, tv: null, phoneClass: null };
+    const readyRes = await until(
+      () => seen.ready !== null,
+      ITEM_READY_MAX_MS + 1500,
+      async () => {
+        const cls = await phoneBtn();
+        if (!seen.phoneRolling && cls.includes('rolling')) { seen.phoneRolling = true; phoneShot('phone-item-rolling'); hostShot('host-item-rolling'); }
+        if (!seen.tvRolling && (await tvSlot())?.rolling) seen.tvRolling = true;
+        if (seen.ready === null && cls.includes('ready')) {
+          seen.ready = Date.now() - pickedAt;
+          seen.phoneClass = cls;
+          // The TV HUD repaints at 10 Hz, so give it a moment to land.
+          for (let i = 0; i < 12; i++) { seen.tv = await tvSlot(); if (seen.tv?.kind && !seen.tv.rolling) break; await sleep(80); }
+          phoneShot('phone-item-ready');
+          hostShot('host-item-ready');
+        }
+      },
+    );
+    run.check('phone ITEM button shows its rolling state after the pickup', seen.phoneRolling, seen.phoneRolling ? 'class had "rolling"' : 'never saw "rolling" on #btn-item');
+    run.check('TV pane main slot shows the roulette while rolling', seen.tvRolling, seen.tvRolling ? 'data-rolling=1' : 'never saw data-rolling on the main slot');
+    run.check(
+      `phone ITEM button is ready within ${ITEM_READY_MAX_MS / 1000} s of the pickup`,
+      readyRes !== null && seen.ready !== null && seen.ready <= ITEM_READY_MAX_MS,
+      seen.ready === null ? 'never ready' : `ready ${seen.ready} ms after the pickup was seen (kind ${kind})`,
+    );
+    run.check(
+      'TV pane main slot shows the landed item icon',
+      seen.tv !== null && seen.tv.kind === kind && seen.tv.icon && !seen.tv.rolling,
+      JSON.stringify(seen.tv),
+    );
+    if (seen.ready === null) throw new Error('item never became ready');
+
+    // ── 3. Tap ITEM: the item is used and its effect shows up ──
+    const before = (await host.evaluate(itemsHostSnap));
+    const entitiesBefore = new Set(before.entities.map((e) => e.id));
+    down.set(3, { x: itemAt.x, y: itemAt.y, id: 3 });
+    await touch('touchStart', [...down.values()]);
+    const pressed = await ada.evaluate(() => document.getElementById('btn-item').classList.contains('pressed'));
+    await sleep(60);
+    const itemPt = down.get(3);
+    down.delete(3);
+    await touch('touchEnd', [itemPt]);
+    const trail = [];
+    const eventsBefore = new Set(before.events.map((e) => e.seq));
+    let entitySeen = false;
+    const effect = await until(
+      (s, snap) => {
+        if (kind === 'mushroom') return snap.boost > 0 && snap.mushroom > 0;
+        // A banana dropped beside the other kart can be hit within one tick, so a use event plus a hit by that kind counts too.
+        const used = snap.events.some((e) => e.type === 'use' && e.kartId === snap.id && e.kind === kind && !eventsBefore.has(e.seq));
+        const hitBy = snap.events.some((e) => e.type === 'hit' && e.by === kind && !eventsBefore.has(e.seq));
+        return used && (entitySeen || hitBy);
+      },
+      1500,
+      (s, snap) => {
+        if (snap.entities.some((e) => !entitiesBefore.has(e.id) && e.owner === snap.id && e.kind === kind)) entitySeen = true;
+        trail.push({ t: +s.time.toFixed(2), entities: snap.entities, events: snap.events.slice(-4) });
+      },
+    );
+    const after = effect?.snap ?? (await host.evaluate(itemsHostSnap));
+    phoneShot('phone-after-item');
+    hostShot('host-after-item');
+    run.check('ITEM tap lights the button right after the touch', pressed, `pressed ${pressed}`);
+    run.check(
+      `ITEM tap used the ${kind}: ${kind === 'mushroom' ? 'boost and mushroom above 0' : `a use event and a ${kind} entity owned by Ada (or a hit by it)`}`,
+      effect !== null,
+      kind === 'mushroom' ? `boost ${fx(after.boost)}, mushroom ${fx(after.mushroom)}` : `entity seen ${entitySeen}, events ${JSON.stringify(after.events.slice(-3))}`,
+    );
+    run.check(
+      'ITEM tap consumed the main item (main empty, or the reserve moved up)',
+      after.item.main === before.item.reserve && (before.item.reserve !== null || after.item.main === null),
+      `main ${before.item.main} -> ${after.item.main}, reserve ${before.item.reserve} -> ${after.item.reserve}`,
+    );
+    const useFrames = (dir, page) => run.frames.filter((f) => f.page === page && f.dir === dir && f.msg.type === 'use_item').length;
+    run.check('exactly one use_item frame leaves Ada\'s phone and reaches the host', useFrames('out', 'phone:Ada') === 1 && useFrames('in', 'host') === 1, `phone out ${useFrames('out', 'phone:Ada')}, host in ${useFrames('in', 'host')}`);
+
+    // ── 4. A hit, when Ada's item landed one: the victim shows `hit`, then `invuln` ──
+    // Item kinds are random and the rival drives blind, so this is only checked when a hit happened.
+    const hitEv = after.events.find((e) => e.type === 'hit' && e.by === kind && !eventsBefore.has(e.seq));
+    let hitSeq = null;
+    if (hitEv) {
+      hitSeq = [];
+      await until(() => false, 2800, (s, snap) => {
+        const v = snap.karts.find((k) => k.id === hitEv.kartId);
+        hitSeq.push({ t: +s.time.toFixed(2), hit: v.hit, invuln: +v.invuln.toFixed(2) });
+      });
+      const iHit = hitSeq.findIndex((x) => x.hit !== null);
+      const iInv = hitSeq.findIndex((x, i) => i >= 0 && x.hit === null && x.invuln > 0 && hitSeq.slice(0, i).some((y) => y.hit !== null));
+      run.check(
+        `the kart hit by Ada's ${kind} (${hitEv.kartId === after.id ? 'Ada' : 'the rival'}) shows hit, then invuln`,
+        iHit >= 0 && iInv > iHit,
+        `hit at sample ${iHit} (${hitSeq[iHit]?.hit}), invuln > 0 with no hit at sample ${iInv}; ${hitSeq.length} samples`,
+      );
+    }
+
+    // ── Drive frames ──
+    const drives = run.frames.filter((f) => f.page === 'phone:Ada' && f.dir === 'out' && f.msg.type === 'drive');
+    const shaped = drives.length > 0 && drives.every((f) => typeof f.msg.steer === 'number' && typeof f.msg.aimY === 'number' && typeof f.msg.drift === 'boolean' && !('gas' in f.msg) && !('brake' in f.msg));
+    run.check('Ada\'s drive frames carry steer, aimY and drift (no gas, no brake)', shaped, `${drives.length} frames, ${new Set(drives.map((f) => f.msg.steer)).size} distinct steer values`);
+    fs.writeFileSync(path.join(run.dir, 'items-summary.json'), JSON.stringify({ rowS, kind, seen, pick: pick.snap, before, after, trail, hitSeq }, null, 2));
+  } finally {
+    await touch('touchEnd', []).catch(() => {});
+    await Promise.all(shots);
   }
 }
 
@@ -1060,6 +1215,7 @@ const FEATURES = {
   'kart-race': kartRace,
   'kart-split': kartSplit,
   'kart-drift': kartDrift,
+  'kart-items': kartItems,
 };
 
 async function main() {

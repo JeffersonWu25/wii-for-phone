@@ -1,5 +1,30 @@
-import { memo } from 'react';
-import { placeParts } from './hud.js';
+import { memo, useEffect, useRef } from 'react';
+import { ITEM_ICONS } from './itemIcons.js';
+import { nextSlotClock, placeParts, ROLL_TOTAL, ROLL_TOTAL_STACKED, slotView } from './hud.js';
+
+// One item slot. The roulette and landing bump run on rAF against the clock, so they stay smooth between 100 ms HUD ticks.
+function ItemSlot({ className, kind, rolling, total }) {
+  const box = useRef(null);
+  const clock = useRef(null);
+  useEffect(() => {
+    const el = box.current;
+    const now0 = performance.now() / 1000;
+    clock.current = nextSlotClock(clock.current, rolling, now0, total);
+    let raf = 0;
+    let shown;
+    const frame = () => {
+      const now = performance.now() / 1000;
+      const view = slotView(clock.current, kind, now);
+      if (view.icon !== shown) { shown = view.icon; el.innerHTML = view.icon ? ITEM_ICONS[view.icon] : ''; }
+      el.style.transform = view.scale === 1 ? '' : `scale(${view.scale.toFixed(3)})`;
+      if (view.rolling || view.scale !== 1) raf = requestAnimationFrame(frame);
+    };
+    frame();
+    if (!raf && !rolling && clock.current.landed && kind) raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [kind, rolling, total]);
+  return <div className={`kart-item-slot ${className}`} data-rolling={rolling ? '1' : undefined} data-kind={kind ?? undefined}><div className="kart-item-icon" ref={box} /></div>;
+}
 
 // One racer's overlay on their viewport; sized in container units so it scales with the pane.
 export function Pane({ view, racer, label }) {
@@ -13,9 +38,10 @@ export function Pane({ view, racer, label }) {
       style={{ left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%` }}
     >
       <div className="kart-items">
-        <div className="kart-item-slot main" />
-        <div className="kart-item-slot reserve" />
+        <ItemSlot className="main" kind={racer?.item?.main} rolling={!!racer?.item?.rolling} total={ROLL_TOTAL} />
+        <ItemSlot className="reserve" kind={racer?.item?.reserve} rolling={!!racer?.item?.rollingReserve} total={racer?.item?.rolling ? ROLL_TOTAL_STACKED : ROLL_TOTAL} />
       </div>
+      {racer?.incoming && <div className="kart-incoming">!</div>}
       <div className="kart-place"><b>{place.num}</b><small>{place.suffix}</small></div>
       <div className="kart-pills">
         <div className="kart-pill kart-coins">

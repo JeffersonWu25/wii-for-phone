@@ -1,5 +1,6 @@
 // Race state machine — pure. Steps karts, tracks checkpoints / laps, standings, wrong-way flag.
 import { createKart, stepKart, resolveKartCollisions } from './physics.js';
+import { createBoxes, mulberry32, stepItems } from './items.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -22,7 +23,8 @@ export function formatTime(sec) {
 
 // ── Setup ────────────────────────────────────────────────────────────────────
 
-export function createRace(track, entrants) {
+// seed makes the item boxes and rolls reproducible; the host passes a fresh one per race.
+export function createRace(track, entrants, { seed = 1 } = {}) {
   const slots = track.gridSlots(entrants.length);
   const karts = entrants.map((e, i) => ({
     ...createKart({ id: e.id, color: e.color, slot: slots[i] }),
@@ -39,7 +41,15 @@ export function createRace(track, entrants) {
     wrongWayTime: 0,
     progress: slots[i].s - track.length,
   }));
+  const rng = mulberry32(seed);
   return {
+    rng,
+    boxes: createBoxes(track, rng),
+    entities: [],
+    events: [], // append-only log for the renderer, trimmed to the last 64
+    eventSeq: 0,
+    entitySeq: 0,
+    pickupAt: {}, // `${kartId}:${row}` -> race.time of the last pickup
     phase: 'countdown',
     time: 0,
     countdown: COUNTDOWN_SECONDS,
@@ -78,6 +88,7 @@ export function stepRace(race, inputsById, dt, track, tune) {
     stepKart(kart, kart.finished ? { steer: 0, throttle: 0 } : input, dt, track);
   }
   resolveKartCollisions(race.karts);
+  stepItems(race, inputsById, dt, track);
 
   race.karts.forEach((kart, i) => {
     if (kart.finished) return;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildTrack } from './track.js';
-import { createKart, stepKart, resolveKartCollisions, TOP_SPEED, REVERSE_TOP } from './physics.js';
+import { createKart, stepKart, applyHit, resolveKartCollisions, TOP_SPEED } from './physics.js';
 
 const track = buildTrack();
 const DT = 1 / 60;
@@ -175,9 +175,6 @@ test('drift starts only with the button, enough steer and enough speed', () => {
   const noButton = straight();
   runFlat(noButton, { steer: 1 }, 0.5);
   assert.equal(noButton.drift.sliding, false);
-  const braking = straight();
-  runFlat(braking, { steer: 1, drift: true, brake: 0.5 }, 0.1);
-  assert.equal(braking.drift.sliding, false);
   const ok = straight();
   runFlat(ok, DRIFT_RIGHT, 0.1);
   assert.equal(ok.drift.sliding, true);
@@ -251,14 +248,12 @@ test('boost time and top speed rise strictly with the drift level', () => {
   assert.ok(boosts[0].peak < boosts[1].peak && boosts[1].peak < boosts[2].peak);
 });
 
-test('pushing the stick down cancels a drift with no boost', () => {
+test('aimY never affects a drift', () => {
   const kart = straight();
   runFlat(kart, DRIFT_RIGHT, 2.2);
+  runFlat(kart, { ...DRIFT_RIGHT, aimY: 1 }, 0.5);
+  assert.equal(kart.drift.sliding, true);
   assert.equal(kart.drift.level, 2);
-  runFlat(kart, { steer: 1, brake: 1, drift: true }, DT);
-  assert.equal(kart.drift.sliding, false);
-  assert.equal(kart.boost, 0);
-  assert.equal(kart.boostLevel, 0);
 });
 
 test('falling below the minimum speed ends the slide with no boost', () => {
@@ -307,22 +302,64 @@ test('a weaker drift release never cuts short or recolors a stronger running boo
   assert.ok(kart.boost > left - 0.05, `boost ${kart.boost} kept from ${left}`);
 });
 
-test('brake stops the kart, reverses to REVERSE_TOP, and releasing resumes forward', () => {
+test('no brake: aimY and a stray brake field leave the kart accelerating, and speed never goes negative', () => {
   const kart = kartAt(10, 0, { speed: 10, vx: 10 });
-  run(kart, { brake: 1 }, 1);
-  assert.ok(kart.speed <= 0);
-  run(kart, { brake: 1 }, 4);
-  assert.ok(Math.abs(kart.speed + REVERSE_TOP) < 1e-6, `speed ${kart.speed}`);
-  run(kart, {}, 2);
+  run(kart, { aimY: 1, brake: 1 }, 2);
   assert.ok(kart.speed > 10, `speed ${kart.speed}`);
+  const coast = kartAt(10, 0, { speed: 3, vx: 3 });
+  run(coast, { throttle: 0 }, 5);
+  assert.equal(coast.speed, 0);
 });
 
-test('a lighter brake slows the kart less', () => {
-  const soft = kartAt(10, 0, { speed: 20, vx: 20 });
-  const hard = kartAt(10, 0, { speed: 20, vx: 20 });
-  run(soft, { brake: 0.3 }, 0.3);
-  run(hard, { brake: 1 }, 0.3);
-  assert.ok(soft.speed > hard.speed);
+test('a mushroom keeps top speed off-road, a plain kart is held to OFFROAD_TOP', () => {
+  const plain = kartAt(10, 12, { speed: 20, vx: 20, surface: 'grass' });
+  const shroom = kartAt(10, 12, { speed: 20, vx: 20, surface: 'grass', mushroom: 3 });
+  run(plain, {}, 1.5);
+  run(shroom, {}, 1.5);
+  assert.equal(plain.surface, 'grass');
+  assert.ok(plain.speed < TOP_SPEED * 0.7, `plain ${plain.speed}`);
+  assert.ok(shroom.speed > TOP_SPEED * 0.9, `shroom ${shroom.speed}`);
+});
+
+// ── Hits ─────────────────────────────────────────────────────────────────────
+
+test('applyHit locks the controls, cancels drift and boost, and drops speed under 10% in 0.3 s', () => {
+  const kart = kartAt(10, 0, { speed: 20, vx: 20, boost: 1, boostLevel: 2, mushroom: 1 });
+  kart.drift = { sliding: true, dir: 1, charge: 2, level: 2 };
+  assert.equal(applyHit(kart, 'spin'), true);
+  assert.deepEqual(kart.hit, { kind: 'spin', t: 1.2, total: 1.2 });
+  assert.equal(kart.drift.sliding, false);
+  assert.equal(kart.boost, 0);
+  assert.equal(kart.mushroom, 0);
+  const h = kart.h;
+  const v0 = kart.speed;
+  run(kart, { steer: 1, drift: true, aimY: 1 }, 0.3);
+  assert.ok(kart.speed <= v0 * 0.1, `speed ${kart.speed}`);
+  assert.equal(kart.h, h);
+  assert.equal(kart.drift.sliding, false);
+});
+
+test('a hit ends after its time, then 1 s of immunity makes applyHit a no-op', () => {
+  const kart = kartAt(10, 0, { speed: 20, vx: 20 });
+  applyHit(kart, 'tumble');
+  assert.equal(kart.hit.total, 1.4);
+  assert.equal(applyHit(kart, 'spin'), false);
+  assert.equal(kart.hit.kind, 'tumble');
+  run(kart, {}, 1.5);
+  assert.equal(kart.hit, null);
+  assert.ok(kart.invuln > 0 && kart.invuln <= 1);
+  assert.equal(applyHit(kart, 'spin'), false);
+  run(kart, {}, 1.1);
+  assert.equal(kart.invuln, 0);
+  assert.equal(applyHit(kart, 'spin'), true);
+});
+
+test('a boost pad does not boost a kart that is spinning out', () => {
+  const pad = track.boostPads[0];
+  const kart = kartAt(pad.s, pad.lateral, { speed: 10 });
+  applyHit(kart, 'spin');
+  run(kart, {}, 0.2);
+  assert.equal(kart.boost, 0);
 });
 
 test('throttle 0 coasts, a missing throttle drives', () => {

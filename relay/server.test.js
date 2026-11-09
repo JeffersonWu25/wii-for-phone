@@ -259,7 +259,7 @@ test('drive packets are forwarded to the host with the player id', async () => {
   assert.equal(msg.type, 'joined');
   await nextMsg(host);
 
-  phone.send(JSON.stringify({ type: 'drive', steer: -0.4, brake: 0, drift: true, seq: 3 }));
+  phone.send(JSON.stringify({ type: 'drive', steer: -0.4, aimY: 0, drift: true, seq: 3 }));
   const fwd = await nextMsg(host);
   assert.equal(fwd.type, 'drive');
   assert.equal(fwd.steer, -0.4);

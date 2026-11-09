@@ -3,7 +3,7 @@ import { buildTrack } from './track.js';
 import { createRace, stepRace, formatTime } from './race.js';
 import { createKartScene } from './scene/createKartScene.js';
 import {
-  buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, playerColor, splitLayout, startTick, statusKey,
+  buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, isIncoming, itemState, ordinal, playerColor, splitLayout, startTick, statusKey,
 } from './hud.js';
 import { Minimap, Pane } from './Hud.jsx';
 import KartSettings from './KartSettings.jsx';
@@ -17,10 +17,10 @@ const MAP_SHORT = 150;
 const MAX_RACERS = 4;
 const DEBUG_ENTRANT = { id: 'debug', name: 'Debug' };
 // The kart always accelerates: a racer with no phone input yet still drives, a disconnected one coasts.
-const IDLE = { steer: 0, brake: 0, drift: false };
-const COAST = { steer: 0, brake: 0, drift: false, throttle: 0 };
+const IDLE = { steer: 0, aimY: 0, drift: false };
+const COAST = { steer: 0, aimY: 0, drift: false, throttle: 0 };
 const PHONE_STALE_MS = 500; // a phone that stops streaming (backgrounded tab) falls back to IDLE
-const DRIVE_KEYS = ['ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'];
+const DRIVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'];
 
 // Self-contained Kart Racer host component. Props mirror BowlingApp.
 export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon }) {
@@ -56,7 +56,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     const keyboardId = entrants[0].id;
 
     const track = buildTrack();
-    const race = createRace(track, entrants);
+    const race = createRace(track, entrants, { seed: (Math.random() * 2 ** 32) >>> 0 });
     const scene = createKartScene(containerRef.current, track);
     scene.setKarts(entrants);
     const split = splitLayout(entrants.length);
@@ -73,15 +73,21 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
 
     // ── Input ─────────────────────────────────────────────────────────────────
     const phoneInputs = {};
+    const pendingUse = new Set(); // player ids that pressed use since the last step
     const keys = new Set();
     const ws = wsRef.current;
     function onMessage(e) {
       let msg;
       try { msg = JSON.parse(e.data); } catch { return; }
-      if (msg.type !== 'drive' || !cssById[msg.playerId]) return;
+      if (!cssById[msg.playerId]) return;
+      if (msg.type === 'use_item') {
+        pendingUse.add(msg.playerId);
+        return;
+      }
+      if (msg.type !== 'drive') return;
       phoneInputs[msg.playerId] = {
         steer: Math.max(-1, Math.min(1, Number(msg.steer) || 0)),
-        brake: Math.max(0, Math.min(1, Number(msg.brake) || 0)),
+        aimY: Math.max(-1, Math.min(1, Number(msg.aimY) || 0)),
         drift: msg.drift === true,
         at: performance.now(),
       };
@@ -96,6 +102,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
         callbacks.current.onAbandon();
       } else if (e.code === 'Enter' && resultsShownRef.current) {
         callbacks.current.onGameOver();
+      } else if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) {
+        pendingUse.add(keyboardId);
       }
     }
     const onKeyUp = (e) => keys.delete(e.code);
@@ -110,7 +118,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       if (!keys.size) return null;
       return {
         steer: (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0),
-        brake: keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0,
+        aimY: (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0),
         drift: keys.has('Space') || keys.has('ShiftLeft') || keys.has('ShiftRight'),
       };
     }
@@ -122,6 +130,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     };
     window.__kartState = snapshot;
     window.__kartTrack = track;
+    window.__kartRace = race; // live race for the verify harness (read-only): events, entities
 
     // ── Loop ──────────────────────────────────────────────────────────────────
     let raf = 0;
@@ -139,7 +148,10 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     const hudSnapshot = () => ({
       slots: entrants.map((e) => {
         const k = race.karts.find((r) => r.id === e.id);
-        return { lap: Math.min(k.lap + 1, race.laps), laps: race.laps, place: k.place, wrongWay: k.wrongWay };
+        return {
+          lap: Math.min(k.lap + 1, race.laps), laps: race.laps, place: k.place, wrongWay: k.wrongWay,
+          ...itemState(k), hit: k.hit?.kind ?? null, incoming: isIncoming(race, k),
+        };
       }),
     });
     setHud(hudSnapshot());
@@ -169,6 +181,9 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       }
       const kb = keyboardInput();
       if (kb) inputs[keyboardId] = kb;
+      // The latest input is the aim; a use press rides on a copy so the shared IDLE / COAST stay clean.
+      for (const id of pendingUse) inputs[id] = { ...inputs[id], useItem: true };
+      pendingUse.clear();
 
       stepRace(race, inputs, dt, track, tuningRef.current);
       scene.update(race, dt);
@@ -195,6 +210,8 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       snapshot.phase = race.phase;
       snapshot.time = race.time;
       snapshot.countdown = race.countdown;
+      snapshot.entities = race.entities.map((en) => ({ id: en.id, kind: en.kind, owner: en.owner, x: en.x, y: en.y, z: en.z, state: en.state, target: en.target }));
+      snapshot.boxes = race.boxes.map((b) => ({ id: b.id, ready: b.ready, stacked: b.stacked }));
       race.karts.forEach((k, i) => {
         const o = snapshot.karts[i];
         o.s = k.s; o.lateral = k.lateral; o.h = k.h;
@@ -203,6 +220,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
         o.surface = k.surface; o.wrongWay = k.wrongWay; o.nextCheckpoint = k.nextCheckpoint;
         o.vx = k.vx; o.vz = k.vz; o.boost = k.boost; o.boostLevel = k.boostLevel;
         o.drift = Object.assign(o.drift ?? {}, k.drift);
+        o.item = { ...k.item }; o.hit = k.hit?.kind ?? null; o.invuln = k.invuln; o.mushroom = k.mushroom;
       });
 
       publish(now);
@@ -230,6 +248,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
       scene.dispose();
       delete window.__kartState;
       delete window.__kartTrack;
+      delete window.__kartRace;
     };
   // Mount-only: the race is built once from the lobby as it stands now.
   // eslint-disable-next-line react-hooks/exhaustive-deps
