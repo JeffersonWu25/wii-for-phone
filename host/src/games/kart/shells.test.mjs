@@ -34,11 +34,6 @@ function wallRace() {
   race.karts.forEach((k) => { k.place = race.standings.indexOf(k.id) + 1; });
   return race;
 }
-function put(kart, s, lateral = 0) {
-  const fr = track.frameAt(s);
-  Object.assign(kart, { s, lateral, x: fr.x + fr.rx * lateral, z: fr.z + fr.rz * lateral, h: fr.h, speed: 0, vx: 0, vz: 0 });
-}
-const bounceEvents = (race, sh) => race.events.filter((e) => e.type === 'bounce' && e.entityId === sh.id).length;
 
 test('a red shell pursuing a kart hugging the wall is not spent by wall contacts without reflections', () => {
   const race = wallRace();
