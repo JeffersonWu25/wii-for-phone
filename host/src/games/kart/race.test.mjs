@@ -149,6 +149,17 @@ test('standings order karts by progress', () => {
   }
 });
 
+test('stepRace applies the host tuning to every kart', () => {
+  const slow = startRace(ENTRANTS.slice(0, 1));
+  const fast = startRace(ENTRANTS.slice(0, 1));
+  const tune = { speed: 1.4, turn: 1, driftTurn: 1, driftLevel: 1, driftBoost: 1 };
+  for (let i = 0; i < 60 * 5; i++) {
+    stepRace(slow, { a: { steer: 0 } }, DT, track);
+    stepRace(fast, { a: { steer: 0 } }, DT, track, tune);
+  }
+  assert.ok(fast.karts[0].speed > slow.karts[0].speed * 1.25, `${fast.karts[0].speed} vs ${slow.karts[0].speed}`);
+});
+
 test('a new race carries the item state: boxes, entity list, event log, empty slots', () => {
   const race = createRace(track, ENTRANTS, { seed: 4 });
   assert.equal(race.boxes.length, 8);

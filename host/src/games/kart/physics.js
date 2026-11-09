@@ -114,7 +114,7 @@ function slideHeading(kart, steer, v, dt, tune) {
   const { dir } = kart.drift;
   const moving = Math.hypot(kart.vx, kart.vz) > 0.5;
   let travel = moving ? Math.atan2(kart.vz, kart.vx) : kart.h - kart.slip;
-  travel += dir * Math.max(DRIFT_TURN_MIN, DRIFT_TURN * tune.driftTurn * (1 + DRIFT_STEER_MOD * steer * dir)) * dt;
+  travel += dir * tune.driftTurn * Math.max(DRIFT_TURN_MIN, DRIFT_TURN * (1 + DRIFT_STEER_MOD * steer * dir)) * dt;
   kart.slip += (dir * DRIFT_SLIP - kart.slip) * (1 - Math.exp(-DRIFT_SLIP_IN * dt));
   kart.h = travel + kart.slip;
   kart.vx = Math.cos(travel) * v;

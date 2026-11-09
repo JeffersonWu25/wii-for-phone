@@ -4,10 +4,10 @@ const KEY = 'kart.hostTuning';
 
 export const KART_CONTROLS = [
   { key: 'speed', label: 'Speed', min: 0.7, max: 1.4, step: 0.05 },
-  { key: 'turn', label: 'Turning', min: 0.5, max: 1.8, step: 0.05 },
-  { key: 'driftTurn', label: 'Drift sensitivity', min: 0.5, max: 1.8, step: 0.05 },
-  { key: 'driftLevel', label: 'Drift level change', min: 0.5, max: 2.5, step: 0.05 },
-  { key: 'driftBoost', label: 'Drift boost', min: 0.5, max: 2.5, step: 0.05 },
+  { key: 'turn', label: 'Turning', min: 0.3, max: 1.5, step: 0.05 },
+  { key: 'driftTurn', label: 'Drift sensitivity', min: 0.3, max: 1.5, step: 0.05 },
+  { key: 'driftLevel', label: 'Drift level change', min: 0.5, max: 2, step: 0.05 },
+  { key: 'driftBoost', label: 'Drift boost', min: 0.5, max: 2, step: 0.05 },
 ];
 
 export function clampKartTuning(raw) {
