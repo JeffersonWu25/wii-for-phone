@@ -75,7 +75,7 @@ export function stepRace(race, inputsById, dt, track, tune) {
   for (const kart of race.karts) {
     const input = inputsById?.[kart.id] ?? {};
     prevS.push(kart.s);
-    stepKart(kart, kart.finished ? { steer: 0, throttle: 0 } : input, dt, track);
+    stepKart(kart, kart.finished ? { steer: 0, throttle: 0 } : input, dt, track, tune);
   }
   resolveKartCollisions(race.karts);
 

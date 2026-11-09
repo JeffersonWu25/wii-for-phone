@@ -385,3 +385,23 @@ test('tuning: speed scales the top speed, drift boost scales the boost time', ()
   stepKart(boosted, { steer: 0, drift: false }, DT, track, { speed: 1, turn: 1, driftTurn: 1, driftLevel: 1, driftBoost: 2 });
   assert.ok(Math.abs(boosted.boost - 1.4) < 0.1, `boost ${boosted.boost}`);
 });
+
+test('tuning: the lowest turning and drift sensitivity cut the turn rate to the slider value', () => {
+  const low = { speed: 1, turn: 0.3, driftTurn: 0.3, driftLevel: 1, driftBoost: 1 };
+  const turned = (tune, input, extra) => {
+    const kart = kartAt(10, 0, { speed: 20, vx: 0, ...extra });
+    kart.vx = Math.cos(kart.h) * 20;
+    kart.vz = Math.sin(kart.h) * 20;
+    const h0 = kart.h;
+    for (let i = 0; i < 30; i++) stepKart(kart, input, DT, track, tune);
+    return Math.atan2(kart.vz, kart.vx) - Math.atan2(Math.sin(h0), Math.cos(h0));
+  };
+  const grip = turned(undefined, { steer: 1 });
+  const gripLow = turned(low, { steer: 1 });
+  assert.ok(Math.abs(gripLow / grip - 0.3) < 0.08, `grip ratio ${gripLow / grip}`);
+
+  const sliding = { drift: { sliding: true, dir: 1, charge: 0, level: 0 } };
+  const drift = turned(undefined, { steer: 1, drift: true }, sliding);
+  const driftLow = turned(low, { steer: 1, drift: true }, sliding);
+  assert.ok(Math.abs(driftLow / drift - 0.3) < 0.05, `drift ratio ${driftLow / drift}`);
+});
