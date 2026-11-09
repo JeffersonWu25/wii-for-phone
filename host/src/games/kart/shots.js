@@ -29,6 +29,9 @@ export const SHOTS = {
   finish: { s: 0, lateral: -8, up: 6, back: 24, lookAhead: 20 },
   // Close views of the preview's posed kart at s = 60 (see preview.js ?drift / ?boost).
   driftRear: { s: 60, lateral: 0, up: 1.7, back: 4.5, lookAhead: 6 },
+  // Item row at start+80 seen from behind, and a side view of the posed kart (?hit=spin|tumble).
+  itemRow: { s: pieceStart('start') + 80, lateral: 0, up: 2.6, back: 11, lookAhead: 6 },
+  hitSide: { s: 60, lateral: 6.5, up: 2, back: 0, lookAhead: 0 },
   driftQuarter: { s: 60, lateral: 3.2, up: 1.4, back: 3.2, lookAhead: 3.5 },
 };
 

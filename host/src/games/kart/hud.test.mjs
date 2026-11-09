@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, placeParts, playerColor, splitLayout, startTick, statusKey } from './hud.js';
+import { landingScale, nextSlotClock, rouletteFrame, slotView, ROLL_TOTAL, buildResults, buildStatus, countdownLabel, countdownLights, cssColor, fitMinimap, ordinal, placeParts, playerColor, splitLayout, startTick, statusKey } from './hud.js';
 
 test('player colors are distinct and wrap', () => {
   const colors = Array.from({ length: 8 }, (_, i) => playerColor(i));
@@ -84,9 +84,10 @@ function fakeRace() {
   return {
     phase: 'racing',
     laps: 3,
+    entities: [],
     karts: [
-      { id: 'a', name: 'Ada', lap: 0, place: 2, finished: false, finishTime: null, lapTimes: [] },
-      { id: 'b', name: 'Bo', lap: 3, place: 1, finished: true, finishTime: 123.4, lapTimes: [45, 40, 38.4] },
+      { id: 'a', name: 'Ada', lap: 0, place: 2, finished: false, finishTime: null, lapTimes: [], item: { main: null, reserve: null, rollMain: 0, rollReserve: 0 } },
+      { id: 'b', name: 'Bo', lap: 3, place: 1, finished: true, finishTime: 123.4, lapTimes: [45, 40, 38.4], item: { main: 'green', reserve: 'red', rollMain: 0.5, rollReserve: 0 } },
     ],
   };
 }
@@ -96,7 +97,10 @@ test('status payload shows the current 1-based lap, capped at the lap count', ()
   const s = buildStatus(fakeRace(), css);
   assert.equal(s.type, 'kart_status');
   assert.equal(s.phase, 'racing');
-  assert.deepEqual(s.players.a, { lap: 1, laps: 3, place: 2, color: '#111111', finished: false });
+  assert.deepEqual(s.players.a, {
+    lap: 1, laps: 3, place: 2, color: '#111111', finished: false,
+    item: { main: null, reserve: null, rolling: false, rollingReserve: false }, hit: null, incoming: false,
+  });
   assert.equal(s.players.b.lap, 3);
   assert.equal(statusKey(s), statusKey(buildStatus(fakeRace(), css)));
   const moved = fakeRace();
@@ -112,4 +116,60 @@ test('results are ordered by place with DNF as null time', () => {
   assert.deepEqual(results[0], { playerId: 'b', name: 'Bo', place: 1, time: 123.4, color: '#222222', bestLap: 38.4 });
   assert.equal(results[1].time, null);
   assert.equal(results[1].bestLap, null);
+});
+
+test('item status hides rolling kinds and flags the roll; incoming follows a red shell target', () => {
+  const race = fakeRace();
+  const css = { a: '#111111', b: '#222222' };
+  assert.deepEqual(buildStatus(race, css).players.b.item, { main: null, reserve: 'red', rolling: true, rollingReserve: false });
+  race.entities = [{ kind: 'green', target: 'a' }, { kind: 'red', target: 'a' }];
+  const s = buildStatus(race, css);
+  assert.equal(s.players.a.incoming, true);
+  assert.equal(s.players.b.incoming, false);
+});
+
+test('roulette cycles ~12 icons/s then slows over the last 0.6 s', () => {
+  const changes = (a, b) => { let n = 0, last = null; for (let t = a; t < b; t += 0.005) { const f = rouletteFrame(t); if (f !== last) { n++; last = f; } } return n; };
+  assert.ok(changes(0, 1) >= 10 && changes(0, 1) <= 13);
+  assert.ok(changes(1.2, 1.6) < changes(0.4, 0.8));
+  assert.equal(rouletteFrame(9), rouletteFrame(ROLL_TOTAL));
+});
+
+test('landing bump is 1 -> 1.25 -> 1', () => {
+  assert.equal(landingScale(0), 1);
+  assert.ok(Math.abs(landingScale(0.125) - 1.25) < 1e-9);
+  assert.equal(landingScale(0.3), 1);
+});
+
+test('slot clock rolls, lands, and drives the view', () => {
+  let c = nextSlotClock(null, false, 0);
+  assert.deepEqual(slotView(c, null, 1), { icon: null, scale: 1, rolling: false });
+  c = nextSlotClock(c, true, 10);
+  assert.equal(nextSlotClock(c, true, 10.5), c, 'staying rolling keeps the start time');
+  assert.equal(slotView(c, null, 10.2).rolling, true);
+  c = nextSlotClock(c, false, 11.6);
+  const v = slotView(c, 'red', 11.725);
+  assert.equal(v.icon, 'red');
+  assert.ok(Math.abs(v.scale - 1.25) < 1e-9);
+  assert.equal(slotView(c, 'red', 12).scale, 1);
+});
+
+test('status carries the hit kind', () => {
+  const race = fakeRace();
+  race.karts[0].hit = { kind: 'spin', t: 1, total: 1.2 };
+  assert.equal(buildStatus(race, { a: '#111', b: '#222' }).players.a.hit, 'spin');
+});
+
+// ── Phone copy parity ────────────────────────────────────────────────────────
+
+test('the phone roulette, bump and icons match the host copies', async () => {
+  const phone = await import('../../../../phone/src/games/kart/itemSlot.js');
+  const { ITEM_ICONS: hostIcons } = await import('./itemIcons.js');
+  const { ITEM_ICONS: phoneIcons } = await import('../../../../phone/src/games/kart/itemIcons.js');
+  assert.deepEqual(phoneIcons, hostIcons);
+  assert.equal(phone.ROLL_TOTAL, ROLL_TOTAL);
+  for (let t = 0; t <= 2; t += 0.01) {
+    assert.equal(phone.rouletteFrame(t), rouletteFrame(t), `frame at ${t}`);
+    assert.equal(phone.landingScale(t / 4), landingScale(t / 4), `bump at ${t / 4}`);
+  }
 });

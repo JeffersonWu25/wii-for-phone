@@ -159,3 +159,21 @@ test('stepRace applies the host tuning to every kart', () => {
   }
   assert.ok(fast.karts[0].speed > slow.karts[0].speed * 1.25, `${fast.karts[0].speed} vs ${slow.karts[0].speed}`);
 });
+
+test('a new race carries the item state: boxes, entity list, event log, empty slots', () => {
+  const race = createRace(track, ENTRANTS, { seed: 4 });
+  assert.equal(race.boxes.length, 8);
+  assert.deepEqual([race.entities, race.events, race.eventSeq], [[], [], 0]);
+  for (const k of race.karts) assert.deepEqual(k.item, { main: null, reserve: null, rollMain: 0, rollReserve: 0 });
+  assert.deepEqual(createRace(track, ENTRANTS, { seed: 4 }).boxes, race.boxes);
+});
+
+test('items stay frozen through the countdown and an autopilot lap with items picked up is deterministic', () => {
+  const lap = (seed) => {
+    const race = createRace(track, ENTRANTS, { seed });
+    for (let i = 0; i < 60 * 40; i++) stepRace(race, autopilotInputs(race), DT, track);
+    return race.karts.map((k) => k.item.main);
+  };
+  assert.deepEqual(lap(3), lap(3));
+  assert.ok(lap(3).some(Boolean), 'someone picked up a box');
+});

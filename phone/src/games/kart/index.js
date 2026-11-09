@@ -1,9 +1,11 @@
-// Kart Racer phone controller: landscape free stick (X steers, pushing down brakes),
-// a hold DRIFT button and a placeholder USE ITEM button. The kart accelerates on its own.
-// Sends { type:'drive', steer, brake, drift } at 20 Hz and { type:'use_item' } on tap.
+// Kart Racer phone controller: landscape free stick (X steers, Y aims thrown items),
+// a hold DRIFT button and a USE ITEM button that shows the roulette. The kart accelerates on its own.
+// Sends { type:'drive', steer, aimY, drift } at 20 Hz and { type:'use_item' } on tap.
 // Exported mount(app, sendMsg, myPlayerId) returns { onMessage, onMotion, unmount }.
 
 import { stickFromOffset, clampToRadius } from './joystick.js';
+import { ITEM_ICONS } from './itemIcons.js';
+import { buttonView, buzzEvents, landingScale, rouletteFrame, ROLL_TOTAL } from './itemSlot.js';
 
 const SEND_HZ = 20;
 const DEAD_ZONE = 0.12;
@@ -14,7 +16,7 @@ const placeLabel = (n) => PLACES[n - 1] ?? `${n}th`;
 export function mount(app, sendMsg, myPlayerId) {
   // ── State ───────────────────────────────────────────────────────────────────
   let steer = 0;
-  let brake = 0;
+  let aimY = 0;
   let drift = false;
   let steerPointer = null;
   let driftPointer = null;
@@ -23,6 +25,11 @@ export function mount(app, sendMsg, myPlayerId) {
   let sendTimer = null;
   let wakeLock = null;
   let unmounted = false;
+  let itemView = buttonView(null);
+  let rollStart = null; // performance.now() seconds when the main slot began rolling
+  let landedAt = -Infinity;
+  let itemRaf = 0;
+  let prevStatus = null;
 
   app.innerHTML = `
     <div id="screen-kart">
@@ -31,7 +38,7 @@ export function mount(app, sendMsg, myPlayerId) {
         <div class="kart-zone-left" id="kart-zone">
           <div id="kart-joystick"><div id="kart-knob"></div></div>
         </div>
-        <button id="btn-item" type="button">ITEM</button>
+        <button id="btn-item" type="button" class="empty"><span class="item-icon"></span><span class="item-label">ITEM</span><span class="item-reserve"></span></button>
         <button id="btn-drift" type="button">DRIFT</button>
       </div>
       <div id="kart-finish"></div>
@@ -45,13 +52,15 @@ export function mount(app, sendMsg, myPlayerId) {
   const knob = document.getElementById('kart-knob');
   const driftBtn = document.getElementById('btn-drift');
   const itemBtn = document.getElementById('btn-item');
+  const itemIconEl = itemBtn.querySelector('.item-icon');
+  const itemReserveEl = itemBtn.querySelector('.item-reserve');
   const statusEl = document.getElementById('kart-status');
   const finishEl = document.getElementById('kart-finish');
 
   // ── Drive output ────────────────────────────────────────────────────────────
   const round2 = (v) => Math.round(v * 100) / 100 || 0;
   function sendDrive() {
-    sendMsg({ type: 'drive', steer: round2(steer), brake: round2(brake), drift });
+    sendMsg({ type: 'drive', steer: round2(steer), aimY: round2(aimY), drift });
   }
 
   // ── Joystick ────────────────────────────────────────────────────────────────
@@ -61,16 +70,16 @@ export function mount(app, sendMsg, myPlayerId) {
   let radius = 60; // travel of the knob centre; set from the base on touch
   function moveStick(clientX, clientY) {
     const { x, y } = clampToRadius(clientX - baseCx, clientY - baseCy, radius);
-    ({ steer, brake } = stickFromOffset(x, y, radius, DEAD_ZONE));
+    ({ steer, aimY } = stickFromOffset(x, y, radius, DEAD_ZONE));
     knob.style.transform = `translate(${x}px, ${y}px)`;
   }
   function releaseStick() {
     steerPointer = null;
     steer = 0;
-    brake = 0;
+    aimY = 0;
     knob.style.transition = 'transform 0.12s ease-out';
     knob.style.transform = 'translate(0, 0)';
-    sendDrive(); // let go of brake and steer now, not on the next tick
+    sendDrive(); // let go of aim and steer now, not on the next tick
     base.style.left = '50%';
     base.style.top = '50%';
   }
@@ -122,10 +131,10 @@ export function mount(app, sendMsg, myPlayerId) {
   driftBtn.addEventListener('pointerup', endDrift);
   driftBtn.addEventListener('pointercancel', endDrift);
 
-  // ── Use item (placeholder) ──────────────────────────────────────────────────
+  // ── Use item ────────────────────────────────────────────────────────────────
   // One use_item per press; never touches driving state.
   itemBtn.addEventListener('pointerdown', (e) => {
-    if (itemPointer !== null) return;
+    if (itemPointer !== null || !itemView.usable) return;
     itemPointer = e.pointerId;
     itemBtn.setPointerCapture(e.pointerId);
     itemBtn.classList.add('pressed');
@@ -134,6 +143,48 @@ export function mount(app, sendMsg, myPlayerId) {
     sendMsg({ type: 'use_item' });
     e.preventDefault();
   });
+  // The roulette and landing bump run on rAF; status only arrives at <= 4 Hz.
+  function paintItem() {
+    cancelAnimationFrame(itemRaf);
+    const now = performance.now() / 1000;
+    let icon = itemView.main;
+    let scale = 1;
+    if (itemView.state === 'rolling') {
+      rollStart ??= now;
+      icon = rouletteFrame(now - rollStart, ROLL_TOTAL);
+    } else {
+      scale = icon ? landingScale(now - landedAt) : 1;
+    }
+    if (itemIconEl.dataset.kind !== (icon ?? '')) {
+      itemIconEl.dataset.kind = icon ?? '';
+      itemIconEl.innerHTML = icon ? ITEM_ICONS[icon] : '';
+    }
+    itemIconEl.style.transform = scale === 1 ? '' : `scale(${scale.toFixed(3)})`;
+    if (!unmounted && (itemView.state === 'rolling' || scale !== 1)) itemRaf = requestAnimationFrame(paintItem);
+  }
+  function setItem(item) {
+    const next = buttonView(item);
+    const now = performance.now() / 1000;
+    const wasRolling = itemView.state === 'rolling';
+    if (next.state === 'rolling') {
+      if (!wasRolling) rollStart = now; // startRoll
+    } else if (wasRolling || (next.state === 'ready' && next.main !== itemView.main)) {
+      landedAt = now; // landRoll
+      rollStart = null;
+    }
+    itemView = next;
+    itemBtn.className = `${next.state}${itemBtn.classList.contains('pressed') ? ' pressed' : ''}`;
+    itemBtn.setAttribute('aria-disabled', String(!next.usable));
+    itemReserveEl.innerHTML = next.reserve ? ITEM_ICONS[next.reserve] : '';
+    itemReserveEl.classList.toggle('on', !!next.reserve || next.reserveRolling);
+    itemReserveEl.classList.toggle('rolling', next.reserveRolling);
+    paintItem();
+  }
+  function buzz(me) {
+    const ev = buzzEvents(prevStatus, me);
+    prevStatus = me;
+    if (ev.incoming || ev.hit) { try { navigator.vibrate?.(ev.hit ? [60, 40, 60] : 120); } catch (_) {} }
+  }
   const endItem = (e) => { if (e.pointerId === itemPointer) itemPointer = null; };
   itemBtn.addEventListener('pointerup', endItem);
   itemBtn.addEventListener('pointercancel', endItem);
@@ -175,6 +226,9 @@ export function mount(app, sendMsg, myPlayerId) {
   // ── Host status ─────────────────────────────────────────────────────────────
   function showStatus(me) {
     if (!me) return;
+    buzz(me);
+    setItem(me.item);
+    root.classList.toggle('incoming', !!me.incoming);
     root.style.setProperty('--kart-color', me.color || '#888');
     const lap = Math.min(me.lap ?? 1, me.laps ?? 3);
     statusEl.innerHTML = `<span class="kart-swatch" style="background:${me.color || '#888'}"></span>` +
@@ -219,6 +273,7 @@ export function mount(app, sendMsg, myPlayerId) {
       unmounted = true;
       clearInterval(sendTimer);
       clearTimeout(itemTimer);
+      cancelAnimationFrame(itemRaf);
       portraitMq.removeEventListener('change', syncOrientation);
       document.removeEventListener('visibilitychange', onVisibility);
       if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
