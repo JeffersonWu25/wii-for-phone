@@ -8,6 +8,7 @@ const merge = (a, b) => {
   a.geos.push(...b.geos);
   return a;
 };
+const LAMP = { off: new THREE.Color(0x3a0d0d), red: new THREE.Color(0xff2a1a), green: new THREE.Color(0x2aff55) };
 const FLAGS = [0xe63a2e, 0xffc933, 0x2f9be0, 0x58c24a, 0xff8a1f, 0xfff5e0];
 
 export function buildVillage(ctx) {
@@ -24,7 +25,19 @@ export function buildVillage(ctx) {
   const a = place(track, 46, 0);
   const am = xform(a.x, a.y, a.z, -a.h);
   const ab = new Batch().add(arch.col, am, null);
-  g.add(propGroup('arch', [ab.add(arch.sign, am, null).mesh(mats.atlas(), { shadow: true })]));
+  // Countdown lamps: one instanced mesh of five discs on the arch's -x face, colours driven by setStartLights.
+  const lamps = new THREE.InstancedMesh(new THREE.CircleGeometry(0.8, 20), new THREE.MeshBasicMaterial(), 5);
+  lamps.frustumCulled = false;
+  for (let i = 0; i < 5; i++) lamps.setMatrixAt(i, am.clone().multiply(xform(-0.9, 11.6, (i - 2) * 2.2, -Math.PI / 2)));
+  ctx.setStartLights = (n) => {
+    for (let i = 0; i < 5; i++) {
+      const lit = n === 'go' || (typeof n === 'number' && i < n);
+      lamps.setColorAt(i, LAMP[lit ? (n === 'go' ? 'green' : 'red') : 'off']);
+    }
+    lamps.instanceColor.needsUpdate = true;
+  };
+  ctx.setStartLights(null);
+  g.add(propGroup('arch', [ab.add(arch.sign, am, null).mesh(mats.atlas(), { shadow: true }), lamps]));
 
   // Huts and stalls along the left, fronts toward the road.
   const hutC = new Batch();

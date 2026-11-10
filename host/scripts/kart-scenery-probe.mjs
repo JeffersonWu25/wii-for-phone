@@ -65,7 +65,8 @@ try {
   // Criteria 5 and 6 run on a page that builds the Coconut Coast world itself.
   const page = await open('track=coconut-coast&shot=ccStart');
   const world = await page.evaluate(async ({ REQUIRED, MIN_PALMS_IN_GROVE, MIN_TUNNEL_HEIGHT, CHASE }) => {
-    const THREE = await import('/src/games/kart/probe/three.js');
+    // Same module instance the app loaded: vite's pre-bundled three, found through the page's own resource list.
+    const THREE = await import(performance.getEntriesByType('resource').map((r) => r.name).find((n) => /\/deps\/three\.js/.test(n)));
     const { loadTrack } = await import('/src/games/kart/tracks/index.js');
     const { buildWorld } = await import('/src/games/kart/scene/world.js');
     const track = loadTrack('coconut-coast');

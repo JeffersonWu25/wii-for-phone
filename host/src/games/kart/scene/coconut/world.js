@@ -11,8 +11,6 @@ import { buildSunshine, buildPier } from './shore.js';
 import { buildCliffs, buildFalls } from './cliffs.js';
 import { buildGrove, buildSandy } from './grove.js';
 
-export { SEA_LEVEL } from './kit.js';
-
 const PALM_LOD = 120;
 const SMALL_LOD = 170;
 const ALWAYS = new Set(['prop:lighthouse', 'prop:cliffFace', 'prop:rocks', 'prop:tunnelShell', 'prop:waterfall']);
@@ -43,18 +41,7 @@ export function buildCoconutWorld(track) {
 
   const isl = makeIsland(track);
   const ctx = { track, isl, lod: [], anim: [] };
-  const ground = buildGround(isl.track, sun);
-  // The shared ground shader hard-codes green/white curbs; Coconut Coast wants red/white.
-  ground.group.traverse((o) => {
-    const mat = o.material;
-    if (!mat || !mat.onBeforeCompile) return;
-    const prev = mat.onBeforeCompile;
-    mat.onBeforeCompile = (sh, r) => {
-      prev(sh, r);
-      sh.fragmentShader = sh.fragmentShader.replace('C(0.10, 0.70, 0.22)', 'C(0.88, 0.10, 0.12)');
-    };
-    mat.customProgramCacheKey = () => 'coconut-ground';
-  });
+  const ground = buildGround(isl.track, sun, { curb: [0.88, 0.10, 0.12] });
   const sky = buildSky();
   sky.group.name = 'sky';
   const ocean = buildOcean(track, isl);
@@ -92,7 +79,7 @@ export function buildCoconutWorld(track) {
     center: ground.center,
     background: new THREE.Color(HORIZON),
     fog: { color: HORIZON, near: 600, far: 2300 },
-    setStartLights() {},
+    setStartLights: (n) => ctx.setStartLights?.(n),
     tick(t, camera) {
       ground.tick(t);
       sky.tick(t, camera);

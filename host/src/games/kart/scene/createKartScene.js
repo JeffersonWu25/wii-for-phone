@@ -188,8 +188,12 @@ export function createKartScene(container, track) {
     scene.traverse((o) => {
       o.geometry?.dispose();
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-      mats.forEach((mat) => mat.dispose());
+      for (const mat of mats) {
+        for (const v of Object.values(mat)) if (v?.isTexture) v.dispose();
+        mat.dispose();
+      }
     });
+    renderer.forceContextLoss();
     renderer.dispose();
     renderer.domElement.remove();
   }

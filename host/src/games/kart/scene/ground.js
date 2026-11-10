@@ -46,6 +46,7 @@ uniform float uLen;
 uniform int uMarkN;
 uniform vec4 uMark[40];
 uniform vec4 uPad[4];
+uniform vec3 uCurb;
 varying vec4 vTr;
 varying vec4 vW;
 varying vec4 vR;
@@ -137,10 +138,10 @@ vec3 gGlow = vec3(0.0);
   sandC *= 1.1;
   col = mix(col, sandC, sandM);
 
-  // ---- curbs: green/white stripes
+  // ---- curbs: uCurb (green by default)/white stripes
   float cm = bd(a, hw, hw + curb, wl) * smoothstep(0.05, 0.25, curb) * nf;
   float stripeM = bd(mod(s, 3.0), 0.0, 1.5, ws);
-  vec3 curbC = mix(C(0.97, 0.97, 0.95), C(0.10, 0.70, 0.22), stripeM);
+  vec3 curbC = mix(C(0.97, 0.97, 0.95), pow(uCurb, vec3(2.2)), stripeM);
   col = mix(col, curbC, cm);
 
   // ---- asphalt
@@ -234,7 +235,7 @@ vec3 gGlow = vec3(0.0);
 }
 `;
 
-export function buildGround(track, sun) {
+export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
   const samples = track.samples;
   const N = samples.length - 1;
   const ds = track.sampleStep;
@@ -407,6 +408,7 @@ export function buildGround(track, sun) {
   // ── Shared material + uniforms ────────────────────────────────────────────
   const uniforms = {
     uTime: { value: 0 },
+    uCurb: { value: new THREE.Vector3(...curb) },
     uLen: { value: L },
     uMarkN: { value: 0 },
     uMark: { value: Array.from({ length: 40 }, () => new THREE.Vector4()) },

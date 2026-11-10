@@ -307,6 +307,8 @@ export function archGeometry(halfSpan = 14) {
   s.add(uvRegion(sign.clone(), ATLAS.sign), xform(0.95, apex + 0.55, 0, Math.PI / 2), 0xffffff, true);
   s.add(uvRegion(sign.clone(), ATLAS.sign), xform(-0.95, apex + 0.55, 0, -Math.PI / 2), 0xffffff, true);
   c.add(box(1.0, 3.8, 2 * halfSpan * 0.64), xform(0, apex + 0.55, 0), COL.woodDark);
+  // lamp housing under the beam, front (-x) face, for the countdown lights
+  c.add(box(0.6, 2.4, 11.6), xform(-0.55, 11.6, 0), COL.woodDark);
   // coconut emblem
   const ez = 0;
   const ey = apex + 3.9;
