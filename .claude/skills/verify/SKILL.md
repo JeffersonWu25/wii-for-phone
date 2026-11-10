@@ -58,6 +58,7 @@ node .claude/skills/verify/scripts/drive.mjs bowling-throw
 node .claude/skills/verify/scripts/drive.mjs kart-race   # about 2.5 minutes
 node .claude/skills/verify/scripts/drive.mjs kart-split  # about 2 minutes
 node .claude/skills/verify/scripts/drive.mjs kart-drift  # about 1.5 minutes
+node .claude/skills/verify/scripts/drive.mjs kart-cup    # about 3.5 minutes
 ```
 
 Set `HEADED=1` to watch it run. Exit 0 means every check passed. Each check prints `PASS` or `FAIL` with the observed value.
