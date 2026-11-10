@@ -112,7 +112,7 @@ try {
       const hitDist = (origin, dir) => { ray.set(origin, dir.clone().normalize()); ray.far = 200; const h = ray.intersectObject(shell, true); return h.length ? h[0].distance : Infinity; };
       for (let s = s0; s <= s1; s += 1) {
         const fr = track.frameAt(s);
-        for (const lateral of [-0.8, 0, 0.8].map((f) => f * (fr.hw - 1.2))) {
+        for (const lateral of [-0.8, 0, 0.8].map((f) => f * (fr.halfWidth - 1.2))) {
           const kx = fr.x + fr.rx * lateral, kz = fr.z + fr.rz * lateral, ky = track.heightAt(s, lateral);
           const fx = Math.cos(fr.h), fz = Math.sin(fr.h);
           const cam = new THREE.Vector3(kx - fx * CHASE.back, ky + CHASE.up, kz - fz * CHASE.back);
