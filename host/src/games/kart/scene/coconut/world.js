@@ -44,6 +44,17 @@ export function buildCoconutWorld(track) {
   const isl = makeIsland(track);
   const ctx = { track, isl, lod: [], anim: [] };
   const ground = buildGround(isl.track, sun);
+  // The shared ground shader hard-codes green/white curbs; Coconut Coast wants red/white.
+  ground.group.traverse((o) => {
+    const mat = o.material;
+    if (!mat || !mat.onBeforeCompile) return;
+    const prev = mat.onBeforeCompile;
+    mat.onBeforeCompile = (sh, r) => {
+      prev(sh, r);
+      sh.fragmentShader = sh.fragmentShader.replace('C(0.10, 0.70, 0.22)', 'C(0.88, 0.10, 0.12)');
+    };
+    mat.customProgramCacheKey = () => 'coconut-ground';
+  });
   const sky = buildSky();
   sky.group.name = 'sky';
   const ocean = buildOcean(track, isl);
