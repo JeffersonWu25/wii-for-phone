@@ -8,7 +8,7 @@
 //     by cosine steps (flat at every point); with it they are joined by straight ramps then box-blurred over that many meters.
 //   terrain(x, z, dist): height of the world beyond the corridor, dist = distance from the road limit.
 //   distantTerrain?(x, z): height of the far field outside the dense terrain patch; omit to keep the default hills and ridges.
-//   shortcuts?: [{ id, width, tension?, leave: { piece, at, lateral, angle }, rejoin: { piece, at, lateral, angle } }]. A shortcut is a
+//   shortcuts?: [{ id, width, profile?: [{ piece, at, lateral }] (instead of leave/rejoin: a path that follows the road), tension?, leave: { piece, at, lateral, angle }, rejoin: { piece, at, lateral, angle } }]. A shortcut is a
 //     Hermite path from the leave pose to the rejoin pose (angle: degrees from the road heading, positive = toward the left). It is
 //     expressed in the main line's (s, lateral) frame, so progress, checkpoints and wrong-way need no change: where it runs beside the
 //     road it is fenced off from it (surfaceAt().fence) and the road's left limit moves out to the path's outer edge.
@@ -484,10 +484,21 @@ export function buildTrack(def) {
       const fr = frameAt(s);
       return { s, x: fr.x + fr.rx * lateral, z: fr.z + fr.rz * lateral, h: fr.h - (angle * Math.PI) / 180 };
     };
-    const a = pose(cfg.leave);
-    const b = pose(cfg.rejoin);
-    const m = Math.hypot(b.x - a.x, b.z - a.z) * (cfg.tension ?? 0.3);
+    // `profile` (knots { piece, at, lateral } in driving order) hugs the road: lateral eases between knots, so the path follows its bends.
+    const knots = cfg.profile?.map((k) => ({ s: resolve(k.piece, k.at), lateral: k.lateral }));
+    const a = knots ? { s: knots[0].s } : pose(cfg.leave);
+    const b = knots ? null : pose(cfg.rejoin);
+    const m = knots ? 0 : Math.hypot(b.x - a.x, b.z - a.z) * (cfg.tension ?? 0.3);
+    const byProfile = (u) => {
+      const sq = knots[0].s + u * (knots.at(-1).s - knots[0].s);
+      let i = 0;
+      while (i < knots.length - 2 && knots[i + 1].s < sq) i++;
+      const lat = lerp(knots[i].lateral, knots[i + 1].lateral, smoothstep((sq - knots[i].s) / (knots[i + 1].s - knots[i].s)));
+      const fr = frameAt(sq);
+      return { x: fr.x + fr.rx * lat, z: fr.z + fr.rz * lat };
+    };
     const hermite = (u) => {
+      if (knots) return byProfile(u);
       const h00 = 2 * u ** 3 - 3 * u * u + 1;
       const h10 = u ** 3 - 2 * u * u + u;
       const h01 = -2 * u ** 3 + 3 * u * u;

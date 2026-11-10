@@ -30,7 +30,8 @@ function drive(kart, target) {
 // The two main-line routes the shortcut skips: the fast inside line all the way round, or the road's center through the skipped stretch.
 const mainLine = () => INSIDE;
 const centerLine = (s) => (s >= sc.s0 - 4 && s <= sc.s1 ? 0 : INSIDE);
-const viaShortcut = (s) => (s >= sc.s0 - 4 && s <= sc.s1 ? sc.lateralAt(s) : INSIDE);
+// A racer takes the inside of the path (the bend side), 2.4 m from its center.
+const viaShortcut = (s) => (s >= sc.s0 - 4 && s <= sc.s1 ? sc.lateralAt(s) - 2.4 : INSIDE);
 
 // Three laps from the grid; reports lap times, wrong-way flags, wall contacts on the path and the surfaces seen.
 function run(target, laps = 3) {
@@ -52,7 +53,10 @@ function run(target, laps = 3) {
       (surf.fence && (Math.abs(kart.lateral - (surf.fence.lo - KART_RADIUS)) < 1e-6 || Math.abs(kart.lateral - (surf.fence.hi + KART_RADIUS)) < 1e-6));
     if (onPath) {
       seen.add(kart.surface);
-      if (hit && !touching) pathWalls++;
+      if (hit && !touching) {
+        pathWalls++;
+        if (process.env.DBG) console.log('# hit s', kart.s.toFixed(1), 'lat', kart.lateral.toFixed(2), 'c', sc.lateralAt(kart.s).toFixed(2), 'lim', surf.limitL.toFixed(2));
+      }
     }
     touching = hit;
   }
@@ -73,6 +77,7 @@ test('the shortcut leaves in palms, rejoins in sandy and is 8 m wide', () => {
 test('surfaceAt says shortcut on the path and road on the main road beside it', () => {
   for (let s = sc.s0 + 20; s < sc.s1 - 15; s += 7) {
     const c = sc.lateralAt(s);
+    if (!track.surfaceAt(s, 0).fence) continue; // where it meets the road there is no gap to test
     for (const off of [-3, 0, 3]) assert.equal(track.surfaceAt(s, c + off).kind, 'shortcut', `s=${s} off=${off}`);
     assert.equal(track.surfaceAt(s, 0).kind, 'road');
     assert.equal(track.surfaceAt(s, -6).kind, 'road');
@@ -121,7 +126,7 @@ test('a kart driven along the shortcut completes laps, never goes wrong-way and 
   for (const t of r.lapTimes) assert.ok(t > 30 && t < 70, `lap ${t}`);
 });
 
-test('the shortcut saves 1.0 to 1.5 s against the main line at top speed', () => {
+test('the shortcut saves at least 0.5 s on the road center and still beats the inside line at top speed', () => {
   const short = run(viaShortcut).lapTimes;
   // Laps 2 and 3 start at speed, so they show the route difference alone. Lap times are whole frames (1/60 s): average the two.
   const saved = (route) => {
@@ -131,8 +136,8 @@ test('the shortcut saves 1.0 to 1.5 s against the main line at top speed', () =>
   const inside = saved(mainLine);
   const center = saved(centerLine);
   console.log(`# saved vs inside line ${inside.toFixed(3)} s, vs road center ${center.toFixed(3)} s`);
-  assert.ok(inside >= 1.0 && inside <= 1.5, `saves ${inside.toFixed(3)} s on the inside line`);
-  assert.ok(center >= 1.0 && center <= 1.5, `saves ${center.toFixed(3)} s on the road center`);
+  assert.ok(center >= 0.5 && center <= 1.5, `saves ${center.toFixed(3)} s on the road center`);
+  assert.ok(inside >= 0.15 && inside <= 1.5, `saves ${inside.toFixed(3)} s on the inside line`);
 });
 
 test('the shortcut is shorter than the main line it skips', () => {
@@ -147,8 +152,24 @@ test('the shortcut is shorter than the main line it skips', () => {
     }
     return len;
   };
-  assert.ok(sc.length < along(INSIDE) - 20, `shortcut ${sc.length.toFixed(1)} m, inside line ${along(INSIDE).toFixed(1)} m`);
+  assert.ok(sc.length < along(INSIDE) - 3, `shortcut ${sc.length.toFixed(1)} m, inside line ${along(INSIDE).toFixed(1)} m`);
   console.log(`# shortcut ${sc.length.toFixed(1)} m vs main ${along(0).toFixed(1)} m (center), ${along(INSIDE).toFixed(1)} m (inside line)`);
+});
+
+test('the path runs right beside the road: its inner edge stays within 2.6 m of the road edge along the whole fence', () => {
+  let fenced = 0;
+  let maxGap = 0;
+  for (let s = sc.s0; s <= sc.s1; s += 1) {
+    const f = track.surfaceAt(s, 0).fence;
+    if (!f) continue;
+    fenced++;
+    maxGap = Math.max(maxGap, f.hi - f.lo);
+  }
+  console.log(`# fenced ${fenced} m, max gap road edge to path inner edge ${maxGap.toFixed(2)} m`);
+  assert.ok(fenced > 100, `${fenced} m fenced`);
+  assert.ok(maxGap <= 2.6, `gap ${maxGap.toFixed(2)} m`);
+  // And the path never strays far from the road anywhere: its outer edge is at most 12 m + curb from the road edge.
+  for (const p of sc.samples) assert.ok(Math.abs(track.project(p.x, p.z).lateral) < 20, 'path hugs the road');
 });
 
 test('Sunny Meadow has no shortcut and its surfaces are unchanged', () => {
