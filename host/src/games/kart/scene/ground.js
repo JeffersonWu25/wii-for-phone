@@ -378,9 +378,9 @@ export function buildGround(track, sun) {
         const ridge = 0.5 + 0.5 * (0.6 * Math.sin(ang * 3 + 1.1) + 0.4 * Math.sin(ang * 7 + 0.3) * Math.cos(d / 140));
         const t = (big * (50 + 190 * ridge)) / 16;
         const terr = Math.floor(t) + smooth(0.3, 1.0, t - Math.floor(t));
-        y = rollingHills(x, z) + (big > 0.001 ? (0.5 * t + 0.5 * terr) * 16 : 0);
+        y = track.distantTerrain ? track.distantTerrain(x, z) : rollingHills(x, z) + (big > 0.001 ? (0.5 * t + 0.5 * terr) * 16 : 0);
         tt.set([0, 999, 0, 1], o * 4);
-        th[o] = big;
+        th[o] = track.distantTerrain ? 0 : big;
         tw.set([8, 0, 0, 0], o * 4);
       }
       tp.set([x, y, z], o * 3);

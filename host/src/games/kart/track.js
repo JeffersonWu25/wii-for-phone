@@ -1,6 +1,13 @@
-// Sunny Meadow Circuit — pure track data + geometry queries (no three.js).
+// Track engine: pure geometry + queries from a track definition (no three.js). Track data lives in tracks/.
 // Heading h: forward = (cos h, 0, sin h), right = (-sin h, 0, cos h); right turns increase h.
 // Lateral > 0 is to the right of the centerline.
+//
+// A definition is { id, name, pieces, elevation, boostPads, itemRows, ramps, grid, terrain, sectionNames }.
+//   pieces[]: { tag, kind: 'straight'|'arc', length | turn/angle/radius, width, bank?, left, right, section?, surface?, tunnel? }
+//   elevation: { points: [{ piece, at: 'start'|'end'|meters, h }], smoothing? }. Without `smoothing` the points are joined
+//     by cosine steps (flat at every point); with it they are joined by straight ramps then box-blurred over that many meters.
+//   terrain(x, z, dist): height of the world beyond the corridor, dist = distance from the road limit.
+//   distantTerrain?(x, z): height of the far field outside the dense terrain patch; omit to keep the default hills and ridges.
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -8,49 +15,14 @@ export const SAMPLE_STEP = 0.5;
 export const CURB_WIDTH = 1.2;
 export const CHECKPOINT_COUNT = 8;
 export const TRANSITION = 20; // m over which width / bank blend between pieces
-
-const edge = (curb, runoff, runoffWidth, wall = false) => ({ curb, runoff, runoffWidth, wall });
-const grass = (w = 12) => edge(false, 'grass', w);
-
-// The 140 m start straight is split at the line: 100 m ahead of it, 40 m of grid behind it (the last piece).
-export const PIECES = [
-  { tag: 'start', kind: 'straight', length: 100, width: 20, left: grass(16), right: grass(12) },
-  { tag: 't1', kind: 'arc', turn: 'right', angle: 90, radius: 40, width: 16, left: edge(true, 'sand', 14, true), right: edge(true, 'grass', 10) },
-  { tag: 'short', kind: 'straight', length: 30, width: 16, left: grass(), right: grass() },
-  { tag: 'sLeft', kind: 'arc', turn: 'left', angle: 45, radius: 50, width: 16, left: edge(true, 'grass', 14), right: grass() },
-  { tag: 'sRight', kind: 'arc', turn: 'right', angle: 45, radius: 50, width: 16, left: grass(), right: edge(true, 'grass', 12) },
-  { tag: 'hill', kind: 'arc', turn: 'right', angle: 90, radius: 30, width: 16, left: grass(), right: edge(true, 'sand', 10) },
-  { tag: 'back', kind: 'straight', length: 179.289322, width: 16, left: grass(), right: grass() },
-  { tag: 'sweeper', kind: 'arc', turn: 'right', angle: 180, radius: 85.355339, width: 16, bank: 10, left: edge(true, 'sand', 12, true), right: edge(true, 'sand', 12) },
-  { tag: 'grid', kind: 'straight', length: 40, width: 20, left: grass(16), right: grass(12) },
-];
-
-// Control points resolved to s by buildTrack; cosine interpolation between neighbours.
-// `at` is 'start' | 'end' | meters from the piece start.
-export const ELEVATION = [
-  { piece: 'hill', at: 'start', h: 0 },
-  { piece: 'hill', at: 'end', h: 5 },
-  { piece: 'back', at: 70, h: 5 },
-  { piece: 'back', at: 150, h: 0 },
-];
-
-export const BOOST_PADS = [
-  { piece: 'back', at: 35, lateral: -3 },
-  { piece: 'back', at: 115, lateral: 3 },
-];
 const PAD_LENGTH = 6;
 const PAD_WIDTH = 4;
+const DEFAULT_GRID = { cols: 2, colGap: 8, rowGap: 8 };
 
-export const ITEM_ROW_LATERALS = [-4.5, -1.5, 1.5, 4.5];
-export const ITEM_ROWS = [
-  { piece: 'start', at: 80 },
-  { piece: 'back', at: 90 },
-].map((r) => ({ ...r, laterals: ITEM_ROW_LATERALS }));
-
-// Data only for the ramp; nothing consumes it yet.
-export const RESERVED = {
-  ramps: [{ piece: 'back', at: 150, lateral: 0, length: 8, width: 6 }],
-};
+export const edge = (curb, runoff, runoffWidth, wall = false) => ({ curb, runoff, runoffWidth, wall });
+export const grass = (w = 12) => edge(false, 'grass', w);
+// A solid edge right at the road (or its curb): no runoff at all.
+export const hard = (curb = false) => edge(curb, 'none', 0, true);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -76,15 +48,42 @@ function smoothCircular(arr, n, radius) {
   return out;
 }
 
-// Gentle rolling hills for distant scenery, 0..12 m.
-function rollingHills(x, z) {
-  const v = 0.6 * Math.sin(x / 70 + 1.3) * Math.cos(z / 85 + 0.4) + 0.4 * Math.sin((x + z) / 55 + 2);
-  return 6 + 6 * v;
+// Per-sample { y, grade } for the control points `elev` ({ s, h }, ascending, closed at both ends).
+function elevationProfile(elev, smoothing, N, ds) {
+  if (!smoothing) {
+    return (n) => {
+      const s = n * ds;
+      for (let i = 0; i < elev.length - 1; i++) {
+        const a = elev[i];
+        const b = elev[i + 1];
+        if (s >= a.s && s <= b.s && b.s > a.s) {
+          const t = (s - a.s) / (b.s - a.s);
+          return {
+            y: a.h + ((b.h - a.h) * (1 - Math.cos(Math.PI * t))) / 2,
+            grade: ((b.h - a.h) * Math.PI * Math.sin(Math.PI * t)) / (2 * (b.s - a.s)),
+          };
+        }
+      }
+      return { y: 0, grade: 0 };
+    };
+  }
+  const raw = new Float64Array(N);
+  let seg = 0;
+  for (let n = 0; n < N; n++) {
+    const s = n * ds;
+    while (seg < elev.length - 2 && s > elev[seg + 1].s) seg++;
+    const a = elev[seg];
+    const b = elev[seg + 1];
+    raw[n] = b.s > a.s ? lerp(a.h, b.h, clamp((s - a.s) / (b.s - a.s), 0, 1)) : a.h;
+  }
+  const y = smoothCircular(raw, N, Math.round(smoothing / 2 / ds));
+  return (n) => ({ y: y[n % N], grade: (y[(n + 1) % N] - y[(n - 1 + N) % N]) / (2 * ds) });
 }
 
 // ── Build ────────────────────────────────────────────────────────────────────
 
-export function buildTrack(pieces = PIECES) {
+export function buildTrack(def) {
+  const { id, name, pieces, grid = DEFAULT_GRID, terrain = () => 0, sectionNames = {} } = def;
   // Piece start poses, integrated analytically so the loop closes exactly.
   const lens = pieces.map(pieceLength);
   const starts = [];
@@ -128,25 +127,13 @@ export function buildTrack(pieces = PIECES) {
   };
 
   // Elevation control points (closed at 0 m both ends).
-  const elev = [{ s: 0, h: 0 }, ...ELEVATION.map((e) => ({ s: resolve(e.piece, e.at), h: e.h })), { s: length, h: 0 }];
-  const elevAt = (s) => {
-    for (let i = 0; i < elev.length - 1; i++) {
-      const a = elev[i];
-      const b = elev[i + 1];
-      if (s >= a.s && s <= b.s && b.s > a.s) {
-        const t = (s - a.s) / (b.s - a.s);
-        return {
-          y: a.h + ((b.h - a.h) * (1 - Math.cos(Math.PI * t))) / 2,
-          grade: ((b.h - a.h) * Math.PI * Math.sin(Math.PI * t)) / (2 * (b.s - a.s)),
-        };
-      }
-    }
-    return { y: 0, grade: 0 };
-  };
-
-  // Per-sample profile.
+  const elevCfg = def.elevation ?? { points: [] };
+  const elev = [{ s: 0, h: 0 }, ...elevCfg.points.map((e) => ({ s: resolve(e.piece, e.at), h: e.h })), { s: length, h: 0 }];
   const N = Math.round(length / SAMPLE_STEP);
   const ds = length / N;
+  const profile = elevationProfile(elev, elevCfg.smoothing, N, ds);
+
+  // Per-sample profile.
   const samples = [];
   const rawCurbL = new Float64Array(N);
   const rawCurbR = new Float64Array(N);
@@ -174,7 +161,7 @@ export function buildTrack(pieces = PIECES) {
     const bn = next.bank ?? 0;
     const bank = toEnd < TRANSITION ? lerp(b, bn, smoothstep(1 - toEnd / TRANSITION)) : b;
 
-    const e = elevAt(s);
+    const e = profile(n);
     const k = p.kind === 'straight' ? 0 : (p.turn === 'right' ? 1 : -1) / p.radius;
     samples.push({
       s,
@@ -187,6 +174,7 @@ export function buildTrack(pieces = PIECES) {
       halfWidth: width / 2,
       curvature: k,
       pieceIndex: idx,
+      wood: p.surface === 'wood',
     });
     if (n < N) {
       rawCurbL[n] = p.left.curb ? CURB_WIDTH : 0;
@@ -251,6 +239,7 @@ export function buildTrack(pieces = PIECES) {
       halfWidth: lerp(a.halfWidth, b.halfWidth, f),
       pieceIndex: a.pieceIndex,
       tag: pieces[a.pieceIndex].tag,
+      section: pieces[a.pieceIndex].section,
     };
   }
 
@@ -271,6 +260,7 @@ export function buildTrack(pieces = PIECES) {
       runR: lerp(a.runR, b.runR, f),
       sandL: a.sandL,
       sandR: a.sandR,
+      wood: a.wood,
       fallL: lerp(a.fallL, b.fallL, f),
       fallR: lerp(a.fallR, b.fallR, f),
       k: lerp(a.curvature, b.curvature, f),
@@ -292,7 +282,7 @@ export function buildTrack(pieces = PIECES) {
     const right = lateral >= 0;
     const curb = right ? e.curbR : e.curbL;
     const limit = right ? limitR : limitL;
-    let kind = 'road';
+    let kind = e.wood ? 'wood' : 'road';
     if (a > limit) kind = 'wall';
     else if (a > e.hw + curb) kind = (right ? e.sandR : e.sandL) ? 'sand' : 'grass';
     else if (a > e.hw) kind = curb > 0.05 ? 'curb' : right ? (e.sandR ? 'sand' : 'grass') : e.sandL ? 'sand' : 'grass';
@@ -422,7 +412,7 @@ export function buildTrack(pieces = PIECES) {
     return refine(x, z, idx * ds);
   }
 
-  const baseTerrain = (x, z, dist) => rollingHills(x, z) * smoothstep((dist - 120) / 60);
+  const baseTerrain = terrain;
 
   function terrainHeight(x, z) {
     const { s, lateral } = refine(x, z, nearestIndexGlobal(x, z) * ds);
@@ -437,20 +427,30 @@ export function buildTrack(pieces = PIECES) {
   }
 
   const checkpoints = Array.from({ length: CHECKPOINT_COUNT }, (_, index) => ({ index, s: (index * length) / CHECKPOINT_COUNT }));
-  const boostPads = BOOST_PADS.map((p) => ({ s: resolve(p.piece, p.at), lateral: p.lateral, length: PAD_LENGTH, width: PAD_WIDTH }));
-  const itemRows = ITEM_ROWS.map((r) => ({ s: resolve(r.piece, r.at), laterals: r.laterals }));
-  const ramps = RESERVED.ramps.map((r) => ({ s: resolve(r.piece, r.at), lateral: r.lateral, length: r.length, width: r.width }));
+  const boostPads = (def.boostPads ?? []).map((p) => ({ s: resolve(p.piece, p.at), lateral: p.lateral, length: PAD_LENGTH, width: PAD_WIDTH }));
+  const itemRows = (def.itemRows ?? []).map((r) => ({ s: resolve(r.piece, r.at), laterals: r.laterals }));
+  const ramps = (def.ramps ?? []).map((r) => ({ s: resolve(r.piece, r.at), lateral: r.lateral, length: r.length, width: r.width }));
 
+  // Slot i: row-major over `grid.cols` columns; odd columns sit half a row further back.
   function gridSlots(n) {
     return Array.from({ length: n }, (_, i) => {
-      const row = i >> 1;
-      const col = i & 1;
-      const s = wrapS(-(6 + row * 8 + (col ? 4 : 0)));
-      const lateral = col ? 4 : -4;
+      const row = Math.floor(i / grid.cols);
+      const col = i % grid.cols;
+      const s = wrapS(-(6 + row * grid.rowGap + (col & 1 ? grid.rowGap / 2 : 0)));
+      const lateral = (col - (grid.cols - 1) / 2) * grid.colGap;
       const fr = frameAt(s);
       return { s, lateral, x: fr.x + fr.rx * lateral, y: heightAt(s, lateral), z: fr.z + fr.rz * lateral, h: fr.h };
     });
   }
+
+  // Sections in driving order: consecutive pieces that share a `section` id.
+  const sections = [];
+  pieces.forEach((p, i) => {
+    if (!p.section) return;
+    const last = sections[sections.length - 1];
+    if (last && last.id === p.section) last.s1 = starts[i] + lens[i];
+    else sections.push({ id: p.section, name: sectionNames[p.section] ?? p.section, s0: starts[i], s1: starts[i] + lens[i] });
+  });
 
   function pieceRange(tag) {
     const { s0, s1 } = range(tag);
@@ -458,8 +458,13 @@ export function buildTrack(pieces = PIECES) {
   }
 
   return {
+    id,
+    name,
     length,
     closure,
+    sections,
+    shortcuts: [],
+    distantTerrain: def.distantTerrain,
     pieces,
     samples,
     sampleStep: ds,

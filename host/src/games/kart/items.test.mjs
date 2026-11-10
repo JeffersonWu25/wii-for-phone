@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTrack } from './track.js';
+import { loadTrack } from './tracks/index.js';
 import { createRace, stepRace } from './race.js';
 import { KART_RADIUS, BOOST_TIME } from './physics.js';
 import {
   BOX_RESPAWN, ITEM_ODDS, ROLL_TIME, aimFromInput, createBoxes, mulberry32, pushEvent, rollItem, stepItems, useItem,
 } from './items.js';
 
-const track = buildTrack();
+const track = loadTrack('sunny-meadow');
 const DT = 1 / 60;
 const ENTRANTS = ['a', 'b', 'c', 'd'].map((id, i) => ({ id, name: id, color: i }));
 
