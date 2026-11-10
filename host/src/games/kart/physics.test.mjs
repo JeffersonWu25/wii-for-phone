@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTrack } from './track.js';
+import { loadTrack } from './tracks/index.js';
 import { createKart, stepKart, applyHit, resolveKartCollisions, TOP_SPEED } from './physics.js';
 
-const track = buildTrack();
+const track = loadTrack('sunny-meadow');
 const DT = 1 / 60;
 
 function kartAt(s, lateral = 0, extra = {}) {

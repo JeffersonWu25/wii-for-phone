@@ -1,13 +1,19 @@
-// Sunny Meadow Circuit world: shader ground, walls, sky, props, lighting. Contract: buildWorld(track, renderer)
-// returns { group, tick(t, camera), sun, background, fog, setStartLights }.
+// World builders. buildWorld(track, renderer) dispatches on track.id and returns
+// { group, tick(t, camera), sun, center, background, fog, setStartLights }.
+// This file builds Sunny Meadow Circuit: shader ground, walls, sky, props, lighting. Coconut Coast lives in coconut/.
 import * as THREE from 'three';
 import { buildGround } from './ground.js';
 import { buildWalls } from './walls.js';
 import { buildSky, HORIZON } from './sky.js';
 import { buildDecor } from './decor.js';
+import { buildCoconutWorld } from './coconut/world.js';
 
 export function buildWorld(track, renderer) {
-  void renderer;
+  if (track.id === 'coconut-coast') return buildCoconutWorld(track, renderer);
+  return buildSunnyWorld(track);
+}
+
+function buildSunnyWorld(track) {
   const group = new THREE.Group();
 
   const sun = new THREE.DirectionalLight(0xfff0d0, 2.6);

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTrack } from './track.js';
+import { loadTrack } from './tracks/index.js';
 import { createRace, stepRace, formatTime, RACE_LAPS } from './race.js';
 import { autopilotInput } from './autopilot.js';
 
-const track = buildTrack();
+const track = loadTrack('sunny-meadow');
 const DT = 1 / 60;
 const ENTRANTS = [
   { id: 'a', name: 'A', color: 0xff0000 },

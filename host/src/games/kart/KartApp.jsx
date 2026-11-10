@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { buildTrack } from './track.js';
+import { loadTrack } from './tracks/index.js';
 import { createRace, stepRace, formatTime } from './race.js';
 import { createKartScene } from './scene/createKartScene.js';
 import {
@@ -55,7 +55,7 @@ export default function KartApp({ wsRef, send, players, disconnectedPlayerIds, o
     const cssById = Object.fromEntries(entrants.map((e) => [e.id, cssColor(e.color)]));
     const keyboardId = entrants[0].id;
 
-    const track = buildTrack();
+    const track = loadTrack('sunny-meadow');
     const race = createRace(track, entrants, { seed: (Math.random() * 2 ** 32) >>> 0 });
     const scene = createKartScene(containerRef.current, track);
     scene.setKarts(entrants);

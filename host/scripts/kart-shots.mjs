@@ -1,16 +1,19 @@
 // Screenshots named kart preview shots.
-//   node host/scripts/kart-shots.mjs <baseUrl> <outDir> [shotNames...]
+//   node host/scripts/kart-shots.mjs <baseUrl> <outDir> [--track <id>] [shotNames...]
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { SHOTS } from '../src/games/kart/shots.js';
 
-const [baseUrl, outDir, ...names] = process.argv.slice(2);
-if (!baseUrl || !outDir) {
-  console.error('usage: node host/scripts/kart-shots.mjs <baseUrl> <outDir> [shotNames...]');
+const args = process.argv.slice(2);
+const trackAt = args.indexOf('--track');
+const trackId = trackAt >= 0 ? args.splice(trackAt, 2)[1] : 'sunny-meadow';
+const [baseUrl, outDir, ...names] = args;
+if (!baseUrl || !outDir || !SHOTS[trackId]) {
+  console.error('usage: node host/scripts/kart-shots.mjs <baseUrl> <outDir> [--track <id>] [shotNames...]');
   process.exit(2);
 }
-const shots = names.length ? names : Object.keys(SHOTS);
+const shots = names.length ? names : Object.keys(SHOTS[trackId]);
 fs.mkdirSync(outDir, { recursive: true });
 
 async function launch() {
@@ -31,7 +34,7 @@ try {
       if (m.type() === 'error') console.error(`[${name}] console error: ${m.text()}`);
     });
     page.on('pageerror', (e) => console.error(`[${name}] page error: ${e.message}`));
-    await page.goto(`${baseUrl}/kart-preview.html?shot=${encodeURIComponent(name)}`);
+    await page.goto(`${baseUrl}/kart-preview.html?track=${encodeURIComponent(trackId)}&shot=${encodeURIComponent(name)}`);
     try {
       await page.waitForFunction(() => window.__kartReady === true, null, { timeout: 60000 });
     } catch {
