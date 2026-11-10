@@ -8,6 +8,10 @@
 //     by cosine steps (flat at every point); with it they are joined by straight ramps then box-blurred over that many meters.
 //   terrain(x, z, dist): height of the world beyond the corridor, dist = distance from the road limit.
 //   distantTerrain?(x, z): height of the far field outside the dense terrain patch; omit to keep the default hills and ridges.
+//   shortcuts?: [{ id, width, tension?, leave: { piece, at, lateral, angle }, rejoin: { piece, at, lateral, angle } }]. A shortcut is a
+//     Hermite path from the leave pose to the rejoin pose (angle: degrees from the road heading, positive = toward the left). It is
+//     expressed in the main line's (s, lateral) frame, so progress, checkpoints and wrong-way need no change: where it runs beside the
+//     road it is fenced off from it (surfaceAt().fence) and the road's left limit moves out to the path's outer edge.
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -18,6 +22,9 @@ export const TRANSITION = 20; // m over which width / bank blend between pieces
 const PAD_LENGTH = 6;
 const PAD_WIDTH = 4;
 const DEFAULT_GRID = { cols: 2, colGap: 8, rowGap: 8 };
+const SHORTCUT_RAMP = 12; // m over which the road's runoff blends into the shortcut's outer edge before it leaves / after it rejoins
+const FENCE_MIN = 1.2; // m of gap between road edge and shortcut edge before a fence stands in it
+const DEEP_REACH = 70; // m: hinted projection stays valid this far from the road beside a shortcut (30 elsewhere)
 
 export const edge = (curb, runoff, runoffWidth, wall = false) => ({ curb, runoff, runoffWidth, wall });
 export const grass = (w = 12) => edge(false, 'grass', w);
@@ -175,6 +182,8 @@ export function buildTrack(def) {
       curvature: k,
       pieceIndex: idx,
       wood: p.surface === 'wood',
+      scC: 0,
+      scW: 0,
     });
     if (n < N) {
       rawCurbL[n] = p.left.curb ? CURB_WIDTH : 0;
@@ -261,6 +270,8 @@ export function buildTrack(def) {
       sandL: a.sandL,
       sandR: a.sandR,
       wood: a.wood,
+      scW: a.scW > 0 && b.scW > 0 ? lerp(a.scW, b.scW, f) : 0,
+      scC: lerp(a.scC, b.scC, f),
       fallL: lerp(a.fallL, b.fallL, f),
       fallR: lerp(a.fallR, b.fallR, f),
       k: lerp(a.curvature, b.curvature, f),
@@ -284,8 +295,19 @@ export function buildTrack(def) {
     const limit = right ? limitR : limitL;
     let kind = e.wood ? 'wood' : 'road';
     if (a > limit) kind = 'wall';
-    else if (a > e.hw + curb) kind = (right ? e.sandR : e.sandL) ? 'sand' : 'grass';
+    else if (a > e.hw + curb) kind = (right ? e.sandR ? 'sand' : 'grass' : e.sandL ? 'sand' : 'grass');
     else if (a > e.hw) kind = curb > 0.05 ? 'curb' : right ? (e.sandR ? 'sand' : 'grass') : e.sandL ? 'sand' : 'grass';
+
+    // Shortcut: the band around its centerline is sand at road speed; the gap between it and the road edge is a solid fence.
+    let fence = null;
+    if (e.scW > 0) {
+      const roadEdge = -(e.hw + e.curbL);
+      if (lateral < roadEdge && kind !== 'wall' && Math.abs(lateral - e.scC) <= e.scW) kind = 'shortcut';
+      if (roadEdge - (e.scC + e.scW) > FENCE_MIN) {
+        fence = { lo: e.scC + e.scW, hi: roadEdge };
+        if (lateral > fence.lo && lateral < fence.hi) kind = 'wall';
+      }
+    }
 
     // Surface gradient in xz: grade along forward, -tan(bank) along right (banked only on road + curb).
     const onBank = a <= e.hw + curb ? e.tb : 0;
@@ -294,7 +316,7 @@ export function buildTrack(def) {
     const gx = e.grade * fx - onBank * -fz;
     const gz = e.grade * fz - onBank * fx;
     const inv = 1 / Math.hypot(gx, 1, gz);
-    return { y: heightOf(e, lateral), nx: -gx * inv, ny: inv, nz: -gz * inv, kind, limitL, limitR };
+    return { y: heightOf(e, lateral), nx: -gx * inv, ny: inv, nz: -gz * inv, kind, limitL, limitR, fence };
   }
 
   // Newton-refine s so the offset from the centerline is purely lateral.
@@ -391,6 +413,7 @@ export function buildTrack(def) {
   }
 
   const HINT_WINDOW = 60; // samples each way (30 m)
+  const deepSample = new Uint8Array(N); // 1 where a shortcut lets karts roam far from the road
   function project(x, z, hintS) {
     let idx = -1;
     if (hintS != null && Number.isFinite(hintS)) {
@@ -406,7 +429,8 @@ export function buildTrack(def) {
           bestK = k;
         }
       }
-      if (Math.abs(bestK) === HINT_WINDOW || bestD2 > 900) idx = -1;
+      const reach = deepSample[c % N] ? DEEP_REACH : 30;
+      if (Math.abs(bestK) === HINT_WINDOW || bestD2 > reach * reach) idx = -1;
     }
     if (idx < 0) idx = nearestIndexGlobal(x, z);
     return refine(x, z, idx * ds);
@@ -452,6 +476,85 @@ export function buildTrack(def) {
     else sections.push({ id: p.section, name: sectionNames[p.section] ?? p.section, s0: starts[i], s1: starts[i] + lens[i] });
   });
 
+  // ── Shortcuts ──────────────────────────────────────────────────────────────
+
+  function buildShortcut(cfg) {
+    const pose = ({ piece, at, lateral, angle }) => {
+      const s = resolve(piece, at);
+      const fr = frameAt(s);
+      return { s, x: fr.x + fr.rx * lateral, z: fr.z + fr.rz * lateral, h: fr.h - (angle * Math.PI) / 180 };
+    };
+    const a = pose(cfg.leave);
+    const b = pose(cfg.rejoin);
+    const m = Math.hypot(b.x - a.x, b.z - a.z) * (cfg.tension ?? 0.3);
+    const hermite = (u) => {
+      const h00 = 2 * u ** 3 - 3 * u * u + 1;
+      const h10 = u ** 3 - 2 * u * u + u;
+      const h01 = -2 * u ** 3 + 3 * u * u;
+      const h11 = u ** 3 - u * u;
+      return {
+        x: h00 * a.x + h10 * m * Math.cos(a.h) + h01 * b.x + h11 * m * Math.cos(b.h),
+        z: h00 * a.z + h10 * m * Math.sin(a.h) + h01 * b.z + h11 * m * Math.sin(b.h),
+      };
+    };
+    // Resample at equal arc length.
+    const dense = Array.from({ length: 2001 }, (_, i) => hermite(i / 2000));
+    const cum = [0];
+    for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + Math.hypot(dense[i].x - dense[i - 1].x, dense[i].z - dense[i - 1].z));
+    const total = cum[cum.length - 1];
+    const count = Math.round(total / SAMPLE_STEP);
+    const pts = [];
+    for (let i = 0, j = 0; i <= count; i++) {
+      const d = (i / count) * total;
+      while (j < cum.length - 2 && cum[j + 1] < d) j++;
+      const f = (d - cum[j]) / (cum[j + 1] - cum[j] || 1);
+      pts.push({ x: lerp(dense[j].x, dense[j + 1].x, f), z: lerp(dense[j].z, dense[j + 1].z, f) });
+    }
+    // Express each point in the main line's frame, walking s forward from the leave point.
+    let s = a.s;
+    const table = pts.map((p) => {
+      const near = refine(p.x, p.z, s);
+      if (near.s < s - 1e-6 && s - near.s < length / 2) throw new Error(`shortcut ${cfg.id} runs backwards at s=${near.s.toFixed(1)}`);
+      s = near.s;
+      return { s: near.s, c: near.lateral, x: p.x, z: p.z };
+    });
+    const half = cfg.width / 2;
+    const samplesOut = table.map((t) => ({ x: t.x, z: t.z, y: heightAt(t.s, t.c), halfWidth: half }));
+    const s0 = table[0].s;
+    const s1 = table[table.length - 1].s;
+    const lateralAt = (sIn) => {
+      const q = clamp(sIn, s0, s1);
+      let lo = 0;
+      let hi = table.length - 1;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (table[mid].s <= q) lo = mid;
+        else hi = mid;
+      }
+      const f = (q - table[lo].s) / (table[hi].s - table[lo].s || 1);
+      return lerp(table[lo].c, table[hi].c, f);
+    };
+
+    // Open the road's left limit out to the shortcut's outer edge, blended over SHORTCUT_RAMP at both ends.
+    for (let n = 0; n <= N; n++) {
+      const sp = samples[n];
+      const t = smoothstep(Math.min((sp.s - (s0 - SHORTCUT_RAMP)) / SHORTCUT_RAMP, ((s1 + SHORTCUT_RAMP) - sp.s) / SHORTCUT_RAMP));
+      if (t <= 0) continue;
+      const c = lateralAt(sp.s);
+      const run = Math.max(0, half - c - sp.halfWidth - sp.curbL);
+      sp.runL = lerp(sp.runL, run, t);
+      sp.sandL = true;
+      if (sp.s >= s0 - ds && sp.s <= s1 + ds) {
+        sp.scC = c;
+        sp.scW = half;
+      }
+      for (let k = -(DEEP_REACH / SAMPLE_STEP) | 0; k <= DEEP_REACH / SAMPLE_STEP; k++) deepSample[(n + k + N * 4) % N] = 1;
+    }
+    return { id: cfg.id, samples: samplesOut, s0, s1, width: cfg.width, length: total, lateralAt };
+  }
+
+  const shortcuts = (def.shortcuts ?? []).map(buildShortcut);
+
   function pieceRange(tag) {
     const { s0, s1 } = range(tag);
     return { s0, s1 };
@@ -463,7 +566,7 @@ export function buildTrack(def) {
     length,
     closure,
     sections,
-    shortcuts: [],
+    shortcuts,
     distantTerrain: def.distantTerrain,
     pieces,
     samples,

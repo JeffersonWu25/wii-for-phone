@@ -140,10 +140,6 @@ test('the tunnel is flagged, 60 to 80 m long, with hard edges', () => {
   assert.equal(track.frameAt((r.s0 + r.s1) / 2).section, 'falls');
 });
 
-test('shortcuts are empty until the shortcut part lands', () => {
-  assert.deepEqual(track.shortcuts, []);
-});
-
 test('an autopilot drives one lap, barely touching a wall, and reports its lap time', () => {
   const kart = createKart({ id: 'k', color: 0xff0000, slot: track.gridSlots(12)[0] });
   const dt = 1 / 60;
