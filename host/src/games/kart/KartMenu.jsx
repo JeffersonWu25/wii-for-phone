@@ -60,7 +60,7 @@ export function KartMenu({ onPickCup, onPickTrack, onBack }) {
     function onKey(e) {
       if (e.code === 'ArrowRight' || e.code === 'ArrowDown') setIndex((i) => (i + 1) % cards.length);
       else if (e.code === 'ArrowLeft' || e.code === 'ArrowUp') setIndex((i) => (i + cards.length - 1) % cards.length);
-      else if (e.code === 'Enter') pick(cards[index]);
+      else if (e.code === 'Enter') { if (!e.repeat) pick(cards[index]); }
       else if (e.code === 'Escape') onBack();
       else return;
       e.preventDefault();
@@ -97,7 +97,7 @@ function StandingRow({ row }) {
 function useKeys(onEnter, onEscape) {
   useEffect(() => {
     function onKey(e) {
-      if (e.code === 'Enter') onEnter();
+      if (e.code === 'Enter') { if (!e.repeat) onEnter(); }
       else if (e.code === 'Escape') onEscape();
       else return;
       e.preventDefault();
@@ -123,9 +123,8 @@ export function CupStandings({ cup, standings, raceNumber, raceCount, onNext, on
 }
 
 // Top three of the finished cup, plus everyone else's points.
-export function CupPodium({ cup, standings, onDone }) {
+export function CupPodium({ cup, podium: top, rest, onDone }) {
   useKeys(onDone, onDone);
-  const top = standings.slice(0, 3);
   // Mario Kart order: 2nd, 1st, 3rd, so the winner stands in the middle.
   const stage = [top[1], top[0], top[2]].filter(Boolean);
   return (
@@ -142,7 +141,7 @@ export function CupPodium({ cup, standings, onDone }) {
             </div>
           ))}
         </div>
-        {standings.length > 3 && <ol>{standings.slice(3).map((row) => <StandingRow key={row.playerId} row={row} />)}</ol>}
+        {rest.length > 0 && <ol>{rest.map((row) => <StandingRow key={row.playerId} row={row} />)}</ol>}
         <button className="btn-start" onClick={onDone}>Back to menu</button>
       </div>
     </div>

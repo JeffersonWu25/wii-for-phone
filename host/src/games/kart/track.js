@@ -140,7 +140,6 @@ export function buildTrack(def) {
   const ds = length / N;
   const profile = elevationProfile(elev, elevCfg.smoothing, N, ds);
 
-  // Per-sample profile.
   const samples = [];
   const rawCurbL = new Float64Array(N);
   const rawCurbR = new Float64Array(N);
