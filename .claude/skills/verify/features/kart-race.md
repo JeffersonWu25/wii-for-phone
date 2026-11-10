@@ -13,11 +13,11 @@ With Kart Racer selected, every joined player gets a kart on the start grid. Aft
 - `results-card`: `.kart-results` lists both players, first place with a time, plus a Back to games button.
 - `phone-feedback`: phones receive `kart_status` and `kart_results`; the finisher's phone shows `Finished!` and the place.
 - `rotate-prompt`: a phone held in portrait shows `Rotate your phone`.
-- `return-to-hub`: Back to games returns the host to game select and the phones to the waiting screen.
+- `return-to-hub`: Back to games returns the host to the map select; `.kart-menu-back` then leaves to game select and the phones go to the waiting screen.
 
 ## How to get to it (user POV)
 
-- Join two phones to the lobby, press `Select Game` on the host, choose the Kart Racer card.
+- Join two phones to the lobby, press `Select Game` on the host, choose the Kart Racer card, then pick Sunny Meadow on the map select (see `kart-cup`).
 - Turn each phone to landscape. The kart drives itself from GO. Drag the joystick on the left to steer.
 - Finish 3 laps. After the results card, press `Back to games` (or wait 10 s for it to exit by itself).
 
@@ -33,7 +33,7 @@ node .claude/skills/verify/scripts/drive.mjs kart-race
 
 Steps the script performs:
 
-- Join Ada and Bo, press `Select Game`, click the Kart Racer card. Expect `#screen-kart` on both phones and `.kart-canvas canvas` plus `.kart-pane`, `.kart-lapcount`, `.kart-minimap` on the host.
+- Join Ada and Bo, press `Select Game`, click the Kart Racer card, then `.kart-track-card[data-track="sunny-meadow"]` on the map select. Expect `#screen-kart` on both phones and `.kart-canvas canvas` plus `.kart-pane`, `.kart-lapcount`, `.kart-minimap` on the host.
 - Open a CDP session on Ada's page and check there is no `#btn-gas`. `Input.dispatchTouchEvent` `touchStart` at the center of `#kart-zone` (id 1). Chrome synthesizes the pointer events the phone listens to. There is no GAS touch: the kart moves from GO on its own.
 - Capture `01-grid`, `02-countdown-lights`, `03-go` (the `.kart-countdown.go` label, read from `.kart-countdown` `.first()`).
 - Drive at about 18 Hz: read the host's `window.__kartState` (read-only) and `window.__kartTrack`, compute a steer in -1..1 with a closed-loop controller (aim at `frameAt(s + 5 + 0.4 * speed)`, offset to the pad's lateral while a boost pad is ahead, steer = 2.2 * heading error), invert the joystick dead zone (0.12) and radius into an x offset, and send `touchMove` with both touch points. At the end `touchEnd` releases both.
