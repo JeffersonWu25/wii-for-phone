@@ -164,6 +164,7 @@ async function selectGame(run, title) {
   await run.host.click('.btn-start');
   await run.host.waitForSelector('.game-select-screen');
   await run.host.locator('.game-card', { hasText: title }).click();
+  if (title === 'Kart Racer') await run.host.click('.kart-track-card[data-track="sunny-meadow"]');
 }
 
 // ── Features ──────────────────────────────────────────────────────────────────
@@ -554,6 +555,7 @@ async function kartRace(run) {
   run.check('Ada\'s drive frames carry steer, aimY and drift (no gas, no brake) and varied steer', shaped && new Set(drives.map((f) => f.msg.steer)).size > 10, `${drives.length} frames, ${new Set(drives.map((f) => f.msg.steer)).size} distinct steer values, aimY max ${Math.max(...drives.map((f) => f.msg.aimY))}, drift true ${drives.filter((f) => f.msg.drift).length}`);
 
   await host.click('.kart-results .btn-start');
+  await host.click('.kart-menu-back');
   await host.waitForSelector('.game-select-screen', { timeout: 10_000 });
   run.check('Back to games returns the host to game select', await host.isVisible('.game-select-screen'));
   await ada.waitForSelector('#screen-waiting', { state: 'visible', timeout: 10_000 }).catch(() => {});
