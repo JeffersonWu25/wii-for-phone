@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { buildGround } from '../ground.js';
 import { buildWalls } from '../walls.js';
 import { buildSky, HORIZON } from '../sky.js';
+import { buildShortcutScenery } from './shortcut.js';
 
 export const SEA_LEVEL = -1.2;
 
@@ -35,7 +36,7 @@ export function buildCoconutWorld(track) {
     g.name = `section:${s.id}`;
     return g;
   });
-  group.add(ocean, ground.group, walls.group, sky.group, ...sections);
+  group.add(ocean, ground.group, walls.group, sky.group, ...sections, buildShortcutScenery(track));
 
   return {
     group,

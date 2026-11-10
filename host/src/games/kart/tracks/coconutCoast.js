@@ -83,6 +83,17 @@ export const coconutCoast = {
       { piece: 'bendL', at: 'end', h: 0 },
     ],
   },
+  // The 8 m sand shortcut cuts the inside of the left bend: it leaves the road's left edge early on the straight after the
+  // hairpin (palms) and rejoins on the start apron (sandy), fenced off from the road in between.
+  shortcuts: [
+    {
+      id: 'sand',
+      width: 8,
+      tension: 0.25,
+      leave: { piece: 'sandA', at: 0, lateral: -8, angle: 8 },
+      rejoin: { piece: 'apron', at: 31, lateral: -8, angle: -6 },
+    },
+  ],
   boostPads: [],
   itemRows: [
     { piece: 'apron', at: 38, laterals: [-9, -3, 3, 9] },
