@@ -1,0 +1,68 @@
+{"at":"2026-11-11T01:16:50.552Z","page":"host","dir":"in","msg":{"type":"session_created","sessionId":"9be770"}}
+{"at":"2026-11-11T01:16:50.814Z","page":"phone:Ada","dir":"out","msg":{"type":"join","name":"Ada"}}
+{"at":"2026-11-11T01:16:50.815Z","page":"phone:Ada","dir":"in","msg":{"type":"joined","playerId":"b87cfb69"}}
+{"at":"2026-11-11T01:16:50.815Z","page":"host","dir":"in","msg":{"type":"player_joined","playerId":"b87cfb69","name":"Ada"}}
+{"at":"2026-11-11T01:16:51.065Z","page":"phone:Bea","dir":"out","msg":{"type":"join","name":"Bea"}}
+{"at":"2026-11-11T01:16:51.065Z","page":"phone:Bea","dir":"in","msg":{"type":"joined","playerId":"3eebf1a1"}}
+{"at":"2026-11-11T01:16:51.066Z","page":"host","dir":"in","msg":{"type":"player_joined","playerId":"3eebf1a1","name":"Bea"}}
+{"at":"2026-11-11T01:16:51.347Z","page":"phone:Cal","dir":"out","msg":{"type":"join","name":"Cal"}}
+{"at":"2026-11-11T01:16:51.348Z","page":"phone:Cal","dir":"in","msg":{"type":"joined","playerId":"36f117e7"}}
+{"at":"2026-11-11T01:16:51.348Z","page":"host","dir":"in","msg":{"type":"player_joined","playerId":"36f117e7","name":"Cal"}}
+{"at":"2026-11-11T01:16:51.631Z","page":"phone:Dee","dir":"out","msg":{"type":"join","name":"Dee"}}
+{"at":"2026-11-11T01:16:51.631Z","page":"phone:Dee","dir":"in","msg":{"type":"joined","playerId":"36777b6f"}}
+{"at":"2026-11-11T01:16:51.631Z","page":"host","dir":"in","msg":{"type":"player_joined","playerId":"36777b6f","name":"Dee"}}
+{"at":"2026-11-11T01:16:51.881Z","page":"phone:Eve","dir":"out","msg":{"type":"join","name":"Eve"}}
+{"at":"2026-11-11T01:16:51.881Z","page":"phone:Eve","dir":"in","msg":{"type":"joined","playerId":"abb9aa58"}}
+{"at":"2026-11-11T01:16:51.881Z","page":"host","dir":"in","msg":{"type":"player_joined","playerId":"abb9aa58","name":"Eve"}}
+{"at":"2026-11-11T01:16:51.970Z","page":"phone:Bea","dir":"in","msg":{"type":"game_selected","game":"tennis"}}
+{"at":"2026-11-11T01:16:51.970Z","page":"phone:Ada","dir":"in","msg":{"type":"game_selected","game":"tennis"}}
+{"at":"2026-11-11T01:16:51.970Z","page":"phone:Cal","dir":"in","msg":{"type":"game_selected","game":"tennis"}}
+{"at":"2026-11-11T01:16:51.970Z","page":"phone:Eve","dir":"in","msg":{"type":"game_selected","game":"tennis"}}
+{"at":"2026-11-11T01:16:51.971Z","page":"phone:Dee","dir":"in","msg":{"type":"game_selected","game":"tennis"}}
+{"at":"2026-11-11T01:16:51.973Z","page":"host","dir":"out","msg":{"type":"game_selected","game":"tennis"}}
+{"at":"2026-11-11T01:16:52.587Z","page":"phone:Ada","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":1,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:16:52.587Z","page":"phone:Ada","dir":"out","msg":{"type":"window_ack","windowId":1}}
+{"at":"2026-11-11T01:16:52.587Z","page":"phone:Dee","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":1,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:16:52.587Z","page":"phone:Cal","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":1,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:16:52.587Z","page":"phone:Eve","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":1,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:16:52.587Z","page":"phone:Bea","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":1,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:16:52.622Z","page":"host","dir":"out","msg":{"type":"tennis","phase":"serve","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":1,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:16:53.062Z","page":"host","dir":"in","msg":{"type":"window_ack","windowId":1,"playerId":"b87cfb69"}}
+{"at":"2026-11-11T01:16:55.255Z","page":"phone:Ada","dir":"out","msg":{"type":"toss"}}
+{"at":"2026-11-11T01:16:55.269Z","page":"host","dir":"in","msg":{"type":"toss","playerId":"b87cfb69"}}
+{"at":"2026-11-11T01:16:55.269Z","page":"host","dir":"out","msg":{"type":"tennis","phase":"toss","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":2,"contactInMs":450,"kind":"serve"}}}
+{"at":"2026-11-11T01:16:55.270Z","page":"phone:Ada","dir":"in","msg":{"type":"tennis","phase":"toss","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":2,"contactInMs":450,"kind":"serve"}}}
+{"at":"2026-11-11T01:16:55.270Z","page":"phone:Ada","dir":"out","msg":{"type":"window_ack","windowId":2}}
+{"at":"2026-11-11T01:16:55.272Z","page":"phone:Eve","dir":"in","msg":{"type":"tennis","phase":"toss","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":2,"contactInMs":450,"kind":"serve"}}}
+{"at":"2026-11-11T01:16:55.277Z","page":"phone:Dee","dir":"in","msg":{"type":"tennis","phase":"toss","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":2,"contactInMs":450,"kind":"serve"}}}
+{"at":"2026-11-11T01:16:55.279Z","page":"phone:Cal","dir":"in","msg":{"type":"tennis","phase":"toss","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":2,"contactInMs":450,"kind":"serve"}}}
+{"at":"2026-11-11T01:16:55.279Z","page":"phone:Bea","dir":"in","msg":{"type":"tennis","phase":"toss","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":2,"contactInMs":450,"kind":"serve"}}}
+{"at":"2026-11-11T01:16:55.392Z","page":"phone:Ada","dir":"out","msg":{"type":"swing","windowId":2,"swingAfterRecvMs":122.5800000000745,"hand":"forehand","shape":"flat","power":0.3125,"handed":"right","apex":0.65321666666617}}
+{"at":"2026-11-11T01:16:55.393Z","page":"host","dir":"in","msg":{"type":"window_ack","windowId":2,"playerId":"b87cfb69"}}
+{"at":"2026-11-11T01:16:55.513Z","page":"host","dir":"in","msg":{"type":"swing","windowId":2,"swingAfterRecvMs":122.5800000000745,"hand":"forehand","shape":"flat","power":0.3125,"handed":"right","apex":0.65321666666617,"playerId":"b87cfb69"}}
+{"at":"2026-11-11T01:16:55.513Z","page":"host","dir":"out","msg":{"type":"tennis","phase":"flight","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"3eebf1a1","windowId":3,"contactInMs":950,"kind":"rally"}}}
+{"at":"2026-11-11T01:16:55.513Z","page":"phone:Bea","dir":"in","msg":{"type":"tennis","phase":"flight","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"3eebf1a1","windowId":3,"contactInMs":950,"kind":"rally"}}}
+{"at":"2026-11-11T01:16:55.513Z","page":"phone:Bea","dir":"out","msg":{"type":"window_ack","windowId":3}}
+{"at":"2026-11-11T01:16:55.513Z","page":"phone:Dee","dir":"in","msg":{"type":"tennis","phase":"flight","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"3eebf1a1","windowId":3,"contactInMs":950,"kind":"rally"}}}
+{"at":"2026-11-11T01:16:55.513Z","page":"phone:Cal","dir":"in","msg":{"type":"tennis","phase":"flight","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"3eebf1a1","windowId":3,"contactInMs":950,"kind":"rally"}}}
+{"at":"2026-11-11T01:16:55.513Z","page":"phone:Eve","dir":"in","msg":{"type":"tennis","phase":"flight","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"3eebf1a1","windowId":3,"contactInMs":950,"kind":"rally"}}}
+{"at":"2026-11-11T01:16:55.514Z","page":"phone:Ada","dir":"in","msg":{"type":"tennis","phase":"flight","scoreText":"0 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"3eebf1a1","windowId":3,"contactInMs":950,"kind":"rally"}}}
+{"at":"2026-11-11T01:16:55.627Z","page":"host","dir":"in","msg":{"type":"window_ack","windowId":3,"playerId":"3eebf1a1"}}
+{"at":"2026-11-11T01:17:00.446Z","page":"host","dir":"out","msg":{"type":"tennis","phase":"called","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":null}}
+{"at":"2026-11-11T01:17:00.449Z","page":"phone:Ada","dir":"in","msg":{"type":"tennis","phase":"called","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":null}}
+{"at":"2026-11-11T01:17:00.449Z","page":"phone:Bea","dir":"in","msg":{"type":"tennis","phase":"called","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":null}}
+{"at":"2026-11-11T01:17:00.449Z","page":"phone:Eve","dir":"in","msg":{"type":"tennis","phase":"called","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":null}}
+{"at":"2026-11-11T01:17:00.449Z","page":"phone:Dee","dir":"in","msg":{"type":"tennis","phase":"called","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":null}}
+{"at":"2026-11-11T01:17:00.449Z","page":"phone:Cal","dir":"in","msg":{"type":"tennis","phase":"called","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":null}}
+{"at":"2026-11-11T01:17:01.664Z","page":"phone:Ada","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":4,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:17:01.665Z","page":"phone:Ada","dir":"out","msg":{"type":"window_ack","windowId":4}}
+{"at":"2026-11-11T01:17:01.665Z","page":"phone:Dee","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":4,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:17:01.665Z","page":"phone:Cal","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":4,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:17:01.666Z","page":"phone:Eve","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":4,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:17:01.666Z","page":"phone:Bea","dir":"in","msg":{"type":"tennis","phase":"serve","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":4,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:17:01.770Z","page":"host","dir":"out","msg":{"type":"tennis","phase":"serve","scoreText":"15 – 0","gamesText":"0 – 0","serverId":"b87cfb69","receiverId":"3eebf1a1","playing":["b87cfb69","3eebf1a1"],"window":{"playerId":"b87cfb69","windowId":4,"contactInMs":0,"kind":"toss"}}}
+{"at":"2026-11-11T01:17:01.771Z","page":"host","dir":"in","msg":{"type":"window_ack","windowId":4,"playerId":"b87cfb69"}}
+{"at":"2026-11-11T01:17:01.962Z","page":"phone:Bea","dir":"in","msg":{"type":"session_ended"}}
+{"at":"2026-11-11T01:17:01.962Z","page":"phone:Dee","dir":"in","msg":{"type":"session_ended"}}
+{"at":"2026-11-11T01:17:01.963Z","page":"phone:Eve","dir":"in","msg":{"type":"session_ended"}}
+{"at":"2026-11-11T01:17:01.963Z","page":"phone:Cal","dir":"in","msg":{"type":"session_ended"}}

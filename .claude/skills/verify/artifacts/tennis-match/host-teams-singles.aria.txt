@@ -1,0 +1,35 @@
+- banner:
+  - heading "Choose sides" [level=1]
+  - paragraph: 1v1
+- list:
+  - listitem:
+    - text: Ada
+    - button "Side A" [pressed]
+    - button "Side B"
+    - button "Sit out"
+  - listitem:
+    - text: Bea
+    - button "Side A"
+    - button "Side B" [pressed]
+    - button "Sit out"
+  - listitem:
+    - text: Cal
+    - button "Side A"
+    - button "Side B"
+    - button "Sit out" [pressed]
+  - listitem:
+    - text: Dee
+    - button "Side A"
+    - button "Side B"
+    - button "Sit out" [pressed]
+  - listitem:
+    - text: Eve
+    - button "Side A"
+    - button "Side B"
+    - button "Sit out" [pressed]
+- paragraph: Match length
+- button "One game"
+- button "Best of 3" [pressed]
+- button "Best of 5"
+- button "Back"
+- button "Start"
