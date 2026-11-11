@@ -1,11 +1,13 @@
 // Tennis phone: a score, the action for this window, and a hand toggle.
-// mount(app, sendMsg, myPlayerId) returns { onMessage, onMotion, unmount }.
+// mount(app, sendMsg, myPlayerId) returns { onMessage, onMotion, onOrientation, unmount }.
 
 import { BUFFER_MS, finishedGesture, samplesSince } from './gesture.js';
+import { gripFromOrientation } from './grip.js';
 import './tennis.css';
 
 const SERVE_APEX_AT_MS = 450;
 const APEX_FALL_MS = 900;
+const GRIP_INTERVAL_MS = 200;
 
 export function mount(app, sendMsg, myPlayerId) {
   let alive = true;
@@ -18,6 +20,8 @@ export function mount(app, sendMsg, myPlayerId) {
   let sentSwingId = null;
   let windowRecvAt = 0;
   let tossSentAt = null;
+  let grip = 'forehand';
+  let gripSentAt = -Infinity;
 
   app.innerHTML = `
     <div id="screen-tennis">
@@ -122,11 +126,25 @@ export function mount(app, sendMsg, myPlayerId) {
     });
   }
 
+  // The hold is the phone's orientation. Swings still report hand from the
+  // gamma-rate classifier. Null keeps the previous grip, which starts forehand.
+  function onOrientation(reading) {
+    if (!alive) return;
+    const hand = gripFromOrientation(reading);
+    if (hand == null || hand === grip) return;
+    const now = performance.now();
+    if (now - gripSentAt < GRIP_INTERVAL_MS) return;
+    grip = hand;
+    gripSentAt = now;
+    sendMsg({ type: 'grip', hand });
+  }
+
   paint();
 
   return {
     onMessage,
     onMotion,
+    onOrientation,
     unmount() {
       alive = false;
       app.innerHTML = '';
