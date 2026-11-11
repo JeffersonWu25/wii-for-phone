@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items.
+// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, tennis-match.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -236,7 +236,8 @@ async function selectGameFeature(run) {
   const byLabel = Object.fromEntries(cards.map((c) => [c.label, c]));
   run.check('Bowling card is enabled', byLabel.Bowling?.enabled === true);
   run.check('Kart Racer card is enabled', byLabel['Kart Racer']?.enabled === true);
-  const unbuilt = cards.filter((c) => c.label !== 'Bowling' && c.label !== 'Kart Racer');
+  run.check('Tennis card is enabled', byLabel.Tennis?.enabled === true);
+  const unbuilt = cards.filter((c) => c.label !== 'Bowling' && c.label !== 'Kart Racer' && c.label !== 'Tennis');
   run.check(
     'unbuilt games are disabled Coming Soon cards',
     unbuilt.length > 0 && unbuilt.every((c) => !c.enabled && c.soon),
@@ -1208,6 +1209,228 @@ async function kartItems(run) {
   }
 }
 
+// ── Tennis ────────────────────────────────────────────────────────────────────
+
+async function tennisMatch(run) {
+  // beta and gamma are rotation rates. The phone drops a devicemotion event that
+  // lacks accelerationIncludingGravity or rotationRate.
+  async function flick(page, samples) {
+    await page.evaluate(async (samples) => {
+      for (const sample of samples) {
+        window.dispatchEvent(new DeviceMotionEvent('devicemotion', {
+          accelerationIncludingGravity: { x: 0, y: 0, z: 0 },
+          rotationRate: { alpha: 0, beta: sample.beta, gamma: sample.gamma },
+        }));
+        await new Promise((r) => setTimeout(r, 30));
+      }
+    }, samples);
+  }
+
+  const host = await run.openHost({ viewport: { width: 1280, height: 720 } });
+  const names = ['Ada', 'Bea', 'Cal', 'Dee', 'Eve'];
+  const phones = {};
+  for (const name of names) {
+    phones[name] = await run.openPhone(name);
+    await waitForWaitingLabel(phones[name]);
+    await host.waitForSelector(`.player-item:has-text("${name}")`, { timeout: 10_000 });
+  }
+
+  await selectGame(run, 'Tennis');
+  await host.waitForSelector('.tennis-teams', { timeout: 15_000 });
+
+  const row = (name) => host.locator('.tennis-player', { has: host.locator('.tennis-name', { hasText: name }) });
+  const seatButton = { A: '.tennis-side-a', B: '.tennis-side-b', out: '.tennis-sit' };
+  async function seat(name) {
+    const item = row(name);
+    if (await item.locator(seatButton.A).getAttribute('aria-pressed') === 'true') return 'A';
+    if (await item.locator(seatButton.B).getAttribute('aria-pressed') === 'true') return 'B';
+    if (await item.locator(seatButton.out).getAttribute('aria-pressed') === 'true') return 'out';
+    return '';
+  }
+  async function assign(name, side) {
+    await row(name).locator(seatButton[side]).click();
+  }
+  async function formatText() {
+    return (await host.locator('.tennis-format').innerText()).trim();
+  }
+  async function startEnabled() {
+    return host.locator('.tennis-start').isEnabled();
+  }
+  async function phoneLabel(page) {
+    return (await page.locator('#tennis-label').innerText()).trim();
+  }
+
+  const title = (await host.locator('.tennis-title').innerText()).trim();
+  const opening = await formatText();
+  const seats = {};
+  for (const name of names) seats[name] = await seat(name);
+  const bestOf3 = await host.locator('.tennis-length[data-best-of="3"]').getAttribute('aria-pressed');
+  const openingStart = await startEnabled();
+  const seatedFive = seats.Ada === 'A' && seats.Bea === 'A' && seats.Cal === 'B' && seats.Dee === 'B' && seats.Eve === 'out';
+  run.check(
+    'five phones open on Choose sides as 2v2, Best of 3 pressed, Start enabled',
+    title === 'Choose sides' && opening === '2v2' && bestOf3 === 'true' && openingStart && seatedFive,
+    `title "${title}", format ${opening}, best of 3 pressed ${bestOf3}, start ${openingStart}, seats ${JSON.stringify(seats)}`,
+  );
+  await run.capture(host, 'host-teams-five');
+
+  await assign('Eve', 'A');
+  await host.waitForFunction(
+    () => document.querySelector('.tennis-format')?.textContent.trim() === 'Need 2 to 4 players',
+    null,
+    { timeout: 5_000 },
+  );
+  const illegalStart = await startEnabled();
+  run.check(
+    'Eve on Side A needs 2 to 4 players and disables Start',
+    (await formatText()) === 'Need 2 to 4 players' && !illegalStart,
+    `format ${await formatText()}, start enabled ${illegalStart}`,
+  );
+  await run.capture(host, 'host-teams-illegal');
+  await assign('Eve', 'out');
+  await host.waitForFunction(
+    () => document.querySelector('.tennis-format')?.textContent.trim() === '2v2',
+    null,
+    { timeout: 5_000 },
+  );
+
+  await assign('Bea', 'B');
+  await assign('Cal', 'out');
+  await assign('Dee', 'out');
+  await host.waitForFunction(
+    () => document.querySelector('.tennis-format')?.textContent.trim() === '1v1',
+    null,
+    { timeout: 5_000 },
+  );
+  const singlesFormat = await formatText();
+  const singlesStart = await startEnabled();
+  const singlesSeats = {};
+  for (const name of names) singlesSeats[name] = await seat(name);
+  run.check(
+    'Bea on Side B with Cal and Dee sitting out is 1v1 and Start is enabled',
+    singlesFormat === '1v1' && singlesStart && singlesSeats.Ada === 'A' && singlesSeats.Bea === 'B',
+    `format ${singlesFormat}, start enabled ${singlesStart}, seats ${JSON.stringify(singlesSeats)}`,
+  );
+  await run.capture(host, 'host-teams-singles');
+
+  await assign('Cal', 'B');
+  await host.waitForFunction(
+    () => document.querySelector('.tennis-format')?.textContent.trim() === '1v2',
+    null,
+    { timeout: 5_000 },
+  );
+  run.check('Cal on Side B is 1v2', (await formatText()) === '1v2', await formatText());
+  await run.capture(host, 'host-teams-one-two');
+  await assign('Cal', 'out');
+  await host.waitForFunction(
+    () => document.querySelector('.tennis-format')?.textContent.trim() === '1v1',
+    null,
+    { timeout: 5_000 },
+  );
+
+  await host.locator('.tennis-length[data-best-of="1"]').click();
+  const oneGame = await host.locator('.tennis-length[data-best-of="1"]').getAttribute('aria-pressed');
+  run.check('One game is pressed', oneGame === 'true', `aria-pressed ${oneGame}`);
+  await host.locator('.tennis-start').click();
+
+  await host.waitForSelector('.tennis-court canvas', { timeout: 15_000 });
+  await phones.Ada.waitForFunction(
+    () => document.getElementById('tennis-label')?.textContent.trim() === 'Swing up to toss',
+    null,
+    { timeout: 15_000 },
+  );
+  await phones.Eve.waitForFunction(
+    () => document.getElementById('tennis-label')?.textContent.trim() === 'Sitting this one out',
+    null,
+    { timeout: 15_000 },
+  );
+  const adaLabel = await phoneLabel(phones.Ada);
+  const beaLabel = await phoneLabel(phones.Bea);
+  const eveLabel = await phoneLabel(phones.Eve);
+  run.check(
+    'Ada tosses, Bea watches the point, and Eve sits out',
+    adaLabel === 'Swing up to toss' && beaLabel === 'Watch the point' && eveLabel === 'Sitting this one out',
+    `Ada "${adaLabel}", Bea "${beaLabel}", Eve "${eveLabel}"`,
+  );
+  await run.capture(host, 'host-court');
+  await run.capture(phones.Ada, 'phone-toss');
+  await run.capture(phones.Eve, 'phone-sitting');
+
+  await flick(phones.Ada, [
+    { beta: 100, gamma: 0 },
+    { beta: 200, gamma: 0 },
+    { beta: 120, gamma: 0 },
+    { beta: 80, gamma: 0 },
+  ]);
+  await phones.Ada.waitForFunction(
+    () => document.getElementById('tennis-label')?.textContent.trim() === 'Swing to serve',
+    null,
+    { timeout: 15_000 },
+  );
+  run.check('Ada is told to swing to serve after the toss', (await phoneLabel(phones.Ada)) === 'Swing to serve');
+
+  await flick(phones.Ada, [
+    { beta: 0, gamma: 400 },
+    { beta: 0, gamma: 500 },
+    { beta: 0, gamma: 420 },
+    { beta: 0, gamma: 200 },
+    { beta: 0, gamma: 0 },
+  ]);
+
+  const frameCount = (page, dir, type) => run.frames.filter((f) => f.page === page && f.dir === dir && f.msg?.type === type).length;
+  const frameIndex = (page, dir, type) => run.frames.findIndex((f) => f.page === page && f.dir === dir && f.msg?.type === type);
+  let counts = {};
+  const frameDeadline = Date.now() + 10_000;
+  while (Date.now() < frameDeadline) {
+    counts = {
+      tossOut: frameCount('phone:Ada', 'out', 'toss'),
+      swingOut: frameCount('phone:Ada', 'out', 'swing'),
+      tossIn: frameCount('host', 'in', 'toss'),
+      swingIn: frameCount('host', 'in', 'swing'),
+    };
+    if (counts.tossOut && counts.swingOut && counts.tossIn && counts.swingIn) break;
+    await sleep(50);
+  }
+  const ordered = frameIndex('phone:Ada', 'out', 'toss') < frameIndex('phone:Ada', 'out', 'swing')
+    && frameIndex('host', 'in', 'toss') < frameIndex('host', 'in', 'swing');
+  run.check(
+    'a toss frame then a swing frame leave Ada and arrive at the host',
+    counts.tossOut === 1 && counts.swingOut === 1 && counts.tossIn === 1 && counts.swingIn === 1 && ordered,
+    `phone out toss ${counts.tossOut} swing ${counts.swingOut}, host in toss ${counts.tossIn} swing ${counts.swingIn}`,
+  );
+
+  await host.waitForFunction(() => {
+    const read = window.__tennisView;
+    if (typeof read !== 'function') return false;
+    const view = read();
+    if (!view?.score) return false;
+    if (view.phase === 'called') return true;
+    const points = `${view.score.pointsA}\u2013${view.score.pointsB}`;
+    const games = `${view.score.gamesA}\u2013${view.score.gamesB}`;
+    return points !== '0\u20130' || games !== '0\u20130';
+  }, null, { timeout: 20_000 });
+  const snap = await host.evaluate(() => {
+    const view = typeof window.__tennisView === 'function' ? window.__tennisView() : null;
+    if (!view) return null;
+    return {
+      phase: view.phase,
+      pointsA: view.score?.pointsA ?? null,
+      pointsB: view.score?.pointsB ?? null,
+      gamesA: view.score?.gamesA ?? null,
+      gamesB: view.score?.gamesB ?? null,
+      call: view.call ?? null,
+    };
+  });
+  const points = snap ? `${snap.pointsA}\u2013${snap.pointsB}` : '';
+  const games = snap ? `${snap.gamesA}\u2013${snap.gamesB}` : '';
+  run.check(
+    'the point is called or the score has left 0–0',
+    Boolean(snap) && (snap.phase === 'called' || points !== '0\u20130' || games !== '0\u20130'),
+    snap ? `phase ${snap.phase}, points ${points}, games ${games}, call ${snap.call}` : 'no view',
+  );
+  await run.capture(host, 'host-point');
+}
+
 const FEATURES = {
   'join-lobby': joinLobby,
   'select-game': selectGameFeature,
@@ -1216,6 +1439,7 @@ const FEATURES = {
   'kart-split': kartSplit,
   'kart-drift': kartDrift,
   'kart-items': kartItems,
+  'tennis-match': tennisMatch,
 };
 
 async function main() {

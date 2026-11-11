@@ -1,0 +1,2 @@
+- text: 15 – 0 Games 0 – 0
+- button "Quit"

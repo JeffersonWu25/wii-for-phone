@@ -1,0 +1,53 @@
+{
+  "feature": "tennis-match",
+  "passed": true,
+  "finishedAt": "2026-11-11T01:37:43.130Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "five phones open on Choose sides as 2v2, Best of 3 pressed, Start enabled",
+      "ok": true,
+      "detail": "title \"Choose sides\", format 2v2, best of 3 pressed true, start true, seats {\"Ada\":\"A\",\"Bea\":\"A\",\"Cal\":\"B\",\"Dee\":\"B\",\"Eve\":\"out\"}"
+    },
+    {
+      "name": "Eve on Side A needs 2 to 4 players and disables Start",
+      "ok": true,
+      "detail": "format Need 2 to 4 players, start enabled false"
+    },
+    {
+      "name": "Bea on Side B with Cal and Dee sitting out is 1v1 and Start is enabled",
+      "ok": true,
+      "detail": "format 1v1, start enabled true, seats {\"Ada\":\"A\",\"Bea\":\"B\",\"Cal\":\"out\",\"Dee\":\"out\",\"Eve\":\"out\"}"
+    },
+    {
+      "name": "Cal on Side B is 1v2",
+      "ok": true,
+      "detail": "1v2"
+    },
+    {
+      "name": "One game is pressed",
+      "ok": true,
+      "detail": "aria-pressed true"
+    },
+    {
+      "name": "Ada tosses, Bea watches the point, and Eve sits out",
+      "ok": true,
+      "detail": "Ada \"Swing up to toss\", Bea \"Watch the point\", Eve \"Sitting this one out\""
+    },
+    {
+      "name": "Ada is told to swing to serve after the toss",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a toss frame then a swing frame leave Ada and arrive at the host",
+      "ok": true,
+      "detail": "phone out toss 1 swing 1, host in toss 1 swing 1"
+    },
+    {
+      "name": "the point is called or the score has left 0–0",
+      "ok": true,
+      "detail": "phase called, points 15–0, games 0–0, call null"
+    }
+  ]
+}

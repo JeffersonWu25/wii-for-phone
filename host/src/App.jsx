@@ -4,6 +4,7 @@ import LobbyScreen from './shared/LobbyScreen.jsx';
 import GameSelectScreen from './shared/GameSelectScreen.jsx';
 import BowlingApp from './games/bowling/BowlingApp.jsx';
 import KartApp from './games/kart/KartApp.jsx';
+import TennisApp from './games/tennis/TennisApp.jsx';
 
 // ── App — thin 3-screen router ────────────────────────────────────────────────
 // Screens: 'lobby' → 'game-select' → [game]
@@ -94,6 +95,20 @@ export default function App() {
   if (screen === 'kart') {
     return (
       <KartApp
+        wsRef={wsRef}
+        send={send}
+        players={players}
+        disconnectedPlayerIds={disconnectedPlayerIds}
+        onGameOver={leaveToSelect}
+        onAbandon={leaveToSelect}
+        status={status}
+      />
+    );
+  }
+
+  if (screen === 'tennis') {
+    return (
+      <TennisApp
         wsRef={wsRef}
         send={send}
         players={players}
