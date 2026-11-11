@@ -67,7 +67,7 @@ test('a toss from the server opens the serve window and a stranger is ignored', 
   assert.deepEqual(msg.window, { playerId: 'a', windowId: 2, contactInMs: 450, kind: 'serve' });
 });
 
-test('a serve swing uses the phone pose and not the clock, then opens the return window', () => {
+test('a serve on time uses the phone apex and opens the return window', () => {
   const { match, flow } = singles();
   begin(flow, 1000);
   onPhone(flow, { type: 'toss', playerId: 'a' }, 1100);
@@ -75,7 +75,7 @@ test('a serve swing uses the phone pose and not the clock, then opens the return
     type: 'swing',
     playerId: 'a',
     windowId: 2,
-    swingAfterRecvMs: 5000,
+    swingAfterRecvMs: 410,
     hand: 'forehand',
     shape: 'flat',
     power: 0.8,
@@ -94,6 +94,24 @@ test('a serve swing uses the phone pose and not the clock, then opens the return
     power: 0.8,
     apex: 0,
   }, 1700), null);
+});
+
+test('a late serve aims to the server\'s right', () => {
+  const { match, flow } = singles();
+  begin(flow, 1000);
+  onPhone(flow, { type: 'toss', playerId: 'a' }, 1100);
+  onPhone(flow, {
+    type: 'swing',
+    playerId: 'a',
+    windowId: 2,
+    swingAfterRecvMs: 410 + 180,
+    hand: 'forehand',
+    shape: 'flat',
+    power: 0.8,
+    handed: 'right',
+    apex: 1,
+  }, 1600);
+  assert.ok(Math.abs(match.shot.landX - 4.6) < 1e-9);
 });
 
 test('the return uses judged timing, the last ack, and otherwise 80 ms', () => {

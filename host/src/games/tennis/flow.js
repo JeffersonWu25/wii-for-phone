@@ -149,18 +149,12 @@ export function onPhone(flow, msg, now) {
   const hit = flow.open;
   if (!hit || msg.windowId !== hit.windowId || msg.playerId !== hit.playerId) return null;
 
-  if (hit.kind === 'serve') {
-    if (match.phase !== 'toss' || msg.playerId !== match.serverId) return null;
-    launch(flow, {
-      playerId: msg.playerId,
-      apex: finite(msg.apex, 0),
-      hand: msg.hand,
-      shape: msg.shape ?? 'flat',
-      power: finite(msg.power, 0),
-      handed: msg.handed ?? 'right',
-    });
-  } else if (hit.kind === 'rally') {
-    if (match.phase !== 'flight' || msg.playerId !== match.receiverId) return null;
+  if (hit.kind === 'serve' || hit.kind === 'rally') {
+    if (hit.kind === 'serve') {
+      if (match.phase !== 'toss' || msg.playerId !== match.serverId) return null;
+    } else if (match.phase !== 'flight' || msg.playerId !== match.receiverId) {
+      return null;
+    }
     const rttMs = flow.rtt.has(msg.playerId) ? flow.rtt.get(msg.playerId) : DEFAULT_RTT_MS;
     const timing = judgeTiming({
       swingAfterRecvMs: finite(msg.swingAfterRecvMs, 0),
