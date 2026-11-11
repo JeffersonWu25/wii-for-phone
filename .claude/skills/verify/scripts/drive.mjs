@@ -433,7 +433,9 @@ async function kartRace(run) {
   let phoneShot = false;
   let tickNo = 0;
   let knobMoved = null;
-  const raceDeadline = Date.now() + 6 * 60_000;
+  // Three laps of game time. On llvmpipe a frame is long and each step is capped
+  // at 50 ms, so the same race takes well past six minutes of wall clock.
+  const raceDeadline = Date.now() + 16 * 60_000;
 
   while (Date.now() < raceDeadline) {
     const loopStart = Date.now();
@@ -454,7 +456,7 @@ async function kartRace(run) {
       if (margin < 1.1) wall.clampSeen += 1;
       if (wall.clampSeen === 1) wall.hitAt = Date.now();
       if (wall.clampSeen > 0 && Date.now() - wall.hitAt > 1000) { wall.state = 'done'; wall.speedAfter = last.speed; wall.note = 'ok'; }
-      else if (Date.now() - wall.from > 9000) { wall.state = 'done'; wall.note = 'timeout'; }
+      else if (Date.now() - wall.from > 22_000) { wall.state = 'done'; wall.note = 'timeout'; }
       if (wall.state === 'done') shoot('11-wall-test');
     }
     await setSteer(wall.state === 'active' ? -1 : last.steer);
@@ -538,7 +540,7 @@ async function kartRace(run) {
   run.check('portrait phone shows the rotate prompt', sec.rotateVisible === true);
 
   // Wait for the race to end (Ada finished; Bo never moves, so the grace timer ends it).
-  await host.waitForSelector('.kart-results', { timeout: 60_000 });
+  await host.waitForSelector('.kart-results', { timeout: 180_000 });
   await sleep(500);
   await host.screenshot({ path: path.join(run.dir, 'results.png') });
   const rows = await host.locator('.kart-results li').allTextContents();
@@ -638,7 +640,7 @@ async function splitRound(run, n) {
 
   await host.waitForFunction(() => window.__kartState?.phase === 'countdown' && window.__kartState.countdown < 2.5, null, { polling: 30, timeout: 10_000 });
   await host.screenshot({ path: path.join(run.dir, `n${n}-countdown.png`) });
-  await host.waitForFunction(() => window.__kartState.phase === 'racing', null, { polling: 30, timeout: 10_000 });
+  await host.waitForFunction(() => window.__kartState.phase === 'racing', null, { polling: 30, timeout: 20_000 });
   const before = await host.evaluate(readSplitHud);
   await sleep(SPLIT_DRIVE_MS / 2);
   await run.capture(host, `n${n}-racing`);
@@ -819,9 +821,9 @@ async function kartDrift(run) {
 
   try {
     // ── 1. No touch after GO: gas is always on ──
-    await host.waitForFunction(() => window.__kartState?.phase === 'racing', null, { polling: 30, timeout: 15_000 });
+    await host.waitForFunction(() => window.__kartState?.phase === 'racing', null, { polling: 30, timeout: 25_000 });
     stage = 'launch';
-    const launch = await drive((s) => s.speed > 10 || s.time > 3.2, { timeout: 8000, touchOn: false });
+    const launch = await drive((s) => s.speed > 10 || s.time > 3.2, { timeout: 25_000, touchOn: false });
     const neutralFrames = adaDrives();
     hostShot('host-no-touch');
     run.check(
@@ -856,7 +858,7 @@ async function kartDrift(run) {
         label, piece, levels: [], dir: null, started: false, maxOver: -Infinity, maxAbsLat: 0, slidingSamples: 0, offroadSamples: 0,
         entry: null, end: null, stopReason: null, release: null, postMaxSpeed: 0, postMaxLevel: 0, slideStart: null, wallMs: {},
       };
-      const entry = await drive((s) => s.ps >= range.s0 + entryOff, { timeout: 70_000 });
+      const entry = await drive((s) => s.ps >= range.s0 + entryOff, { timeout: 180_000 });
       if (!entry) { r.stopReason = 'never reached the entry'; return r; }
       r.entry = { ps: entry.ps, speed: entry.speed, boost: entry.boost, lateral: entry.lateral };
       stage = `${label}-drift`;
@@ -865,7 +867,7 @@ async function kartDrift(run) {
       let lastLevel = -1;
       const taken = new Set();
       const endSample = await drive(() => r.stopReason !== null, {
-        timeout: 14_000,
+        timeout: 30_000,
         cmd: (s) => (s.drift.sliding ? s.steer : Math.max(0.45, s.steer)),
         onSample: (s) => {
           if (r.stopReason !== null) return;
@@ -1008,7 +1010,7 @@ async function kartDrift(run) {
 // ── Kart Racer items ──────────────────────────────────────────────────────────
 
 const ITEM_ROW_AIM_M = 1.5; // lateral Ada aims at through the first row (box columns sit at -4.5, -1.5, 1.5, 4.5)
-const ITEM_READY_MAX_MS = 3000; // roulette 1.6 s plus status latency; a stacked pickup's reserve lands later but main is first
+const ITEM_READY_MAX_MS = 3000; // 1.6 s roll plus latency, measured in race time; wall time is longer when a frame is capped at 50 ms
 
 // Read-only view of Ada's item state and the race objects, shipped into the host page.
 function itemsHostSnap() {
@@ -1089,7 +1091,7 @@ async function kartItems(run) {
   }
 
   try {
-    await host.waitForFunction(() => window.__kartState?.phase === 'racing', null, { polling: 30, timeout: 15_000 });
+    await host.waitForFunction(() => window.__kartState?.phase === 'racing', null, { polling: 30, timeout: 25_000 });
 
     // ── 1. Drive through the first box row until a pickup lands ──
     const pick = await until((s, snap) => snap.item.main !== null, 40_000);
@@ -1100,19 +1102,22 @@ async function kartItems(run) {
     );
     if (!pick) throw new Error('no pickup within 40 s');
     const pickedAt = Date.now();
+    const pickedRaceT = pick.s.time;
     const kind = pick.snap.item.main;
 
     // ── 2. Roulette on the phone and the TV, then ready with an icon ──
-    const seen = { phoneRolling: false, tvRolling: false, ready: null, tv: null, phoneClass: null };
+    // The roll is 1.6 s of race time. Wall time is longer when each frame is capped at 50 ms.
+    const seen = { phoneRolling: false, tvRolling: false, ready: null, raceDt: null, tv: null, phoneClass: null };
     const readyRes = await until(
       () => seen.ready !== null,
-      ITEM_READY_MAX_MS + 1500,
-      async () => {
+      12_000,
+      async (s) => {
         const cls = await phoneBtn();
         if (!seen.phoneRolling && cls.includes('rolling')) { seen.phoneRolling = true; phoneShot('phone-item-rolling'); hostShot('host-item-rolling'); }
         if (!seen.tvRolling && (await tvSlot())?.rolling) seen.tvRolling = true;
         if (seen.ready === null && cls.includes('ready')) {
           seen.ready = Date.now() - pickedAt;
+          seen.raceDt = s.time - pickedRaceT;
           seen.phoneClass = cls;
           // The TV HUD repaints at 10 Hz, so give it a moment to land.
           for (let i = 0; i < 12; i++) { seen.tv = await tvSlot(); if (seen.tv?.kind && !seen.tv.rolling) break; await sleep(80); }
@@ -1124,9 +1129,9 @@ async function kartItems(run) {
     run.check('phone ITEM button shows its rolling state after the pickup', seen.phoneRolling, seen.phoneRolling ? 'class had "rolling"' : 'never saw "rolling" on #btn-item');
     run.check('TV pane main slot shows the roulette while rolling', seen.tvRolling, seen.tvRolling ? 'data-rolling=1' : 'never saw data-rolling on the main slot');
     run.check(
-      `phone ITEM button is ready within ${ITEM_READY_MAX_MS / 1000} s of the pickup`,
-      readyRes !== null && seen.ready !== null && seen.ready <= ITEM_READY_MAX_MS,
-      seen.ready === null ? 'never ready' : `ready ${seen.ready} ms after the pickup was seen (kind ${kind})`,
+      `phone ITEM button is ready within ${ITEM_READY_MAX_MS / 1000} s of race time after the pickup`,
+      readyRes !== null && seen.raceDt !== null && seen.raceDt <= ITEM_READY_MAX_MS / 1000,
+      seen.raceDt === null ? 'never ready' : `ready after ${seen.raceDt.toFixed(2)} s of race time (${seen.ready} ms wall, kind ${kind})`,
     );
     run.check(
       'TV pane main slot shows the landed item icon',
@@ -1185,7 +1190,7 @@ async function kartItems(run) {
     let hitSeq = null;
     if (hitEv) {
       hitSeq = [];
-      await until(() => false, 2800, (s, snap) => {
+      await until(() => false, 12_000, (s, snap) => {
         const v = snap.karts.find((k) => k.id === hitEv.kartId);
         hitSeq.push({ t: +s.time.toFixed(2), hit: v.hit, invuln: +v.invuln.toFixed(2) });
       });
@@ -1520,12 +1525,18 @@ async function tennisRally(run) {
     if (!view) return false;
     return view.phase === 'flight' || view.phase === 'called' || (view.players || []).some((p) => p.speed > 0.5);
   }, null, { timeout: 10_000 });
+  // The first flight frame is the serve. Wait until the returner has actually covered ground.
+  await host.waitForFunction(() => {
+    const view = window.__tennisView?.();
+    const far = (view?.players || []).find((p) => p.z > 0);
+    return far && (far.speed > 8 || Math.abs(far.z) < 10.4);
+  }, null, { timeout: 12_000 }).catch(() => {});
   const moving = await host.evaluate(() => {
     const view = window.__tennisView?.();
     const speeds = (view?.players || []).map((p) => ({ id: p.id, speed: p.speed, x: p.x, z: p.z }));
     return { phase: view?.phase ?? null, speeds };
   });
-  const ran = (moving.speeds || []).some((p) => p.speed > 0.5);
+  const ran = (moving.speeds || []).some((p) => p.speed > 0.5 && Math.abs(p.z) < 11);
   run.check('a player runs toward the ball', moving.phase === 'flight' || moving.phase === 'called' || ran, JSON.stringify(moving));
   await run.capture(host, 'host-chase');
 }
@@ -1553,7 +1564,23 @@ async function main() {
     process.exit(1);
   }
 
-  const browser = await chromium.launch({ channel: 'chrome', headless: process.env.HEADED !== '1' });
+  // A background host page can have its timers throttled while a phone is focused.
+  // This machine also has no GPU: ANGLE's GL backend (llvmpipe) holds a split
+  // kart view near 6 fps, and the default backend sits near 1 fps. Each race
+  // step is capped at 50 ms, so 1 fps never finishes a 3 second countdown in time.
+  const browser = await chromium.launch({
+    channel: 'chrome',
+    headless: process.env.HEADED !== '1',
+    args: [
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--ignore-gpu-blocklist',
+      '--enable-gpu',
+      '--use-gl=angle',
+      '--use-angle=gl',
+    ],
+  });
   const run = new Run(featureId, browser);
   let error = null;
   try {
