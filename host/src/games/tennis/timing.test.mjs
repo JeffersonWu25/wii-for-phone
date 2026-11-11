@@ -36,9 +36,9 @@ function singles() {
   return { match, flow };
 }
 
-function advance(flow, dt, now) {
+function advance(flow, dt, now, disconnectedIds) {
   step(flow.match, dt);
-  return afterPhysics(flow, now);
+  return afterPhysics(flow, now, disconnectedIds);
 }
 
 test('the serve opens one toss window and does not repeat it every frame', () => {
@@ -202,9 +202,18 @@ test('eight seconds without a toss is a fault and the point is held for 1200 ms'
   const faulted = advance(flow, 0.05, t0 + 8000);
   assert.equal(match.phase, 'flight');
   assert.equal(match.shot.outcome, 'net');
-  assert.equal(faulted.window.kind, 'rally');
-  assert.equal(faulted.window.contactInMs, 950);
-  assert.equal(faulted.window.playerId, 'b');
+  assert.equal(faulted.window, null);
+  assert.equal(onPhone(flow, {
+    type: 'swing',
+    playerId: 'b',
+    windowId: 1,
+    power: 0.9,
+    apex: 0,
+    handed: 'right',
+    shape: 'flat',
+  }, t0 + 8250), null);
+  assert.equal(match.shot.outcome, 'net');
+  assert.equal(match.pointsA, 0);
 
   let now = t0 + 8000;
   let guard = 0;
@@ -225,6 +234,16 @@ test('eight seconds without a toss is a fault and the point is held for 1200 ms'
   assert.equal(next.scoreText, `0 ${DASH} 15`);
   assert.equal(next.window.kind, 'toss');
   assert.equal(next.window.playerId, 'a');
+});
+
+test('a disconnected server loses the serve without waiting out the clock', () => {
+  const { match, flow } = singles();
+  const t0 = 1_000;
+  begin(flow, t0);
+  const faulted = advance(flow, 0.05, t0 + 100, new Set(['a']));
+  assert.equal(match.phase, 'flight');
+  assert.equal(match.shot.outcome, 'net');
+  assert.equal(faulted.window, null);
 });
 
 test('best of one ends on the winner names after the called hold', () => {

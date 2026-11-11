@@ -7,8 +7,8 @@ import './match.css';
 
 const COURT_CAM = { pos: [0, 18, -28], at: [0, 0.5, 0], fov: 38 };
 
-// Self-contained tennis match. Props match KartApp.
-export default function TennisApp({ wsRef, send, players, onGameOver, onAbandon }) {
+// Self-contained tennis match.
+export default function TennisApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon }) {
   const [lineup, setLineup] = useState(null);
   const [winner, setWinner] = useState(null);
 
@@ -17,6 +17,8 @@ export default function TennisApp({ wsRef, send, players, onGameOver, onAbandon 
   const startedRef = useRef(false);
   const sendRef = useRef(send);
   sendRef.current = send;
+  const disconnectedRef = useRef(disconnectedPlayerIds);
+  disconnectedRef.current = disconnectedPlayerIds;
 
   // Start once. StrictMode runs effects twice; the ref keeps a single match
   // the way bowling keeps a single BowlingGame.
@@ -71,7 +73,7 @@ export default function TennisApp({ wsRef, send, players, onGameOver, onAbandon 
       const dt = Math.min(Math.max(0, now - last) / 1000, 0.05);
       last = now;
       step(match, dt);
-      const msg = afterPhysics(flow, now);
+      const msg = afterPhysics(flow, now, disconnectedRef.current);
       scene.resize();
       scene.setView(view(match));
       scene.render();

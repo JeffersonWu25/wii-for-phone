@@ -69,6 +69,12 @@ function launch(flow, args) {
   const plan = planShot(flow.match, args);
   swing(flow.match, args);
   if (flow.match.phase !== 'flight') return;
+  // A ball that is already going into the net is not a return. Leaving the
+  // window open let the other phone replace the point.
+  if (plan.outcome === 'net') {
+    flow.open = null;
+    return;
+  }
   openWindow(flow, 'rally', flow.match.receiverId, plan.flightTime * 1000);
 }
 
@@ -181,10 +187,17 @@ export function onPhone(flow, msg, now) {
 
 // Call after step(match, dt). Opens and closes windows, faults a held serve,
 // and holds a called point for 1200 ms before the next one.
-export function afterPhysics(flow, now) {
+function serverGone(flow, disconnectedIds) {
+  const id = flow.match.serverId;
+  if (disconnectedIds instanceof Set) return disconnectedIds.has(id);
+  return Array.isArray(disconnectedIds) && disconnectedIds.includes(id);
+}
+
+export function afterPhysics(flow, now, disconnectedIds) {
   notePhase(flow, now);
   reconcile(flow);
-  if (flow.match.phase === 'serve' && !flow.faulted && now - flow.serveAt >= SERVE_LIMIT_MS) {
+  const faultNow = serverGone(flow, disconnectedIds) || now - flow.serveAt >= SERVE_LIMIT_MS;
+  if (flow.match.phase === 'serve' && !flow.faulted && faultNow) {
     flow.faulted = true;
     faultServe(flow);
     notePhase(flow, now);
