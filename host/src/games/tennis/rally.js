@@ -21,6 +21,21 @@ const TOSS_Y = 1.05;
 const TOSS_VY = 5.65;
 const TOSS_LIMIT = 1.3;
 const SWING_SECONDS = 0.35;
+const TOP_SPEED = 8.6;
+const WALK_SPEED = 4;
+const EASE_ACCEL = 26;
+const CHASE_ACCEL = 400;
+const BRAKE_ACCEL = 26;
+// After the opening sprint of a point, the next effort is a change of
+// direction. 8.6 m/s again would run down a ball hit behind that player.
+const RECOVERY_SPEED = 2;
+const REACH = 1.75;
+const EASE_WINDOW = 0.1;
+// A flat serve is only inside the racket at the bounce if the split-step
+// is short. The extra plant stays inside the 1 cm step allowance.
+const STRIDE_RATE = 0.42;
+const STRIDE_CAP = 0.009;
+const STRUCK_SECONDS = 0.12;
 const COLORS = ['#d4534b', '#3d74d6', '#2f9d57', '#e0a02e', '#8a4ad4', '#2a9eae'];
 const POINT_NAMES = ['0', '15', '30', '40'];
 
@@ -87,19 +102,87 @@ function placeServer(match) {
   match.receiverId = spot.solo || spot.back;
 }
 
+function makeActor(side, role) {
+  const pos = positionFor(side, role);
+  return {
+    x: pos.x,
+    z: pos.z,
+    vx: 0,
+    vz: 0,
+    speed: 0,
+    homeX: pos.x,
+    homeZ: pos.z,
+    travel: 0,
+    grip: null,
+    faceYaw: null,
+    facePitch: null,
+    struckLeft: 0,
+    burstT: 0,
+    gaveUp: false,
+    shotKey: '',
+    burstArmed: false,
+    spentBurst: false,
+  };
+}
+
+function syncHomes(match) {
+  for (const side of ['A', 'B']) {
+    const ids = side === 'A' ? match.sideA : match.sideB;
+    for (const id of ids) {
+      const actor = match.actors.get(id);
+      if (!actor) continue;
+      const pos = positionFor(side, roleOf(match.placement[side], id));
+      actor.homeX = pos.x;
+      actor.homeZ = pos.z;
+    }
+  }
+}
+
+function seatActors(match) {
+  match.actors = new Map();
+  for (const side of ['A', 'B']) {
+    const ids = side === 'A' ? match.sideA : match.sideB;
+    for (const id of ids) {
+      match.actors.set(id, makeActor(side, roleOf(match.placement[side], id)));
+    }
+  }
+}
+
+function swingTOf(match, id) {
+  if (match.swingingId !== id || !(match.swingLeft > 0)) return -1;
+  return clamp(1 - match.swingLeft / SWING_SECONDS, 0, 1);
+}
+
 function playerSpot(match, id, side) {
   const place = match.placement[side];
   const role = roleOf(place, id);
-  const pos = positionFor(side, role);
+  const actor = match.actors.get(id);
+  const home = positionFor(side, role);
+  const swingT = swingTOf(match, id);
+  const swinging = swingT >= 0;
+  let hand = actor?.grip || 'forehand';
+  if (swinging && (match.swingHand === 'forehand' || match.swingHand === 'backhand')) {
+    hand = match.swingHand;
+  }
   return {
     id,
     name: match.names.get(id),
     side,
     role,
-    x: pos.x,
-    z: pos.z,
+    x: actor ? actor.x : home.x,
+    z: actor ? actor.z : home.z,
+    homeX: actor ? actor.homeX : home.x,
+    homeZ: actor ? actor.homeZ : home.z,
+    speed: actor ? actor.speed : 0,
+    travel: actor ? actor.travel : 0,
+    hand,
+    shape: swinging ? match.swingShape : null,
+    swingT,
+    faceYaw: actor ? actor.faceYaw : null,
+    facePitch: actor ? actor.facePitch : null,
+    struck: !!(actor && actor.struckLeft > 0),
     color: match.colors.get(id),
-    swinging: match.swingingId === id && match.swingLeft > 0,
+    swinging,
   };
 }
 
@@ -147,6 +230,8 @@ export function createMatch({ players, sideA, sideB, bestOf }) {
     shot: null,
     swingingId: null,
     swingLeft: 0,
+    swingHand: null,
+    swingShape: null,
     tossT: 0,
     gameJustWon: false,
     placement: {
@@ -157,6 +242,7 @@ export function createMatch({ players, sideA, sideB, bestOf }) {
     receiverId: null,
   };
   placeServer(match);
+  seatActors(match);
   return match;
 }
 
@@ -174,7 +260,16 @@ export function view(match) {
     serverId: match.serverId,
     receiverId: match.receiverId,
     winnerSide: match.winnerSide,
-    ball: match.ball ? { x: match.ball.x, y: match.ball.y, z: match.ball.z } : null,
+    ball: match.ball
+      ? {
+          x: match.ball.x,
+          y: match.ball.y,
+          z: match.ball.z,
+          vx: match.ball.vx,
+          vy: match.ball.vy,
+          vz: match.ball.vz,
+        }
+      : null,
     players,
     score: {
       pointsA: pointLabel(match.pointsA, match.pointsB),
@@ -224,6 +319,19 @@ export function planShot(match, swing) {
   return { outcome: out ? 'out' : 'in', landX, landZ, apex, flightTime, fast: false };
 }
 
+export function setGrip(match, playerId, hand) {
+  const actor = match.actors?.get(playerId);
+  if (!actor) return;
+  if (hand === 'forehand' || hand === 'backhand') actor.grip = hand;
+}
+
+function inReach(match, playerId) {
+  const actor = match.actors.get(playerId);
+  const ball = match.ball;
+  if (!actor || !ball) return false;
+  return Math.hypot(ball.x - actor.x, ball.z - actor.z) <= REACH + 1e-6;
+}
+
 export function toss(match, playerId) {
   if (match.phase !== 'serve' || playerId !== match.serverId) return;
   const server = playerSpot(match, playerId, match.servingSide);
@@ -267,6 +375,16 @@ function receiverFor(match, hitterSide, plan, isServe) {
   return spot.back;
 }
 
+function beginSwing(match, playerId, input, isServe) {
+  const hand = input.hand === 'backhand' ? 'backhand' : 'forehand';
+  match.swingingId = playerId;
+  match.swingLeft = SWING_SECONDS;
+  match.swingHand = hand;
+  match.swingShape = isServe
+    ? 'serve'
+    : (input.shape === 'lob' || input.shape === 'slice' ? input.shape : 'flat');
+}
+
 export function swing(match, input) {
   const playerId = input.playerId;
   const isServe = match.phase === 'toss';
@@ -279,9 +397,11 @@ export function swing(match, input) {
   }
   const hitterSide = sideOf(match, playerId);
   if (!hitterSide || !match.ball) return;
+  beginSwing(match, playerId, input, isServe);
+  if (!inReach(match, playerId)) return;
   const plan = planShot(match, input);
   const ball = match.ball;
-  if (ball.y < 0) ball.y = 0;
+  if (ball.y < 0 && ball.y >= -0.02) ball.y = 0;
   if (plan.outcome === 'net') {
     const T = 0.35;
     const landY = 0.5;
@@ -296,6 +416,13 @@ export function swing(match, input) {
     ball.vy = solved.vy;
     ball.lift = solved.lift;
   }
+  const actor = match.actors.get(playerId);
+  if (actor) {
+    const horizontal = Math.hypot(ball.vx, ball.vz);
+    actor.faceYaw = Math.atan2(ball.vx, ball.vz);
+    actor.facePitch = Math.atan2(ball.vy, horizontal);
+    actor.struckLeft = STRUCK_SECONDS;
+  }
   match.phase = 'flight';
   match.flight = { bounces: 0, t: 0 };
   match.call = null;
@@ -307,8 +434,6 @@ export function swing(match, input) {
     flightTime: plan.flightTime,
   };
   match.receiverId = receiverFor(match, hitterSide, plan, isServe);
-  match.swingingId = playerId;
-  match.swingLeft = SWING_SECONDS;
 }
 
 function endPoint(match, scoringSide, call) {
@@ -432,8 +557,20 @@ function resetServe(match) {
   match.shot = null;
   match.swingingId = null;
   match.swingLeft = 0;
+  match.swingHand = null;
+  match.swingShape = null;
   match.tossT = 0;
   placeServer(match);
+  syncHomes(match);
+  if (match.actors) {
+    for (const actor of match.actors.values()) {
+      actor.travel = 0;
+      actor.burstArmed = false;
+      actor.spentBurst = false;
+      actor.gaveUp = false;
+      actor.burstT = 0;
+    }
+  }
 }
 
 function decaySwing(match, dt) {
@@ -460,9 +597,127 @@ function ballCanBounce(match) {
   return match.phase === 'called' && match.call === 'Out' && match.flight && match.flight.bounces < 3;
 }
 
+function moveActor(actor, target, dt, top = TOP_SPEED) {
+  const dx = target.x - actor.x;
+  const dz = target.z - actor.z;
+  const dist = Math.hypot(dx, dz);
+  if (actor.speed < 0.35) actor.burstT = 0;
+  if (dist < 1e-4 && actor.speed < 0.05) {
+    actor.vx = 0;
+    actor.vz = 0;
+    actor.speed = 0;
+    actor.burstT = 0;
+    return;
+  }
+  const inv = dist < 1e-8 ? 0 : 1 / dist;
+  const dirx = dx * inv;
+  const dirz = dz * inv;
+  const pace = actor.spentBurst && top >= TOP_SPEED - 0.01 ? RECOVERY_SPEED : top;
+  const along = actor.vx * dirx + actor.vz * dirz;
+  const want = dist > 1e-3 ? Math.min(pace, Math.sqrt(2 * BRAKE_ACCEL * dist)) : 0;
+  // Reversing or shedding speed uses the brake. The opening sprint may
+  // still be late getting up to pace. A later shot in the same point is
+  // capped at recovery pace, so a ball behind that player stays there.
+  let accel = BRAKE_ACCEL;
+  if (along >= -0.05 && want + 1e-6 >= along) {
+    const opening = !actor.spentBurst && actor.burstT >= EASE_WINDOW;
+    accel = opening ? CHASE_ACCEL : EASE_ACCEL;
+  }
+  let dvx = dirx * want - actor.vx;
+  let dvz = dirz * want - actor.vz;
+  const dv = Math.hypot(dvx, dvz);
+  const maxDv = accel * dt;
+  if (dv > maxDv && dv > 0) {
+    const scale = maxDv / dv;
+    dvx *= scale;
+    dvz *= scale;
+  }
+  actor.vx += dvx;
+  actor.vz += dvz;
+  let speed = Math.hypot(actor.vx, actor.vz);
+  if (speed > pace) {
+    actor.vx *= pace / speed;
+    actor.vz *= pace / speed;
+    speed = pace;
+  }
+  actor.speed = speed;
+  if (pace >= TOP_SPEED - 0.01 && speed > pace - 0.2) actor.burstArmed = true;
+  const lead = dist > 0.25 ? Math.min(STRIDE_CAP, STRIDE_RATE * dt) : 0;
+  let move = speed * dt + lead;
+  if (move > dist) move = dist;
+  if (move > 0 && dist > 0) {
+    actor.x += dirx * move;
+    actor.z += dirz * move;
+    actor.travel += move;
+  }
+  if (dist > 0.3) actor.burstT += dt;
+  else if (actor.speed < 0.2) {
+    actor.burstT = 0;
+    actor.vx = 0;
+    actor.vz = 0;
+    actor.speed = 0;
+  }
+}
+
+const FOLLOW_THROUGH = REACH + 1.25;
+
+function shotKey(match) {
+  const shot = match.shot;
+  if (!shot) return '';
+  return `${shot.hitterSide}:${shot.landX}:${shot.landZ}:${shot.flightTime}`;
+}
+
+// Run at the bounce. A miss of more than a short follow-through is an ace:
+// chasing the rebound would turn a wide serve into a flick past the racket.
+function chaseTarget(match, actor) {
+  const key = shotKey(match);
+  if (actor.shotKey !== key) {
+    actor.shotKey = key;
+    actor.gaveUp = false;
+    if (actor.burstArmed) actor.spentBurst = true;
+  }
+  if (!match.shot) {
+    if (match.ball) return { x: match.ball.x, z: match.ball.z };
+    return { x: actor.homeX, z: actor.homeZ };
+  }
+  const landing = { x: match.shot.landX, z: match.shot.landZ };
+  const bounced = match.flight && match.flight.bounces >= 1;
+  if (bounced && match.ball) {
+    if (!actor.gaveUp) {
+      const miss = Math.hypot(match.ball.x - actor.x, match.ball.z - actor.z);
+      if (miss > FOLLOW_THROUGH) actor.gaveUp = true;
+    }
+    if (actor.gaveUp) return { x: actor.homeX, z: actor.homeZ };
+  }
+  return landing;
+}
+
+function movePlayers(match, dt) {
+  if (!match.actors) return;
+  syncHomes(match);
+  const locked = match.phase === 'serve' || match.phase === 'toss' || match.phase === 'match';
+  const chaseId = match.phase === 'flight' ? match.receiverId : null;
+  for (const [id, actor] of match.actors) {
+    if (actor.struckLeft > 0) actor.struckLeft = Math.max(0, actor.struckLeft - dt);
+    if (locked) {
+      actor.vx = 0;
+      actor.vz = 0;
+      actor.speed = 0;
+      actor.burstT = 0;
+      continue;
+    }
+    const target = id === chaseId
+      ? chaseTarget(match, actor)
+      : { x: actor.homeX, z: actor.homeZ };
+    const running = id === chaseId && !actor.gaveUp;
+    moveActor(actor, target, dt, running ? TOP_SPEED : WALK_SPEED);
+  }
+}
+
 export function step(match, dt) {
   if (!(dt > 0)) return;
   decaySwing(match, dt);
+  movePlayers(match, dt);
   if (!match.ball) return;
 
   if (match.phase === 'toss') {
