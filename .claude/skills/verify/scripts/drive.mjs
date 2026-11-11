@@ -1374,6 +1374,7 @@ async function tennisMatch(run) {
     { beta: 0, gamma: 500 },
     { beta: 0, gamma: 420 },
     { beta: 0, gamma: 200 },
+    { beta: 0, gamma: 0 },
   ]);
 
   const frameCount = (page, dir, type) => run.frames.filter((f) => f.page === page && f.dir === dir && f.msg?.type === type).length;

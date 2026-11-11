@@ -1,10 +1,9 @@
 // Tennis phone: a score, the action for this window, and a hand toggle.
 // mount(app, sendMsg, myPlayerId) returns { onMessage, onMotion, unmount }.
 
-import { readMotion } from './swing.js';
+import { BUFFER_MS, finishedGesture, samplesSince } from './gesture.js';
 import './tennis.css';
 
-const BUFFER_MS = 400;
 const SERVE_APEX_AT_MS = 450;
 const APEX_FALL_MS = 900;
 
@@ -72,14 +71,6 @@ export function mount(app, sendMsg, myPlayerId) {
     paint();
   }
 
-  function completedGesture(expect) {
-    for (let i = 0; i < samples.length; i += 1) {
-      const found = readMotion(samples.slice(0, i + 1), { expect });
-      if (found) return { gesture: found, at: samples[i].t };
-    }
-    return null;
-  }
-
   function onMotion(sample) {
     if (!alive || !sample) return;
     const t = performance.now();
@@ -92,15 +83,15 @@ export function mount(app, sendMsg, myPlayerId) {
       beta: sample.beta ?? 0,
       gamma: sample.gamma ?? 0,
     });
-    const cutoff = t - BUFFER_MS;
-    while (samples.length && samples[0].t < cutoff) samples.shift();
+    const keepFrom = Math.max(t - BUFFER_MS, windowRecvAt);
+    samples = samplesSince(samples, keepFrom);
 
     const hit = myWindow();
     if (!hit || state?.phase === 'match') return;
 
     if (hit.kind === 'toss') {
       if (sentTossId === hit.windowId) return;
-      const done = completedGesture('toss');
+      const done = finishedGesture(samples, 'toss');
       if (!done) return;
       sentTossId = hit.windowId;
       tossSentAt = performance.now();
@@ -110,7 +101,7 @@ export function mount(app, sendMsg, myPlayerId) {
 
     if (hit.kind !== 'serve' && hit.kind !== 'rally') return;
     if (sentSwingId === hit.windowId) return;
-    const done = completedGesture('swing');
+    const done = finishedGesture(samples, 'swing');
     if (!done) return;
     sentSwingId = hit.windowId;
     const swingAfterRecvMs = done.at - windowRecvAt;

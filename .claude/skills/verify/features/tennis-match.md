@@ -41,7 +41,7 @@ Steps the script performs:
 - Click `.tennis-length[data-best-of="1"]` (`One game`), then `.tennis-start`.
 - Expect `.tennis-court canvas`. Expect `#tennis-label` `Swing up to toss` on Ada, `Watch the point` on Bea, and `Sitting this one out` on Eve. Capture `host-court`, `phone-toss`, and `phone-sitting`.
 - On Ada's page, dispatch four `devicemotion` events about 30 ms apart with `rotationRate.beta` 100, 200, 120, 80, `gamma` 0, and `accelerationIncludingGravity` `{x:0,y:0,z:0}`. Wait until her label is `Swing to serve`.
-- Dispatch four more events about 30 ms apart with `rotationRate.gamma` 400, 500, 420, 200 and `beta` 0. Every event also carries `accelerationIncludingGravity` and `rotationRate`.
+- Dispatch five more events about 30 ms apart. The first four have `rotationRate.gamma` 400, 500, 420, 200 and `beta` 0. The fifth has `gamma` 0 so the burst can end. Every event also carries `accelerationIncludingGravity` and `rotationRate`.
 - From `frames.jsonl`: expect one outbound `toss` and one outbound `swing` from `phone:Ada`, in that order, and the same two inbound frames on the host.
 - Poll `window.__tennisView()` (read only) until `phase` is `called` or the points or games are not 0–0. Capture `host-point`.
 
