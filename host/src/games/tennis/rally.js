@@ -21,20 +21,10 @@ const TOSS_Y = 1.05;
 const TOSS_VY = 5.65;
 const TOSS_LIMIT = 1.3;
 const SWING_SECONDS = 0.35;
-const TOP_SPEED = 8.6;
+const TOP_SPEED = 11;
 const WALK_SPEED = 4;
-const EASE_ACCEL = 26;
-const CHASE_ACCEL = 400;
-const BRAKE_ACCEL = 26;
-// After the opening sprint of a point, the next effort is a change of
-// direction. 8.6 m/s again would run down a ball hit behind that player.
-const RECOVERY_SPEED = 2;
+const ACCEL = 45;
 const REACH = 1.75;
-const EASE_WINDOW = 0.1;
-// A flat serve is only inside the racket at the bounce if the split-step
-// is short. The extra plant stays inside the 1 cm step allowance.
-const STRIDE_RATE = 0.42;
-const STRIDE_CAP = 0.009;
 const STRUCK_SECONDS = 0.12;
 const COLORS = ['#d4534b', '#3d74d6', '#2f9d57', '#e0a02e', '#8a4ad4', '#2a9eae'];
 const POINT_NAMES = ['0', '15', '30', '40'];
@@ -117,11 +107,6 @@ function makeActor(side, role) {
     faceYaw: null,
     facePitch: null,
     struckLeft: 0,
-    burstT: 0,
-    gaveUp: false,
-    shotKey: '',
-    burstArmed: false,
-    spentBurst: false,
   };
 }
 
@@ -563,13 +548,7 @@ function resetServe(match) {
   placeServer(match);
   syncHomes(match);
   if (match.actors) {
-    for (const actor of match.actors.values()) {
-      actor.travel = 0;
-      actor.burstArmed = false;
-      actor.spentBurst = false;
-      actor.gaveUp = false;
-      actor.burstT = 0;
-    }
+    for (const actor of match.actors.values()) actor.travel = 0;
   }
 }
 
@@ -601,32 +580,28 @@ function moveActor(actor, target, dt, top = TOP_SPEED) {
   const dx = target.x - actor.x;
   const dz = target.z - actor.z;
   const dist = Math.hypot(dx, dz);
-  if (actor.speed < 0.35) actor.burstT = 0;
-  if (dist < 1e-4 && actor.speed < 0.05) {
-    actor.vx = 0;
-    actor.vz = 0;
-    actor.speed = 0;
-    actor.burstT = 0;
+  if (dist < 1e-6) {
+    const speed = actor.speed;
+    const drop = Math.min(speed, ACCEL * dt);
+    if (speed > 1e-8) {
+      const scale = (speed - drop) / speed;
+      actor.vx *= scale;
+      actor.vz *= scale;
+    } else {
+      actor.vx = 0;
+      actor.vz = 0;
+    }
+    actor.speed = Math.hypot(actor.vx, actor.vz);
     return;
   }
-  const inv = dist < 1e-8 ? 0 : 1 / dist;
-  const dirx = dx * inv;
-  const dirz = dz * inv;
-  const pace = actor.spentBurst && top >= TOP_SPEED - 0.01 ? RECOVERY_SPEED : top;
-  const along = actor.vx * dirx + actor.vz * dirz;
-  const want = dist > 1e-3 ? Math.min(pace, Math.sqrt(2 * BRAKE_ACCEL * dist)) : 0;
-  // Reversing or shedding speed uses the brake. The opening sprint may
-  // still be late getting up to pace. A later shot in the same point is
-  // capped at recovery pace, so a ball behind that player stays there.
-  let accel = BRAKE_ACCEL;
-  if (along >= -0.05 && want + 1e-6 >= along) {
-    const opening = !actor.spentBurst && actor.burstT >= EASE_WINDOW;
-    accel = opening ? CHASE_ACCEL : EASE_ACCEL;
-  }
+  const dirx = dx / dist;
+  const dirz = dz / dist;
+  // Stop short of the spot instead of skating through it. Same limit both ways.
+  const want = Math.min(top, Math.sqrt(2 * ACCEL * dist));
   let dvx = dirx * want - actor.vx;
   let dvz = dirz * want - actor.vz;
   const dv = Math.hypot(dvx, dvz);
-  const maxDv = accel * dt;
+  const maxDv = ACCEL * dt;
   if (dv > maxDv && dv > 0) {
     const scale = maxDv / dv;
     dvx *= scale;
@@ -635,61 +610,35 @@ function moveActor(actor, target, dt, top = TOP_SPEED) {
   actor.vx += dvx;
   actor.vz += dvz;
   let speed = Math.hypot(actor.vx, actor.vz);
-  if (speed > pace) {
-    actor.vx *= pace / speed;
-    actor.vz *= pace / speed;
-    speed = pace;
+  if (speed > top) {
+    actor.vx *= top / speed;
+    actor.vz *= top / speed;
+    speed = top;
   }
   actor.speed = speed;
-  if (pace >= TOP_SPEED - 0.01 && speed > pace - 0.2) actor.burstArmed = true;
-  const lead = dist > 0.25 ? Math.min(STRIDE_CAP, STRIDE_RATE * dt) : 0;
-  let move = speed * dt + lead;
-  if (move > dist) move = dist;
-  if (move > 0 && dist > 0) {
-    actor.x += dirx * move;
-    actor.z += dirz * move;
-    actor.travel += move;
-  }
-  if (dist > 0.3) actor.burstT += dt;
-  else if (actor.speed < 0.2) {
-    actor.burstT = 0;
+  let mx = actor.vx * dt;
+  let mz = actor.vz * dt;
+  const toward = mx * dirx + mz * dirz;
+  if (toward >= dist) {
+    actor.x = target.x;
+    actor.z = target.z;
+    actor.travel += dist;
     actor.vx = 0;
     actor.vz = 0;
     actor.speed = 0;
+    return;
   }
+  actor.x += mx;
+  actor.z += mz;
+  actor.travel += Math.hypot(mx, mz);
 }
 
-const FOLLOW_THROUGH = REACH + 1.25;
-
-function shotKey(match) {
-  const shot = match.shot;
-  if (!shot) return '';
-  return `${shot.hitterSide}:${shot.landX}:${shot.landZ}:${shot.flightTime}`;
-}
-
-// Run at the bounce. A miss of more than a short follow-through is an ace:
-// chasing the rebound would turn a wide serve into a flick past the racket.
+// Run at the ball. A wide ball stays off that line; cutting to the planned
+// landing would meet the rebound on the way through.
 function chaseTarget(match, actor) {
-  const key = shotKey(match);
-  if (actor.shotKey !== key) {
-    actor.shotKey = key;
-    actor.gaveUp = false;
-    if (actor.burstArmed) actor.spentBurst = true;
-  }
-  if (!match.shot) {
-    if (match.ball) return { x: match.ball.x, z: match.ball.z };
-    return { x: actor.homeX, z: actor.homeZ };
-  }
-  const landing = { x: match.shot.landX, z: match.shot.landZ };
-  const bounced = match.flight && match.flight.bounces >= 1;
-  if (bounced && match.ball) {
-    if (!actor.gaveUp) {
-      const miss = Math.hypot(match.ball.x - actor.x, match.ball.z - actor.z);
-      if (miss > FOLLOW_THROUGH) actor.gaveUp = true;
-    }
-    if (actor.gaveUp) return { x: actor.homeX, z: actor.homeZ };
-  }
-  return landing;
+  if (match.ball) return { x: match.ball.x, z: match.ball.z };
+  if (match.shot) return { x: match.shot.landX, z: match.shot.landZ };
+  return { x: actor.homeX, z: actor.homeZ };
 }
 
 function movePlayers(match, dt) {
@@ -703,14 +652,13 @@ function movePlayers(match, dt) {
       actor.vx = 0;
       actor.vz = 0;
       actor.speed = 0;
-      actor.burstT = 0;
       continue;
     }
-    const target = id === chaseId
+    const chasing = id === chaseId;
+    const target = chasing
       ? chaseTarget(match, actor)
       : { x: actor.homeX, z: actor.homeZ };
-    const running = id === chaseId && !actor.gaveUp;
-    moveActor(actor, target, dt, running ? TOP_SPEED : WALK_SPEED);
+    moveActor(actor, target, dt, chasing ? TOP_SPEED : WALK_SPEED);
   }
 }
 
