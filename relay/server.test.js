@@ -269,6 +269,48 @@ test('drive packets are forwarded to the host with the player id', async () => {
   await Promise.all([closeAndWait(host), closeAndWait(phone)]);
 });
 
+test('toss, swing, and window_ack are forwarded with the player id', async () => {
+  const { host, sessionId } = await createSession();
+  const { phone, msg } = await joinPhone(sessionId, 'Daisy');
+  assert.equal(msg.type, 'joined');
+  await nextMsg(host);
+
+  phone.send(JSON.stringify({ type: 'toss' }));
+  const toss = await nextMsg(host);
+  assert.equal(toss.type, 'toss');
+  assert.equal(toss.playerId, msg.playerId);
+
+  phone.send(JSON.stringify({
+    type: 'swing',
+    windowId: 2,
+    swingAfterRecvMs: 400,
+    hand: 'forehand',
+    shape: 'flat',
+    power: 0.5,
+    handed: 'right',
+    apex: 1,
+  }));
+  const swing = await nextMsg(host);
+  assert.equal(swing.type, 'swing');
+  assert.equal(swing.playerId, msg.playerId);
+  assert.equal(swing.windowId, 2);
+  assert.equal(swing.power, 0.5);
+
+  phone.send(JSON.stringify({ type: 'window_ack', windowId: 2 }));
+  const ack = await nextMsg(host);
+  assert.equal(ack.type, 'window_ack');
+  assert.equal(ack.playerId, msg.playerId);
+  assert.equal(ack.windowId, 2);
+
+  phone.send(JSON.stringify({ type: 'nope' }));
+  phone.send(JSON.stringify({ type: 'toss' }));
+  const after = await nextMsg(host);
+  assert.equal(after.type, 'toss');
+  assert.equal(after.playerId, msg.playerId);
+
+  await Promise.all([closeAndWait(host), closeAndWait(phone)]);
+});
+
 test('each use_item is forwarded once with the player id', async () => {
   const { host, sessionId } = await createSession();
   const { phone, msg } = await joinPhone(sessionId, 'Toad');

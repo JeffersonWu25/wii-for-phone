@@ -236,7 +236,8 @@ async function selectGameFeature(run) {
   const byLabel = Object.fromEntries(cards.map((c) => [c.label, c]));
   run.check('Bowling card is enabled', byLabel.Bowling?.enabled === true);
   run.check('Kart Racer card is enabled', byLabel['Kart Racer']?.enabled === true);
-  const unbuilt = cards.filter((c) => c.label !== 'Bowling' && c.label !== 'Kart Racer');
+  run.check('Tennis card is enabled', byLabel.Tennis?.enabled === true);
+  const unbuilt = cards.filter((c) => c.label !== 'Bowling' && c.label !== 'Kart Racer' && c.label !== 'Tennis');
   run.check(
     'unbuilt games are disabled Coming Soon cards',
     unbuilt.length > 0 && unbuilt.every((c) => !c.enabled && c.soon),
