@@ -263,7 +263,7 @@ test('a connected hit leaves the ball on the strings and aims at the landing', (
     assert.ok(shot.shift <= 0.02, `shift ${shot.shift}`);
     assert.ok(shot.aimError < (12 * Math.PI) / 180, `aim ${shot.aimError}`);
     assert.equal(shot.struck, true);
-    assert.equal(shot.swingT, 0);
+    assert.ok(Math.abs(shot.swingT - 0.42) <= 0.02, `swingT ${shot.swingT}`);
   }
   assert.ok(lob.pitch > flat.pitch, `lob ${lob.pitch} flat ${flat.pitch}`);
   assert.ok(slice.pitch < flat.pitch, `slice ${slice.pitch} flat ${flat.pitch}`);
@@ -291,7 +291,7 @@ test('a whiff animates the swing and does not change the ball', () => {
   const match = singles();
   serve(match, { apex: 0.95, timing: 0.7, power: 0.7 });
   const before = { vx: match.ball.vx, vy: match.ball.vy, vz: match.ball.vz, x: match.ball.x, z: match.ball.z };
-  swing(match, {
+  const connected = swing(match, {
     playerId: 'b',
     hand: 'backhand',
     handed: 'right',
@@ -300,6 +300,7 @@ test('a whiff animates the swing and does not change the ball', () => {
     power: 0.8,
     apex: 0,
   });
+  assert.equal(connected, false);
   assert.equal(match.ball.vx, before.vx);
   assert.equal(match.ball.vy, before.vy);
   assert.equal(match.ball.vz, before.vz);
@@ -308,7 +309,7 @@ test('a whiff animates the swing and does not change the ball', () => {
   assert.equal(hitter.swinging, true);
   assert.equal(hitter.hand, 'backhand');
   assert.equal(hitter.shape, 'flat');
-  assert.equal(hitter.swingT, 0);
+  assert.ok(Math.abs(hitter.swingT - 0.42) <= 0.02, `swingT ${hitter.swingT}`);
   assert.equal(hitter.struck, false);
   assert.equal(player(match, 'a').swinging, false);
 });
@@ -355,4 +356,96 @@ test('nobody runs during the toss and homes stay on the marks', () => {
   assert.equal(player(match, 'b').z, before.z);
   assert.equal(player(match, 'b').speed, 0);
   assert.ok(Math.hypot(ball.x - server.x, ball.z - server.z) < 0.45);
+});
+
+test('a ball six meters overhead is a miss when the player stands under it', () => {
+  const match = singles();
+  toss(match, 'a');
+  const server = match.actors.get('a');
+  match.ball.x = server.x;
+  match.ball.z = server.z;
+  match.ball.y = 6;
+  const before = { vx: match.ball.vx, vy: match.ball.vy, vz: match.ball.vz };
+  const connected = swing(match, {
+    playerId: 'a',
+    hand: 'forehand',
+    handed: 'right',
+    shape: 'flat',
+    timing: 0,
+    power: 0.7,
+    apex: 0.5,
+  });
+  assert.equal(connected, false);
+  assert.equal(match.phase, 'toss');
+  assert.equal(match.ball.vx, before.vx);
+  assert.equal(match.ball.vy, before.vy);
+  assert.equal(match.ball.vz, before.vz);
+  assert.equal(match.ball.y, 6);
+});
+
+test('a serve toss near its peak still connects', () => {
+  const match = singles();
+  toss(match, 'a');
+  const server = match.actors.get('a');
+  match.ball.x = server.x;
+  match.ball.z = server.z;
+  match.ball.y = 2.7;
+  const connected = swing(match, {
+    playerId: 'a',
+    hand: 'forehand',
+    handed: 'right',
+    shape: 'flat',
+    timing: 0,
+    power: 0.7,
+    apex: 0.5,
+  });
+  assert.equal(connected, true);
+  assert.equal(match.phase, 'flight');
+  assert.equal(player(match, 'a').struck, true);
+});
+
+test('a player left 6 m off their mark walks home during the serve', () => {
+  const match = singles();
+  const actor = match.actors.get('a');
+  actor.x = actor.homeX + 6;
+  let t = 0;
+  while (t < 2 - 1e-9) {
+    step(match, 1 / 60);
+    t += 1 / 60;
+  }
+  const body = player(match, 'a');
+  const dist = Math.hypot(body.x - body.homeX, body.z - body.homeZ);
+  assert.ok(dist <= 0.3, `home gap ${dist}`);
+  assert.equal(view(match).phase, 'serve');
+});
+
+test('the receiver stays on their own side of the net', () => {
+  const match = singles();
+  serve(match, { apex: 0.3, timing: 0, power: 0.6 });
+  match.ball = null;
+  match.shot.landX = 20;
+  match.shot.landZ = 30;
+  for (let i = 0; i < 120; i += 1) step(match, 1 / 60);
+  const body = player(match, 'b');
+  assert.ok(Math.abs(body.x) <= COURT.singlesHalfWidth + 1e-6, `x ${body.x}`);
+  assert.ok(body.z <= 11.185 + 1e-6, `z ${body.z}`);
+  assert.ok(body.z >= -1e-6, `z ${body.z}`);
+});
+
+test('a left-handed swing shows handed left on that player', () => {
+  const match = singles();
+  assert.equal(player(match, 'a').handed, 'right');
+  assert.equal(player(match, 'b').handed, 'right');
+  toss(match, 'a');
+  swing(match, {
+    playerId: 'a',
+    hand: 'forehand',
+    handed: 'left',
+    shape: 'flat',
+    timing: 0,
+    power: 0.7,
+    apex: 0.5,
+  });
+  assert.equal(player(match, 'a').handed, 'left');
+  assert.equal(player(match, 'b').handed, 'right');
 });

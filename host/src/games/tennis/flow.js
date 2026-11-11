@@ -67,7 +67,8 @@ function notePhase(flow, now) {
 
 function launch(flow, args) {
   const plan = planShot(flow.match, args);
-  swing(flow.match, args);
+  const connected = swing(flow.match, args);
+  if (!connected) return;
   if (flow.match.phase !== 'flight') return;
   // A ball that is already going into the net is not a return. Leaving the
   // window open let the other phone replace the point.

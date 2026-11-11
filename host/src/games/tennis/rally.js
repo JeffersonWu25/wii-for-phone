@@ -21,10 +21,12 @@ const TOSS_Y = 1.05;
 const TOSS_VY = 5.65;
 const TOSS_LIMIT = 1.3;
 const SWING_SECONDS = 0.35;
+const SWING_CONTACT = 0.42;
 const TOP_SPEED = 11;
 const WALK_SPEED = 4;
 const ACCEL = 45;
 const REACH = 1.75;
+const REACH_Y = 3.2;
 const STRUCK_SECONDS = 0.12;
 const COLORS = ['#d4534b', '#3d74d6', '#2f9d57', '#e0a02e', '#8a4ad4', '#2a9eae'];
 const POINT_NAMES = ['0', '15', '30', '40'];
@@ -107,6 +109,7 @@ function makeActor(side, role) {
     faceYaw: null,
     facePitch: null,
     struckLeft: 0,
+    handed: 'right',
   };
 }
 
@@ -161,6 +164,7 @@ function playerSpot(match, id, side) {
     speed: actor ? actor.speed : 0,
     travel: actor ? actor.travel : 0,
     hand,
+    handed: actor?.handed === 'left' ? 'left' : 'right',
     shape: swinging ? match.swingShape : null,
     swingT,
     faceYaw: actor ? actor.faceYaw : null,
@@ -314,6 +318,7 @@ function inReach(match, playerId) {
   const actor = match.actors.get(playerId);
   const ball = match.ball;
   if (!actor || !ball) return false;
+  if (!(ball.y <= REACH_Y)) return false;
   return Math.hypot(ball.x - actor.x, ball.z - actor.z) <= REACH + 1e-6;
 }
 
@@ -363,27 +368,29 @@ function receiverFor(match, hitterSide, plan, isServe) {
 function beginSwing(match, playerId, input, isServe) {
   const hand = input.hand === 'backhand' ? 'backhand' : 'forehand';
   match.swingingId = playerId;
-  match.swingLeft = SWING_SECONDS;
+  match.swingLeft = SWING_SECONDS * (1 - SWING_CONTACT);
   match.swingHand = hand;
   match.swingShape = isServe
     ? 'serve'
     : (input.shape === 'lob' || input.shape === 'slice' ? input.shape : 'flat');
+  const actor = match.actors.get(playerId);
+  if (actor) actor.handed = input.handed === 'left' ? 'left' : 'right';
 }
 
 export function swing(match, input) {
   const playerId = input.playerId;
   const isServe = match.phase === 'toss';
   if (isServe) {
-    if (playerId !== match.serverId) return;
+    if (playerId !== match.serverId) return false;
   } else if (match.phase === 'flight') {
-    if (playerId !== match.receiverId) return;
+    if (playerId !== match.receiverId) return false;
   } else {
-    return;
+    return false;
   }
   const hitterSide = sideOf(match, playerId);
-  if (!hitterSide || !match.ball) return;
+  if (!hitterSide || !match.ball) return false;
   beginSwing(match, playerId, input, isServe);
-  if (!inReach(match, playerId)) return;
+  if (!inReach(match, playerId)) return false;
   const plan = planShot(match, input);
   const ball = match.ball;
   if (ball.y < 0 && ball.y >= -0.02) ball.y = 0;
@@ -419,6 +426,7 @@ export function swing(match, input) {
     flightTime: plan.flightTime,
   };
   match.receiverId = receiverFor(match, hitterSide, plan, isServe);
+  return true;
 }
 
 function endPoint(match, scoringSide, call) {
@@ -633,22 +641,35 @@ function moveActor(actor, target, dt, top = TOP_SPEED) {
   actor.travel += Math.hypot(mx, mz);
 }
 
-// Run at the ball. A wide ball stays off that line; cutting to the planned
-// landing would meet the rebound on the way through.
-function chaseTarget(match, actor) {
-  if (match.ball) return { x: match.ball.x, z: match.ball.z };
-  if (match.shot) return { x: match.shot.landX, z: match.shot.landZ };
-  return { x: actor.homeX, z: actor.homeZ };
+function courtHalfWidth(match) {
+  return match.format === '1v1' ? COURT.singlesHalfWidth : COURT.doublesHalfWidth;
+}
+
+// Run at the ball, but only on the receiver's own side of the net. A wide
+// ball stays off the landing line; cutting there would meet the rebound.
+function chaseTarget(match, actor, side) {
+  const raw = match.ball
+    ? { x: match.ball.x, z: match.ball.z }
+    : match.shot
+      ? { x: match.shot.landX, z: match.shot.landZ }
+      : null;
+  if (!raw) return { x: actor.homeX, z: actor.homeZ };
+  const half = courtHalfWidth(match);
+  const x = clamp(raw.x, -half, half);
+  const z = side === 'A'
+    ? clamp(raw.z, -BASELINE_Z, 0)
+    : clamp(raw.z, 0, BASELINE_Z);
+  return { x, z };
 }
 
 function movePlayers(match, dt) {
   if (!match.actors) return;
   syncHomes(match);
-  const locked = match.phase === 'serve' || match.phase === 'toss' || match.phase === 'match';
   const chaseId = match.phase === 'flight' ? match.receiverId : null;
   for (const [id, actor] of match.actors) {
     if (actor.struckLeft > 0) actor.struckLeft = Math.max(0, actor.struckLeft - dt);
-    if (locked) {
+    const hold = match.phase === 'match' || (match.phase === 'toss' && id === match.serverId);
+    if (hold) {
       actor.vx = 0;
       actor.vz = 0;
       actor.speed = 0;
@@ -656,7 +677,7 @@ function movePlayers(match, dt) {
     }
     const chasing = id === chaseId;
     const target = chasing
-      ? chaseTarget(match, actor)
+      ? chaseTarget(match, actor, sideOf(match, id))
       : { x: actor.homeX, z: actor.homeZ };
     moveActor(actor, target, dt, chasing ? TOP_SPEED : WALK_SPEED);
   }
