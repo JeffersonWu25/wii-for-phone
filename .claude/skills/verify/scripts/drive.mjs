@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, tennis-match.
+// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, tennis-match, tennis-rally.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -1431,6 +1431,105 @@ async function tennisMatch(run) {
   await run.capture(host, 'host-point');
 }
 
+async function tennisRally(run) {
+  async function flick(page, samples) {
+    await page.evaluate(async (samples) => {
+      for (const sample of samples) {
+        window.dispatchEvent(new DeviceMotionEvent('devicemotion', {
+          accelerationIncludingGravity: { x: 0, y: 0, z: 0 },
+          rotationRate: { alpha: 0, beta: sample.beta, gamma: sample.gamma },
+        }));
+        await new Promise((r) => setTimeout(r, 30));
+      }
+    }, samples);
+  }
+
+  const host = await run.openHost({ viewport: { width: 1280, height: 720 } });
+  const ada = await run.openPhone('Ada');
+  const bea = await run.openPhone('Bea');
+  await waitForWaitingLabel(ada);
+  await waitForWaitingLabel(bea);
+  await host.waitForSelector('.player-item:has-text("Bea")', { timeout: 10_000 });
+  await selectGame(run, 'Tennis');
+  await host.waitForSelector('.tennis-teams', { timeout: 15_000 });
+  const format = (await host.locator('.tennis-format').innerText()).trim();
+  run.check('two phones sit down as 1v1', format === '1v1', format);
+  await host.locator('.tennis-length[data-best-of="1"]').click();
+  await host.locator('.tennis-start').click();
+  await host.waitForSelector('.tennis-court canvas', { timeout: 15_000 });
+  await host.waitForSelector('.tennis-split', { timeout: 5_000 });
+
+  const framing = await host.evaluate(() => {
+    const court = document.querySelector('.tennis-court');
+    const split = document.querySelector('.tennis-split');
+    const score = document.querySelector('.tennis-score');
+    const scoreBox = score ? score.getBoundingClientRect() : null;
+    return {
+      split: court?.dataset.split ?? '',
+      camY: Number(court?.dataset.camY),
+      divider: split ? getComputedStyle(split).display : 'missing',
+      scoreX: scoreBox ? scoreBox.left + scoreBox.width / 2 : null,
+    };
+  });
+  run.check('the court is split between the two players', framing.split === '1' && framing.divider === 'block', JSON.stringify(framing));
+  run.check(
+    'the camera sits close to the ground',
+    framing.camY >= 1.45 && framing.camY <= 2.05,
+    `camY ${framing.camY}`,
+  );
+  run.check(
+    'the score is centered over the join',
+    framing.scoreX != null && Math.abs(framing.scoreX - 640) < 80,
+    `scoreX ${framing.scoreX}`,
+  );
+  await run.capture(host, 'host-split');
+
+  await bea.evaluate(() => {
+    window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { beta: 90, gamma: 80 }));
+  });
+  await bea.waitForTimeout(300);
+  const grip = run.frames.find((frame) => frame.page === 'phone:Bea' && frame.dir === 'out' && frame.msg?.type === 'grip');
+  run.check('a rolled phone sends a backhand grip', grip?.msg?.hand === 'backhand', grip ? grip.msg.hand : 'no grip frame');
+
+  await ada.waitForFunction(
+    () => document.getElementById('tennis-label')?.textContent.trim() === 'Swing up to toss',
+    null,
+    { timeout: 10_000 },
+  );
+  await flick(ada, [
+    { beta: 100, gamma: 0 },
+    { beta: 200, gamma: 0 },
+    { beta: 120, gamma: 0 },
+    { beta: 80, gamma: 0 },
+  ]);
+  await ada.waitForFunction(
+    () => document.getElementById('tennis-label')?.textContent.trim() === 'Swing to serve',
+    null,
+    { timeout: 10_000 },
+  );
+  await flick(ada, [
+    { beta: 0, gamma: 400 },
+    { beta: 0, gamma: 500 },
+    { beta: 0, gamma: 420 },
+    { beta: 0, gamma: 200 },
+    { beta: 0, gamma: 0 },
+  ]);
+
+  await host.waitForFunction(() => {
+    const view = window.__tennisView?.();
+    if (!view) return false;
+    return view.phase === 'flight' || view.phase === 'called' || (view.players || []).some((p) => p.speed > 0.5);
+  }, null, { timeout: 10_000 });
+  const moving = await host.evaluate(() => {
+    const view = window.__tennisView?.();
+    const speeds = (view?.players || []).map((p) => ({ id: p.id, speed: p.speed, x: p.x, z: p.z }));
+    return { phase: view?.phase ?? null, speeds };
+  });
+  const ran = (moving.speeds || []).some((p) => p.speed > 0.5);
+  run.check('a player runs toward the ball', moving.phase === 'flight' || moving.phase === 'called' || ran, JSON.stringify(moving));
+  await run.capture(host, 'host-chase');
+}
+
 const FEATURES = {
   'join-lobby': joinLobby,
   'select-game': selectGameFeature,
@@ -1440,6 +1539,7 @@ const FEATURES = {
   'kart-drift': kartDrift,
   'kart-items': kartItems,
   'tennis-match': tennisMatch,
+  'tennis-rally': tennisRally,
 };
 
 async function main() {

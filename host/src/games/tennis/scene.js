@@ -1204,6 +1204,7 @@ export function createTennisScene(container) {
   if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
   const divider = document.createElement('div');
+  divider.className = 'tennis-split';
   Object.assign(divider.style, {
     position: 'absolute',
     top: '0',
@@ -1218,6 +1219,7 @@ export function createTennisScene(container) {
   container.appendChild(divider);
 
   const score = document.createElement('div');
+  score.className = 'tennis-score';
   Object.assign(score.style, {
     position: 'absolute',
     top: '10px',
@@ -1316,6 +1318,8 @@ export function createTennisScene(container) {
     split = sides.has('A') && sides.has('B');
     entrySides = sides;
     divider.style.display = split && !manualCamera ? 'block' : 'none';
+    container.dataset.split = split && !manualCamera ? '1' : '0';
+    container.dataset.camY = String(COURT_CAMERA.y);
 
     const s = view.score;
     if (s) {
