@@ -48,13 +48,13 @@ const poses = {
   forehand: {
     phase: 'flight',
     serverId: 'far',
-    ball: { x: 0.52, y: 0.86, z: -BASE_Z + 0.72 },
+    ball: { x: 0.1, y: 0.78, z: -BASE_Z + 0.32 },
     players: lineup({ near: { ...contactSwing, hand: 'forehand', shape: 'flat' } }),
   },
   backhand: {
     phase: 'flight',
     serverId: 'far',
-    ball: { x: -0.5, y: 0.84, z: -BASE_Z + 0.7 },
+    ball: { x: -0.06, y: 0.78, z: -BASE_Z + 0.32 },
     players: lineup({ near: { ...contactSwing, hand: 'backhand', shape: 'flat' } }),
   },
   serve: {
@@ -100,7 +100,9 @@ function frame() {
   container.dataset.pose = poseName;
   container.dataset.split = cam.split ? '1' : '0';
   container.dataset.camY = cam.y.toFixed(2);
+  container.dataset.camBack = cam.behindPlayer.toFixed(2);
   container.dataset.fov = String(cam.fov);
+  container.dataset.pitch = ((cam.pitchDown * 180) / Math.PI).toFixed(2);
   container.dataset.ready = '1';
   requestAnimationFrame(frame);
 }

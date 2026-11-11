@@ -635,20 +635,22 @@ function key(t, hand, shaft, normal, free, yaw, lean, ballArm = 0) {
 
 const READY = key(0, [0.46, 0.22, 0.44], [0.4, 0.9, -0.12], [0, 0.1, 1], [-0.28, 0.14, 0.38], 0, 0.04);
 
+// Face normals point at the net (+z) on every forehand and backhand key, the same rule as the
+// readable string bed: shaft and face stay nearly perpendicular, so the hoop never turns edge-on.
 const FOREHAND = [
   READY,
-  key(0.2, [0.58, 0.36, -0.12], [0.5, 0.55, -0.65], [0.1, -0.7, 0.7], [-0.16, 0.48, 0.5], 0.62, 0.02),
-  key(SWING_CONTACT_T, [0.4, 0.3, 0.5], [-0.75, 0.5, 0.15], [0, 0, 1], [-0.38, 0.3, 0.3], -0.08, 0.12),
-  key(0.7, [-0.04, 0.66, 0.4], [-0.45, 0.8, -0.2], [0.2, 0.2, 1], [-0.4, 0.14, 0.18], -0.62, 0.1),
-  key(1, [0.0, 0.6, 0.38], [-0.45, 0.8, -0.2], [0.2, 0.2, 1], [-0.34, 0.12, 0.24], -0.55, 0.08),
+  key(0.2, [0.58, 0.36, -0.12], [0.5, 0.55, -0.65], [0.12, 0.32, 0.55], [-0.16, 0.48, 0.5], 0.62, 0.02),
+  key(SWING_CONTACT_T, [0.42, 0.32, 0.16], [-0.15, 0.35, 0.25], [0, 0.16, 0.99], [-0.38, 0.3, 0.3], -0.08, 0.12),
+  key(0.7, [-0.04, 0.66, 0.4], [-0.45, 0.8, -0.2], [-0.08, 0.22, 0.9], [-0.4, 0.14, 0.18], -0.62, 0.1),
+  key(1, [0.0, 0.6, 0.38], [-0.45, 0.8, -0.2], [-0.12, 0.16, 0.75], [-0.34, 0.12, 0.24], -0.55, 0.08),
 ];
 
 const BACKHAND = [
   READY,
-  key(0.2, [-0.24, 0.42, 0.3], [-0.75, 0.3, -0.4], [0, 1, -0.2], [-0.62, 0.42, 0.12], -0.72, 0.02),
-  key(SWING_CONTACT_T, [0.04, 0.3, 0.46], [-0.82, 0.35, 0.28], [0, 0, -1], [-0.6, 0.32, -0.02], -0.3, 0.12),
-  key(0.7, [-0.2, 0.6, 0.3], [-0.7, 0.62, -0.1], [-0.15, 0.1, -1], [-0.56, 0.22, 0.0], -0.05, 0.08),
-  key(1, [-0.18, 0.56, 0.3], [-0.7, 0.62, -0.1], [-0.15, 0.1, -1], [-0.5, 0.18, 0.06], -0.02, 0.06),
+  key(0.2, [-0.24, 0.42, 0.3], [-0.75, 0.3, -0.4], [-0.05, 0.2, 0.55], [-0.62, 0.42, 0.12], -0.72, 0.02),
+  key(SWING_CONTACT_T, [0.3, 0.4, 0.2], [-0.35, 0.4, 0.3], [0, 0.12, 0.99], [-0.6, 0.32, -0.02], -0.3, 0.12),
+  key(0.7, [-0.2, 0.6, 0.3], [-0.7, 0.62, -0.1], [0.12, 0.18, 0.85], [-0.56, 0.22, 0.0], -0.05, 0.08),
+  key(1, [-0.18, 0.56, 0.3], [-0.7, 0.62, -0.1], [0.18, 0.12, 0.7], [-0.5, 0.18, 0.06], -0.02, 0.06),
 ];
 
 const SERVE = [
@@ -972,8 +974,9 @@ function animatePlayer(state, pl, view, ball, dt, now) {
       const dirX = Math.sin(pl.faceYaw) * Math.cos(pitch) * sideSign;
       const dirZ = Math.cos(pl.faceYaw) * Math.cos(pitch) * sideSign;
       face = new V3(dirX * mirror, Math.sin(pitch), dirZ);
-      if (sw.kind === 'backhand') face.negate();
-      if (face.z * (sw.kind === 'backhand' ? -1 : 1) < 0.2) face = null;
+      // Forehand and backhand both keep the string bed toward the net. A backhand used to
+      // flip this normal, and the blend from the key then turned the hoop edge-on.
+      if (face.z < 0.2) face = null;
     }
     solveContact(ballU, RIGHT_SHOULDER, target.hand, target.rq, contactHand, contactQ, face);
     target.hand.lerp(contactHand, wc);
@@ -1062,10 +1065,10 @@ const BASELINE_PLAYER_Z = 11.185;
 // Each pane's camera stays on its own baseline centre. Players run inside a still frame, the way the console's court
 // camera holds still. Height, setback and field of view are the numbers that make the near player and racket large.
 const COURT_CAMERA = {
-  y: 1.95,
-  behindPlayer: 3.5,
-  fov: 56,
-  pitchDown: (3.5 * Math.PI) / 180,
+  y: 1.9,
+  behindPlayer: 3.2,
+  fov: 48,
+  pitchDown: (6.7 * Math.PI) / 180,
 };
 
 function courtCameraFor(side) {
@@ -1355,6 +1358,7 @@ export function createTennisScene(container) {
       y: COURT_CAMERA.y,
       behindPlayer: COURT_CAMERA.behindPlayer,
       fov: COURT_CAMERA.fov,
+      pitchDown: COURT_CAMERA.pitchDown,
       split: split && !manualCamera,
     };
   }
