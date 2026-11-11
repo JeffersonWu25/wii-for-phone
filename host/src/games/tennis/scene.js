@@ -344,11 +344,9 @@ function buildPerson({ shirt, skin, hair, legs = true, racketColor = null, ponyt
   const skinMat = new THREE.MeshLambertMaterial({ color: skin });
   const hairMat = new THREE.MeshLambertMaterial({ color: hair });
   const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf4f4f0 });
-  const parts = [];
   const add = (m) => {
     m.castShadow = true;
     g.add(m);
-    parts.push(m);
     return m;
   };
 
@@ -439,7 +437,7 @@ function buildPerson({ shirt, skin, hair, legs = true, racketColor = null, ponyt
     racket.position.y = -0.4;
     rightArm.add(racket);
   }
-  return { group: g, rightArm, leftArm, racket, shirtMat, parts };
+  return { group: g, rightArm, leftArm, racket, shirtMat };
 }
 
 function poseRacketArm(person, swinging, role) {
@@ -554,7 +552,7 @@ export function createTennisScene(container) {
     new THREE.MeshLambertMaterial({ color: 0xd4f23a, emissive: 0x3a4a00 }),
   );
   ball.castShadow = true;
-  ball.position.set(0, 1, 0);
+  ball.visible = false;
   world.add(ball);
 
   const score = document.createElement('div');
@@ -612,6 +610,7 @@ export function createTennisScene(container) {
 
   function setView(view) {
     const b = view.ball;
+    ball.visible = Boolean(b);
     if (b) ball.position.set(b.x, b.y, b.z);
 
     const seen = new Set();
@@ -625,7 +624,7 @@ export function createTennisScene(container) {
           skin: SKIN_TONES[h % SKIN_TONES.length],
           hair: HAIR_TONES[(h >>> 3) % HAIR_TONES.length],
           racketColor: pl.side === 'A' ? 0x2f6fe0 : 0xe8e8e8,
-          ponytail: pl.id === 'far',
+          ponytail: pl.side === 'B' && pl.role !== 'net',
         });
         world.add(person.group);
         entry = { person };
