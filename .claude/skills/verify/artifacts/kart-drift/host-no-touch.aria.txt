@@ -1,0 +1,12 @@
+- text: 1 st
+- img
+- text: "00"
+- img
+- text: 1/3 GO! 2 nd
+- img
+- text: "00"
+- img
+- text: 1/3 GO!
+- img: A B
+- button "Settings"
+- button "Quit"

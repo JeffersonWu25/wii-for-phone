@@ -59,3 +59,49 @@ Four worktrees off `7e57d31`. None of them share files.
 All four finished. Move is `ffb32e8` (55 tests passed) but the chase uses a 400 m/s² opening sprint, a 0.9 cm planted step, and then 2 m/s for every later ball. That makes the tests pass and makes rallies die. Sent the same agent back: one 11 m/s cap, 45 m/s², no planted step. The fast wide serve stays the ball you cannot reach. A ball down the middle on the next shot has to be reachable at that same 11 m/s.
 
 Look screenshots are in the artifact store. Grok's camera pitches up 5.2°, so the single views are half sky, and the side-B pane has no back wall. Sonnet pitches down 3.5°, builds the missing far end, and the contact sheets show a real forehand, backhand, and serve. Evaluator started on those pictures. Grip is `3af0d59`. The relay allow-list does not yet forward `grip`. That gets wired when the branches fold together.
+
+### 14:01 — Pace correction landed
+
+Move is `2dab5cb`. One cap, 11 m/s, acceleration and braking 45 m/s², walk home at 4 m/s. No planted step and no recovery crawl. The canonical fast serve is in reach (about 1.37 m short of the player at the bounce). A fast serve still in, but wide, gets no closer than about 2.07 m and the server wins the point.
+
+### 14:44 — Look verdict and graft
+
+Evaluator scores: tracked camera (A, `f252f8c`) 81, locked camera (B, `e1ffbb5`) 91. B is the base. The graft from A is the face-on string bed. The graft also pulls contact in front of the chest and tightens the frame. Result `2a56f76`. Camera that shipped: y 1.90 m, 3.20 m behind the baseline, field of view 48, pitch down 6.7°. The camera stays on the baseline center. Side B has its own far wall, trees, and stands.
+
+### 14:45 — Folded onto this branch
+
+Merged move `2dab5cb`, graft `2a56f76`, and grip `3af0d59` into `cursor/tennis-court-look-d216`. Worktrees removed. `45cce56` forwards `grip` on the relay and applies it in the rally before the toss.
+
+### 15:15 — Review
+
+A fresh `grok-4.7-high` that wrote none of the feature stepped the rally in Node. Five bugs, all fixed in `005cbe2` by a separate `grok-4.7-high` on `cursor/tennis-review-fix-d216`, then merged here. The list is `review.md`.
+
+The harness was written in this checkout, not a worktree: one drive entry `tennis-rally`, `features/tennis-rally.md`, and the feature map. Commit `9d6b145`. The scene records `data-split` and `data-cam-y` so that drive can read the framing.
+
+### 15:21 — Drives
+
+`join-lobby`, `select-game`, `bowling-throw`, and `tennis-rally` passed on the first suite. `kart-race` stopped in the countdown. The lights were moving, but each frame only advanced 50 ms of race time, and this machine's software renderer was near 1 fps, so three seconds of countdown never finished inside the 8 second wait.
+
+Chrome's ANGLE GL backend holds the same split kart view near 6 fps (`llvmpipe`, no `/dev/dri`). The drive now launches with that backend, and the race wait is 16 minutes of wall clock so three laps of game time can finish. Lap-time checks are still on game time, 30–80 seconds. Unit tests while that race ran: 281 passed, 0 failed (`node --test` on the tennis, kart, bowling, phone, and relay suites, skipping the three host scripts that import JSX).
+
+### 16:07 — Every drive passed
+
+The drive launcher now asks Chrome for ANGLE's GL backend, which is the faster software path on this machine. Waits that were a few seconds of wall clock now cover the same race time when each step is capped at 50 ms. The assertions themselves are unchanged: lap times stay 30–80 s of race time, the item roulette stays within 3 s of race time, and a drift still has to reach the corner.
+
+| Drive | Result |
+|---|---|
+| join-lobby | passed |
+| select-game | passed |
+| bowling-throw | passed |
+| kart-race | passed (3 laps, 114.7 s of race time) |
+| kart-split | passed |
+| kart-drift | passed |
+| kart-items | passed |
+| tennis-match | passed |
+| tennis-rally | passed |
+
+`tennis-rally` reads split `1`, camera height 1.90 m, the score on the join, a backhand grip from a rolled phone, and the returner leaving the baseline (speed 8.2 m/s, z 10.25). The chase shot is `artifacts/tennis-rally/host-chase.png`. The ready pose is `host-split.png`. Graft contact sheets are in `shots/`.
+
+## Rough edges
+
+The near player's shoes stay inside the frame, and a band of sky stays above the trees. The reference crops the feet and fills the top with trees. The locked camera is as tight as the y 1.45–2.05 m band allowed without losing the court. A serve's follow-through is the last fifth of the old swing, about 0.2 s, so a live frame often shows the racket already down. The chase follows the ball, not a predicted landing. There is no CPU opponent, so the split is on for every match. The forehand and backhand grip comes from the phone's tilt, which is a stand-in for "screen toward you" and "screen rolled away".

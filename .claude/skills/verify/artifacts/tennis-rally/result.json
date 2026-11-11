@@ -1,0 +1,38 @@
+{
+  "feature": "tennis-rally",
+  "passed": true,
+  "finishedAt": "2026-11-11T15:08:59.680Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "two phones sit down as 1v1",
+      "ok": true,
+      "detail": "1v1"
+    },
+    {
+      "name": "the court is split between the two players",
+      "ok": true,
+      "detail": "{\"split\":\"1\",\"camY\":1.9,\"divider\":\"block\",\"scoreX\":640}"
+    },
+    {
+      "name": "the camera sits close to the ground",
+      "ok": true,
+      "detail": "camY 1.9"
+    },
+    {
+      "name": "the score is centered over the join",
+      "ok": true,
+      "detail": "scoreX 640"
+    },
+    {
+      "name": "a rolled phone sends a backhand grip",
+      "ok": true,
+      "detail": "backhand"
+    },
+    {
+      "name": "a player runs toward the ball",
+      "ok": true,
+      "detail": "{\"phase\":\"flight\",\"speeds\":[{\"id\":\"6ff17504\",\"speed\":0,\"x\":0,\"z\":-11.185},{\"id\":\"c1175d11\",\"speed\":8.249742603320348,\"x\":-0.0035620997998783857,\"z\":10.247546026161453}]}"
+    }
+  ]
+}

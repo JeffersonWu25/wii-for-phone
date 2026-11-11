@@ -1,9 +1,8 @@
-- button "Settings"
 - heading "Choose a Game" [level=1]
 - button "🎳 Bowling"
 - button "🏎️ Kart Racer"
 - button "🧙 Wizard Duel Coming Soon" [disabled]
 - button "🏀 3PT Contest Coming Soon" [disabled]
-- button "🎾 Tennis Coming Soon" [disabled]
+- button "🎾 Tennis"
 - button "⛳ Golf Coming Soon" [disabled]
 - button "🎹 Piano Master Coming Soon" [disabled]

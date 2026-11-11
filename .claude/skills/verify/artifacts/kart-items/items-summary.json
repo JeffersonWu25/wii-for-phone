@@ -1,0 +1,472 @@
+{
+  "rowS": 80,
+  "kind": "banana",
+  "seen": {
+    "phoneRolling": true,
+    "tvRolling": true,
+    "ready": 6178,
+    "raceDt": 1.6166449999999912,
+    "tv": {
+      "kind": "banana",
+      "rolling": false,
+      "icon": true
+    },
+    "phoneClass": "ready"
+  },
+  "pick": {
+    "id": "01f9ab31",
+    "karts": [
+      {
+        "id": "01f9ab31",
+        "hit": null,
+        "invuln": 0
+      },
+      {
+        "id": "a205d7c9",
+        "hit": null,
+        "invuln": 0
+      }
+    ],
+    "item": {
+      "main": "banana",
+      "reserve": null,
+      "rollMain": 1.466665000000001,
+      "rollReserve": 0
+    },
+    "boost": 0,
+    "mushroom": 0,
+    "hit": null,
+    "invuln": 0,
+    "speed": 21.998098885121546,
+    "entities": [],
+    "brokenBoxes": 2,
+    "events": [
+      {
+        "seq": 1,
+        "t": 5.05,
+        "type": "box_break",
+        "kartId": "01f9ab31"
+      },
+      {
+        "seq": 2,
+        "t": 5.05,
+        "type": "pickup",
+        "kartId": "01f9ab31"
+      },
+      {
+        "seq": 3,
+        "t": 5.17,
+        "type": "box_break",
+        "kartId": "a205d7c9"
+      },
+      {
+        "seq": 4,
+        "t": 5.17,
+        "type": "pickup",
+        "kartId": "a205d7c9"
+      }
+    ]
+  },
+  "before": {
+    "id": "01f9ab31",
+    "karts": [
+      {
+        "id": "01f9ab31",
+        "hit": null,
+        "invuln": 0
+      },
+      {
+        "id": "a205d7c9",
+        "hit": null,
+        "invuln": 0
+      }
+    ],
+    "item": {
+      "main": "banana",
+      "reserve": null,
+      "rollMain": 0,
+      "rollReserve": 0
+    },
+    "boost": 0,
+    "mushroom": 0,
+    "hit": null,
+    "invuln": 0,
+    "speed": 21.86474137946182,
+    "entities": [],
+    "brokenBoxes": 0,
+    "events": [
+      {
+        "seq": 1,
+        "t": 5.05,
+        "type": "box_break",
+        "kartId": "01f9ab31"
+      },
+      {
+        "seq": 2,
+        "t": 5.05,
+        "type": "pickup",
+        "kartId": "01f9ab31"
+      },
+      {
+        "seq": 3,
+        "t": 5.17,
+        "type": "box_break",
+        "kartId": "a205d7c9"
+      },
+      {
+        "seq": 4,
+        "t": 5.17,
+        "type": "pickup",
+        "kartId": "a205d7c9"
+      }
+    ]
+  },
+  "after": {
+    "id": "01f9ab31",
+    "karts": [
+      {
+        "id": "01f9ab31",
+        "hit": null,
+        "invuln": 0
+      },
+      {
+        "id": "a205d7c9",
+        "hit": "spin",
+        "invuln": 0
+      }
+    ],
+    "item": {
+      "main": null,
+      "reserve": null,
+      "rollMain": 0,
+      "rollReserve": 0
+    },
+    "boost": 0,
+    "mushroom": 0,
+    "hit": null,
+    "invuln": 0,
+    "speed": 21.664524739778347,
+    "entities": [],
+    "brokenBoxes": 0,
+    "events": [
+      {
+        "seq": 1,
+        "t": 5.05,
+        "type": "box_break",
+        "kartId": "01f9ab31"
+      },
+      {
+        "seq": 2,
+        "t": 5.05,
+        "type": "pickup",
+        "kartId": "01f9ab31"
+      },
+      {
+        "seq": 3,
+        "t": 5.17,
+        "type": "box_break",
+        "kartId": "a205d7c9"
+      },
+      {
+        "seq": 4,
+        "t": 5.17,
+        "type": "pickup",
+        "kartId": "a205d7c9"
+      },
+      {
+        "seq": 5,
+        "t": 6.85,
+        "type": "use",
+        "kind": "banana",
+        "kartId": "01f9ab31"
+      },
+      {
+        "seq": 6,
+        "t": 6.85,
+        "type": "hit",
+        "kind": "spin",
+        "kartId": "a205d7c9",
+        "by": "banana",
+        "entityId": "e0"
+      }
+    ]
+  },
+  "trail": [
+    {
+      "t": 6.87,
+      "entities": [],
+      "events": [
+        {
+          "seq": 3,
+          "t": 5.17,
+          "type": "box_break",
+          "kartId": "a205d7c9"
+        },
+        {
+          "seq": 4,
+          "t": 5.17,
+          "type": "pickup",
+          "kartId": "a205d7c9"
+        },
+        {
+          "seq": 5,
+          "t": 6.85,
+          "type": "use",
+          "kind": "banana",
+          "kartId": "01f9ab31"
+        },
+        {
+          "seq": 6,
+          "t": 6.85,
+          "type": "hit",
+          "kind": "spin",
+          "kartId": "a205d7c9",
+          "by": "banana",
+          "entityId": "e0"
+        }
+      ]
+    }
+  ],
+  "hitSeq": [
+    {
+      "t": 7,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.05,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.2,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.27,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.33,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.4,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.47,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.53,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.6,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.67,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.73,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.8,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.87,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 7.93,
+      "hit": "spin",
+      "invuln": 0
+    },
+    {
+      "t": 8,
+      "hit": null,
+      "invuln": 1
+    },
+    {
+      "t": 8.07,
+      "hit": null,
+      "invuln": 0.88
+    },
+    {
+      "t": 8.18,
+      "hit": null,
+      "invuln": 0.8
+    },
+    {
+      "t": 8.27,
+      "hit": null,
+      "invuln": 0.73
+    },
+    {
+      "t": 8.33,
+      "hit": null,
+      "invuln": 0.68
+    },
+    {
+      "t": 8.38,
+      "hit": null,
+      "invuln": 0.62
+    },
+    {
+      "t": 8.45,
+      "hit": null,
+      "invuln": 0.55
+    },
+    {
+      "t": 8.52,
+      "hit": null,
+      "invuln": 0.48
+    },
+    {
+      "t": 8.58,
+      "hit": null,
+      "invuln": 0.42
+    },
+    {
+      "t": 8.65,
+      "hit": null,
+      "invuln": 0.35
+    },
+    {
+      "t": 8.72,
+      "hit": null,
+      "invuln": 0.28
+    },
+    {
+      "t": 8.78,
+      "hit": null,
+      "invuln": 0.22
+    },
+    {
+      "t": 8.85,
+      "hit": null,
+      "invuln": 0.15
+    },
+    {
+      "t": 8.92,
+      "hit": null,
+      "invuln": 0.08
+    },
+    {
+      "t": 8.98,
+      "hit": null,
+      "invuln": 0.02
+    },
+    {
+      "t": 9.05,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.12,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.18,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.25,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.32,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.38,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.45,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.52,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.58,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.65,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.72,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.78,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.85,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.92,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 9.98,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 10.05,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 10.12,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 10.18,
+      "hit": null,
+      "invuln": 0
+    },
+    {
+      "t": 10.25,
+      "hit": null,
+      "invuln": 0
+    }
+  ]
+}

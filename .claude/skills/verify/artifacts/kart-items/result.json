@@ -1,0 +1,63 @@
+{
+  "feature": "kart-items",
+  "passed": true,
+  "finishedAt": "2026-11-11T15:08:56.186Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "driving through the first box row breaks a box and fills Ada's main slot",
+      "ok": true,
+      "detail": "race time 5.05 s at s 78.8 (row at 80.0), 2 box(es) broken, reserve none"
+    },
+    {
+      "name": "phone ITEM button shows its rolling state after the pickup",
+      "ok": true,
+      "detail": "class had \"rolling\""
+    },
+    {
+      "name": "TV pane main slot shows the roulette while rolling",
+      "ok": true,
+      "detail": "data-rolling=1"
+    },
+    {
+      "name": "phone ITEM button is ready within 3 s of race time after the pickup",
+      "ok": true,
+      "detail": "ready after 1.62 s of race time (6178 ms wall, kind banana)"
+    },
+    {
+      "name": "TV pane main slot shows the landed item icon",
+      "ok": true,
+      "detail": "{\"kind\":\"banana\",\"rolling\":false,\"icon\":true}"
+    },
+    {
+      "name": "ITEM tap lights the button right after the touch",
+      "ok": true,
+      "detail": "pressed true"
+    },
+    {
+      "name": "ITEM tap used the banana: a use event and a banana entity owned by Ada (or a hit by it)",
+      "ok": true,
+      "detail": "entity seen false, events [{\"seq\":4,\"t\":5.17,\"type\":\"pickup\",\"kartId\":\"a205d7c9\"},{\"seq\":5,\"t\":6.85,\"type\":\"use\",\"kind\":\"banana\",\"kartId\":\"01f9ab31\"},{\"seq\":6,\"t\":6.85,\"type\":\"hit\",\"kind\":\"spin\",\"kartId\":\"a205d7c9\",\"by\":\"banana\",\"entityId\":\"e0\"}]"
+    },
+    {
+      "name": "ITEM tap consumed the main item (main empty, or the reserve moved up)",
+      "ok": true,
+      "detail": "main banana -> null, reserve null -> null"
+    },
+    {
+      "name": "exactly one use_item frame leaves Ada's phone and reaches the host",
+      "ok": true,
+      "detail": "phone out 1, host in 1"
+    },
+    {
+      "name": "the kart hit by Ada's banana (the rival) shows hit, then invuln",
+      "ok": true,
+      "detail": "hit at sample 0 (spin), invuln > 0 with no hit at sample 14; 48 samples"
+    },
+    {
+      "name": "Ada's drive frames carry steer, aimY and drift (no gas, no brake)",
+      "ok": true,
+      "detail": "1067 frames, 78 distinct steer values"
+    }
+  ]
+}
