@@ -21,9 +21,8 @@
 .tennis-quit {
   position: absolute;
   top: 14px;
-  left: 50%;
+  right: 16px;
   z-index: 5;
-  transform: translateX(-50%);
   width: auto;
   padding: 8px 18px;
   border: 2px solid rgba(255, 255, 255, 0.75);
