@@ -18,21 +18,21 @@ During `flight`, the current `receiverId` runs toward an intercept. Everyone els
 
 Pace:
 
-- Top speed 8.6 m/s.
-- Acceleration 26 m/s², so speed eases in. Deceleration is the same limit, so they do not skate past the intercept.
-- Reach is 1.75 m from the player origin to the ball centre. The bigger racket is why the reach is this long.
+- Top speed 11 m/s on every chase, including the second and third shots of a point. There is no slower "recovery" pace.
+- Acceleration and braking are both 45 m/s². From a standstill, speed at 0.1 s is about 4.5 m/s. There is no extra stride and no 400 m/s² burst.
+- Reach is 1.75 m from the player origin to the ball centre, measured in the court plane. Walking back to home, when you are not the receiver, may use 4 m/s.
 
 A swing from the legal hitter connects only when the ball is within reach. A connecting swing changes the ball's velocity and does not move the ball (a correction of 2 cm or less is the most you may apply). A swing from anyone else does nothing, which the probe already requires. A whiff still sets `swinging` on that player and leaves the ball's velocity alone.
 
-The canonical probe serve (`apex` 0.95, `timing` 0, `power` 0.7, fast flight about 0.62 s, landing near x = 2, z = 4.6) travels about 6.9 m from the returner at (0, 11.185). At 8.6 m/s over 0.62 s they cover about 5.3 m, and reach of 1.75 m closes the rest. Confirm with a test that this returner is inside reach at the first bounce, so `rally.probe.mjs` keeps passing.
+The canonical probe serve (`apex` 0.95, `timing` 0, `power` 0.7, fast flight about 0.62 s, landing near x = 2, z = 4.6) is about 6.7 m from the returner at (0, 11.185). At 45 m/s² up to 11 m/s they cover about 5.6 m in 0.63 s, and reach of 1.75 m closes the rest. Confirm with a test that this returner is inside reach at the first bounce, so `rally.probe.mjs` keeps passing. A later shot in the same point uses the same 11 m/s.
 
 These new tests must exist:
 
 - A fast serve that stays in and is wide (`apex` 0.95, `timing` about 0.7, `power` 0.7, landing `|x|` under the singles half-width) never comes within reach of the returner before the second bounce. The server wins the point with no successful return. Stepping and swinging on every frame when the returner is closest still does not connect.
 - A slow serve down the deuce pattern (`apex` 0.3, `timing` 0, `power` 0.6) is inside reach before the second bounce, and a swing then connects and the rally continues (`phase` stays `flight`, new shot, receiver flips).
 - A flat rally down the middle (`timing` 0, `power` 0.7) from a returner who got to the serve is inside reach for the other player before the second bounce.
-- Pull the returner forward with a short ball they do reach, then send a slice behind them (`shape` `slice`, `timing` 1, `power` 0.35). They cannot get back inside reach before the second bounce.
-- While running, reported speed never exceeds 8.6 m/s. From a standstill, speed after 0.1 s is under 3.2 m/s (the acceleration cap). Position does not jump by more than speed × dt + 1 cm.
+- A flat rally down the middle on the shot after the serve is inside reach, and during that chase the runner's speed goes above 8 m/s. That is the same cap as the first sprint.
+- While running, reported speed never exceeds 11 m/s. From a standstill, speed after 0.1 s is between 3 and 5 m/s. Position does not jump by more than speed × dt + 1 cm. A planted extra step fails this.
 - On a connected hit the ball's position changes by 2 cm or less on that step, and the horizontal exit direction points from the contact point toward `landX, landZ` within 12 degrees. A lob's initial vertical angle is steeper than a flat shot's. A slice's initial vertical angle is shallower than a flat shot's.
 - Two substeps at 1/60 produce a ball path with no position gap larger than the speed allows. This is the smoothness check.
 

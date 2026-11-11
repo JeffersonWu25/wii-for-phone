@@ -43,4 +43,19 @@ Feature branch for the PR: `cursor/tennis-court-look-d216`.
 
 ### 12:53 — Plan
 
-Read `scene.js`, `rally.js`, `flow.js`, `timing.js`, `preview.js`, the phone swing path, `rally.probe.mjs`, `timing.test.mjs`, and the verify skill. Wrote this plan, `rubric.md`, and the briefs. Competing runs have not started.
+Read `scene.js`, `rally.js`, `flow.js`, `timing.js`, `preview.js`, the phone swing path, `rally.probe.mjs`, `timing.test.mjs`, and the verify skill. Wrote this plan, `rubric.md`, and the briefs. Commit `7e57d31`.
+
+### 12:56 — Subagents started
+
+Four worktrees off `7e57d31`. None of them share files.
+
+- Move: `grok-4.7-high`, `/tmp/worktrees/tennis-move`, `cursor/tennis-move-d216`, brief `briefs/01-move.md`.
+- Look, tracked camera: `grok-4.7-high`, `/tmp/worktrees/tennis-look-grok`, `cursor/tennis-look-grok-d216`, brief `briefs/02-look-grok.md`.
+- Look, locked camera: `claude-sonnet-5-5-high`, `/tmp/worktrees/tennis-look-sonnet`, `cursor/tennis-look-sonnet-d216`, brief `briefs/03-look-sonnet.md`.
+- Grip: `grok-4.7-high`, `/tmp/worktrees/tennis-grip`, `cursor/tennis-grip-d216`, brief `briefs/04-grip.md`.
+
+### 13:55 — First reports, and a pace correction
+
+All four finished. Move is `ffb32e8` (55 tests passed) but the chase uses a 400 m/s² opening sprint, a 0.9 cm planted step, and then 2 m/s for every later ball. That makes the tests pass and makes rallies die. Sent the same agent back: one 11 m/s cap, 45 m/s², no planted step. The fast wide serve stays the ball you cannot reach. A ball down the middle on the next shot has to be reachable at that same 11 m/s.
+
+Look screenshots are in the artifact store. Grok's camera pitches up 5.2°, so the single views are half sky, and the side-B pane has no back wall. Sonnet pitches down 3.5°, builds the missing far end, and the contact sheets show a real forehand, backhand, and serve. Evaluator started on those pictures. Grip is `3af0d59`. The relay allow-list does not yet forward `grip`. That gets wired when the branches fold together.
