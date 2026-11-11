@@ -5,8 +5,6 @@ import { createTennisScene } from './scene.js';
 import { afterPhysics, begin, createFlow, onPhone, winnerNames } from './flow.js';
 import './match.css';
 
-const COURT_CAM = { pos: [0, 18, -28], at: [0, 0.5, 0], fov: 38 };
-
 // Self-contained tennis match.
 export default function TennisApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon }) {
   const [lineup, setLineup] = useState(null);
@@ -45,7 +43,6 @@ export default function TennisApp({ wsRef, send, players, disconnectedPlayerIds,
 
     const match = flow.match;
     const scene = createTennisScene(court);
-    scene.lookAt(COURT_CAM);
     const readView = () => view(match);
     window.__tennisView = readView;
 
