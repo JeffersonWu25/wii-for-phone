@@ -13,7 +13,7 @@ Select a game lets the host leave the lobby, pick a built game, and have every j
 
 - From the lobby, choose `Select Game` after at least one player has joined.
 - On the grid, choose `Bowling`.
-- Unfinished titles (`Wizard Duel`, `3PT Contest`, `Tennis`, `Golf`, `Piano Master`) show `Coming Soon` and cannot be chosen.
+- Built titles are `Bowling`, `Kart Racer`, and `Tennis`. Unfinished titles (`Wizard Duel`, `3PT Contest`, `Golf`, `Piano Master`) show `Coming Soon` and cannot be chosen.
 
 ## Driving it with cursor-ide-browser
 
@@ -24,7 +24,7 @@ Preconditions:
 - The phone tab that joined is still open on `Waiting for host to select a game...`.
 
 - **Disabled entry.** On a fresh host load with no players, snapshot the lobby. `Select Game` is disabled. Do not treat a later enabled click as proof of this state.
-- **Open the grid.** On the joined host tab, click the button named `Select Game`. The heading is `Choose a Game`. The grid has six buttons. Their accessible names contain `Bowling`, `Wizard Duel`, `3PT Contest`, `Tennis`, `Golf`, and `Piano Master`. `Bowling` is enabled and does not contain Coming Soon. The other five are disabled and contain Coming Soon (CSS may render the badge as `COMING SOON`).
+- **Open the grid.** On the joined host tab, click the button named `Select Game`. The heading is `Choose a Game`. The grid has six buttons. Their accessible names contain `Bowling`, `Wizard Duel`, `3PT Contest`, `Tennis`, `Golf`, and `Piano Master`. `Bowling`, `Kart Racer`, and `Tennis` are enabled and do not contain Coming Soon. The other three are disabled and contain Coming Soon (CSS may render the badge as `COMING SOON`).
 - **Coming soon (disabled).** Snapshot a disabled card such as `Wizard Duel`. It stays on `Choose a Game`. Do not expect a `Coming Soon` page or a change on the phone — unfinished cards do not send `game_selected`.
 - **Start bowling.** Click the button whose accessible name contains `Bowling` and does not contain Coming Soon. The host leaves the grid and shows scoreboard text that matches `/scores/i` (CSS may render `SCORES`) with `Verify Player`, plus a button named `← Games`. The phone leaves the playground waiting screen. It may briefly show heading `Bowling` and `Waiting for your turn...` (or `Game started! Waiting for your turn...`) before `your_turn` lands. Poll until `#btn-bowl` reads `BOWL` with `Hold and swing to bowl!` and tabs `MOVE` / `AIM` (ids `tab-move`, `tab-aim`, `btn-bowl`).
 - **Confirm the relay.** The relay does not log `game_selected` and the phone does not print that message. The phone bowling controls are the side effect of the host's selection. Keep the host scoreboard snapshot as the other view.

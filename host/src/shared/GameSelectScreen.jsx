@@ -6,7 +6,7 @@ const GAMES = [
   { id: 'kart',         label: 'Kart Racer',   emoji: '🏎️', built: true  },
   { id: 'wizard-duel',  label: 'Wizard Duel',  emoji: '🧙', built: false },
   { id: '3pt-contest',  label: '3PT Contest',  emoji: '🏀', built: false },
-  { id: 'tennis',       label: 'Tennis',       emoji: '🎾', built: false },
+  { id: 'tennis',       label: 'Tennis',       emoji: '🎾', built: true  },
   { id: 'golf',         label: 'Golf',         emoji: '⛳', built: false },
   { id: 'piano-master', label: 'Piano Master', emoji: '🎹', built: false },
 ];

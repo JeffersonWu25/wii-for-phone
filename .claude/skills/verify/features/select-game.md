@@ -1,12 +1,12 @@
 # Select a game
 
-After the lobby has at least one player, the host presses `Select Game` and sees a hub of game cards. Bowling and Kart Racer are built and enabled. The other games are disabled cards marked `Coming Soon`.
+After the lobby has at least one player, the host presses `Select Game` and sees a hub of game cards. Bowling, Kart Racer, and Tennis are built and enabled. The other games are disabled cards marked `Coming Soon`.
 
 ## Sub-features
 
 - `hub-opens`: `Select Game` on the lobby opens the `Choose a Game` screen.
-- `built-games-enabled`: the Bowling and Kart Racer cards are enabled buttons.
-- `unbuilt-games-disabled`: Wizard Duel, 3PT Contest, Tennis, Golf, and Piano Master are disabled cards with `Coming Soon`.
+- `built-games-enabled`: the Bowling, Kart Racer, and Tennis cards are enabled buttons.
+- `unbuilt-games-disabled`: Wizard Duel, 3PT Contest, Golf, and Piano Master are disabled cards with `Coming Soon`.
 
 ## How to get to it (user POV)
 
@@ -28,7 +28,7 @@ Steps the script performs:
 
 - Join `Ada` on a phone (see the join-lobby recipe for the join steps). Expect the host lobby to list `Ada`.
 - Click `.btn-start`. Expect `.game-select-screen` and the `Choose a Game` heading.
-- Read each `.game-card`. Expect Bowling and Kart Racer enabled, and every other card disabled with `Coming Soon`.
+- Read each `.game-card`. Expect Bowling, Kart Racer, and Tennis enabled, and every other card disabled with `Coming Soon`.
 
 Evidence in `artifacts/select-game/`: `host-game-select.png` and `host-game-select.aria.txt`.
 

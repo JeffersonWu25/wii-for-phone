@@ -1,0 +1,3 @@
+- paragraph: 0 – 0 0 – 0
+- paragraph: Swing up to toss
+- button "Right hand"
