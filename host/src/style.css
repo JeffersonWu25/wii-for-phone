@@ -1111,3 +1111,163 @@ html, body, #root {
 .kart-res-name { flex: 1; text-align: left; }
 .kart-res-time { font-variant-numeric: tabular-nums; }
 .kart-res-best { width: 8.5rem; font-size: 0.95rem; opacity: 0.85; text-align: right; }
+
+/* ── Kart map select, standings, podium ──────────────────────── */
+
+.kart-menu {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 32px;
+  overflow: auto;
+  background: linear-gradient(180deg, #8fd3ff 0%, #c8ecff 60%, #f4e3a6 100%);
+  color: #fff;
+  font-family: 'Trebuchet MS', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  font-weight: 900;
+  user-select: none;
+}
+
+.kart-menu h1 {
+  font-size: 3rem;
+  text-shadow: 0 4px 0 #1d2a44;
+}
+
+.kart-menu-back {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 6px 18px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 10px;
+  background: rgba(29, 42, 68, 0.6);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.kart-menu-cards {
+  display: flex;
+  align-items: stretch;
+  gap: 28px;
+}
+
+.kart-cup-card,
+.kart-track-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 24px 24px;
+  border-radius: 28px;
+  border: 5px solid #fff;
+  background: #3a7be8;
+  box-shadow: 0 8px 0 rgba(29, 42, 68, 0.5);
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+}
+
+.kart-cup-card h2,
+.kart-track-card h2 {
+  font-size: 1.9rem;
+  text-shadow: 0 3px 0 #1d2a44;
+}
+
+.kart-cup-card[data-selected],
+.kart-track-card[data-selected] {
+  border-color: #ffd23f;
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 14px 0 rgba(29, 42, 68, 0.5), 0 0 0 4px rgba(255, 210, 63, 0.45);
+}
+
+.kart-cup-slots {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.kart-cup-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 190px;
+  min-height: 140px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.kart-cup-slot[data-locked] {
+  background: rgba(29, 42, 68, 0.35);
+  border: 2px dashed rgba(255, 255, 255, 0.5);
+}
+
+.kart-lock { font-size: 2.6rem; line-height: 1; }
+.kart-cup-slot-name { font-size: 1.05rem; text-align: center; }
+.kart-cup-slot[data-locked] .kart-cup-slot-name { font-size: 0.85rem; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.08em; }
+
+.kart-thumb { width: 150px; height: 96px; }
+.kart-track-card .kart-thumb { width: 230px; height: 147px; }
+
+.kart-thumb-shade,
+.kart-thumb-road {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.kart-thumb-shade { stroke: rgba(10, 14, 30, 0.45); stroke-width: 9; }
+.kart-thumb-road { stroke: rgba(235, 242, 255, 0.9); stroke-width: 5; }
+
+.kart-menu-hint {
+  font-size: 1rem;
+  color: #1d2a44;
+  opacity: 0.8;
+}
+
+.kart-sub {
+  margin-bottom: 14px;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.kart-podium-stage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.kart-podium-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 150px;
+  font-size: 1.3rem;
+}
+
+.kart-podium-step .kart-dot { width: 34px; height: 34px; }
+.kart-podium-pts { font-size: 0.95rem; opacity: 0.85; }
+
+.kart-podium-block {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  border-radius: 12px 12px 0 0;
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffd23f;
+  font-size: 2.4rem;
+  text-shadow: 0 3px 0 #1d2a44;
+}
+
+.kart-podium-step[data-rank="1"] .kart-podium-block { height: 130px; background: #ffd23f; color: #fff; }
+.kart-podium-step[data-rank="2"] .kart-podium-block { height: 96px; }
+.kart-podium-step[data-rank="3"] .kart-podium-block { height: 70px; }

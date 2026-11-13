@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, tennis-match.
+// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, kart-cup, tennis-match.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -164,6 +164,7 @@ async function selectGame(run, title) {
   await run.host.click('.btn-start');
   await run.host.waitForSelector('.game-select-screen');
   await run.host.locator('.game-card', { hasText: title }).click();
+  if (title === 'Kart Racer') await run.host.click('.kart-track-card[data-track="sunny-meadow"]');
 }
 
 // ── Features ──────────────────────────────────────────────────────────────────
@@ -555,6 +556,7 @@ async function kartRace(run) {
   run.check('Ada\'s drive frames carry steer, aimY and drift (no gas, no brake) and varied steer', shaped && new Set(drives.map((f) => f.msg.steer)).size > 10, `${drives.length} frames, ${new Set(drives.map((f) => f.msg.steer)).size} distinct steer values, aimY max ${Math.max(...drives.map((f) => f.msg.aimY))}, drift true ${drives.filter((f) => f.msg.drift).length}`);
 
   await host.click('.kart-results .btn-start');
+  await host.click('.kart-menu-back');
   await host.waitForSelector('.game-select-screen', { timeout: 10_000 });
   run.check('Back to games returns the host to game select', await host.isVisible('.game-select-screen'));
   await ada.waitForSelector('#screen-waiting', { state: 'visible', timeout: 10_000 }).catch(() => {});
@@ -1209,6 +1211,147 @@ async function kartItems(run) {
   }
 }
 
+// ── Kart Racer map select and cup ─────────────────────────────────────────────
+
+const CUP_SELECTOR = '.kart-cup-card[data-cup="coconut"]';
+const SUNNY_SELECTOR = '.kart-track-card[data-track="sunny-meadow"]';
+
+// Hub to the map select: Select Game, then the Kart Racer card.
+async function openKartMenu(run) {
+  await run.host.click('.btn-start');
+  await run.host.waitForSelector('.game-select-screen');
+  await run.host.locator('.game-card', { hasText: 'Kart Racer' }).click();
+  await run.host.waitForSelector('.kart-menu', { timeout: 10_000 });
+}
+
+const selectedCards = (host) => host.locator('.kart-menu [data-selected]').evaluateAll((els) => els.map((el) => el.className));
+const trackIdOnHost = (host) => host.evaluate(() => window.__kartTrack?.id ?? null);
+const framesIn = (run, page, type) => run.frames.filter((f) => f.page === page && f.dir === 'in' && f.msg.type === type).length;
+
+// Waits for a race to load on the host and phone, then for GO. Returns the track id.
+async function waitForRaceStart(run, phone) {
+  await phone.waitForSelector('#screen-kart', { timeout: 15_000 });
+  await run.host.waitForSelector('.kart-canvas canvas', { timeout: 15_000 });
+  await run.host.waitForFunction(() => window.__kartState?.phase === 'countdown', null, { polling: 30, timeout: 10_000 });
+  return trackIdOnHost(run.host);
+}
+
+// Holds the phone's joystick with a real CDP touch and steers it from the host's closed-loop
+// controller until Ada finishes or the deadline passes. Returns what the checks need.
+async function steerPhoneToFinish(run, phone, { deadlineMs }) {
+  const host = run.host;
+  const zone = await phone.evaluate(() => { const r = document.getElementById('kart-zone').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  const radius = await phone.evaluate(() => (document.getElementById('kart-joystick').offsetWidth - document.getElementById('kart-knob').offsetWidth) / 2);
+  const cdp = await phone.context().newCDPSession(phone);
+  let steerX = zone.x;
+  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  const points = () => [{ x: steerX, y: zone.y, id: 1 }];
+  const setSteer = (steer) => {
+    const n = steer === 0 ? 0 : JOYSTICK_DEAD_ZONE + Math.abs(steer) * (1 - JOYSTICK_DEAD_ZONE);
+    steerX = zone.x + Math.sign(steer) * n * radius;
+    return touch('touchMove', points());
+  };
+  await touch('touchStart', points());
+  const coreSrc = computeSteer.toString();
+  const out = { laps: [], samples: 0, maxOverLimit: -Infinity, speedAfterGo: null, last: null };
+  const deadline = Date.now() + deadlineMs;
+  let firstRacing = null;
+  while (Date.now() < deadline) {
+    const loopStart = Date.now();
+    const t = await host.evaluate(hostTick, [coreSrc, null]);
+    if (!t) break;
+    out.last = t;
+    if (t.phase === 'finished' || t.finished) break;
+    if (t.phase === 'racing') {
+      if (!firstRacing) firstRacing = { at: Date.now() };
+      else if (out.speedAfterGo === null && Date.now() - firstRacing.at > 1500) out.speedAfterGo = t.speed;
+    }
+    await setSteer(t.steer);
+    out.samples++;
+    out.maxOverLimit = Math.max(out.maxOverLimit, t.lateral < 0 ? -t.lateral - t.limitL : t.lateral - t.limitR);
+    if (out.laps[out.laps.length - 1] !== t.lap) out.laps.push(t.lap);
+    const wait = 55 - (Date.now() - loopStart);
+    if (wait > 0) await sleep(wait);
+  }
+  await touch('touchEnd', []).catch(() => {});
+  if (out.last?.finished && out.laps[out.laps.length - 1] !== out.last.lap) out.laps.push(out.last.lap);
+  return out;
+}
+
+async function kartCup(run) {
+  const host = await run.openHost({ viewport: KART_HOST_VIEWPORT });
+  const ada = await run.openPhone('Ada', { viewport: KART_PHONE_VIEWPORT, isMobile: true });
+  await waitForWaitingLabel(ada);
+  await host.waitForSelector('.player-item:has-text("Ada")', { timeout: 10_000 });
+
+  // ── Map select ──
+  await openKartMenu(run);
+  const cup = host.locator(CUP_SELECTOR);
+  run.check('Kart Racer opens the map select (.kart-menu)', await host.isVisible('.kart-menu'));
+  run.check('one Coconut Cup card with 4 slots', (await cup.count()) === 1 && (await cup.locator('.kart-cup-slot').count()) === 4, `slots ${await cup.locator('.kart-cup-slot').count()}`);
+  run.check('slot 1 is Coconut Coast', (await cup.locator('.kart-cup-slot').first().getAttribute('data-track')) === 'coconut-coast');
+  run.check('3 slots carry data-locked', (await cup.locator('.kart-cup-slot[data-locked]').count()) === 3, `${await cup.locator('.kart-cup-slot[data-locked]').count()} locked`);
+  run.check('Sunny Meadow standalone card is there', (await host.locator(SUNNY_SELECTOR).count()) === 1);
+  await run.capture(host, '01-map-select');
+
+  // ── Keys and Back ──
+  const startSel = await selectedCards(host);
+  run.check('cup card is selected first', startSel.length === 1 && startSel[0].includes('kart-cup-card'), startSel.join());
+  await host.keyboard.press('ArrowRight');
+  await host.waitForSelector(`${SUNNY_SELECTOR}[data-selected]`, { timeout: 3_000 }).catch(() => {});
+  const afterRight = await selectedCards(host);
+  run.check('ArrowRight moves the selection to Sunny Meadow', afterRight.length === 1 && afterRight[0].includes('kart-track-card'), afterRight.join());
+  await host.keyboard.press('ArrowLeft');
+  await host.waitForSelector(`${CUP_SELECTOR}[data-selected]`, { timeout: 3_000 }).catch(() => {});
+  const afterLeft = await selectedCards(host);
+  run.check('ArrowLeft moves it back to the cup', afterLeft.length === 1 && afterLeft[0].includes('kart-cup-card'), afterLeft.join());
+  await host.click('.kart-menu-back');
+  await host.waitForSelector('.game-select-screen', { timeout: 10_000 });
+  run.check('Back returns the host to the hub', (await host.isVisible('.game-select-screen')) && !(await host.isVisible('.kart-menu')));
+  await host.locator('.game-card', { hasText: 'Kart Racer' }).click();
+  await host.waitForSelector('.kart-menu', { timeout: 10_000 });
+  run.check('Kart Racer re-opens the map select', await host.isVisible(CUP_SELECTOR));
+
+  // ── Coconut Cup race ──
+  const gameStartedBefore = framesIn(run, 'phone:Ada', 'game_started');
+  await cup.click();
+  const cupTrack = await waitForRaceStart(run, ada);
+  run.check('picking the cup starts Coconut Coast', cupTrack === 'coconut-coast', String(cupTrack));
+  run.check('race opens in the countdown', await host.evaluate(() => window.__kartState.phase === 'countdown'));
+  await run.capture(host, '02-cup-countdown');
+  await host.waitForFunction(() => window.__kartState.phase === 'racing', null, { polling: 30, timeout: 10_000 });
+  run.check('game_started reached the phone for this race', framesIn(run, 'phone:Ada', 'game_started') > gameStartedBefore, `${framesIn(run, 'phone:Ada', 'game_started')} frames`);
+
+  const drive = await steerPhoneToFinish(run, ada, { deadlineMs: 8 * 60_000 });
+  console.log(`drive ended: finished ${drive.last?.finished} lap ${drive.last?.lap} race time ${drive.last?.time?.toFixed(1)}s`);
+  run.check('karts moved after GO with no input but the stick', drive.speedAfterGo !== null && drive.speedAfterGo > 5, `${drive.speedAfterGo?.toFixed(1)} m/s 1.5 s after GO`);
+  run.check('Ada finished the cup race', drive.last?.finished === true, `laps ${drive.laps.join('>')}, race time ${drive.last?.time?.toFixed(1)}s`);
+  run.check('kart stayed inside the corridor', drive.maxOverLimit <= 0, `max overshoot ${drive.maxOverLimit.toFixed(3)} m over ${drive.samples} samples`);
+
+  await host.waitForSelector('.kart-results', { timeout: 60_000 });
+  await run.capture(host, '03-race-results');
+  run.check('results card shows Ada 1st', /1st.*Ada/.test((await host.locator('.kart-results li').first().innerText()).replace(/\s+/g, ' ')));
+  await host.click('.kart-results .btn-start');
+
+  // ── Podium ──
+  await host.waitForSelector('.kart-podium', { timeout: 10_000 });
+  const steps = await host.locator('.kart-podium-step').allTextContents();
+  run.check('single-track cup goes to the podium, not standings', (await host.locator('.kart-cup-standings').count()) === 0 && await host.isVisible('.kart-podium'));
+  run.check('podium lists Ada in 1st with points', steps.length === 1 && /Ada/.test(steps[0]) && /15 pts/.test(steps[0]), steps.join(' | '));
+  await run.capture(host, '04-podium');
+  await host.click('.kart-podium .btn-start');
+  await host.waitForSelector('.kart-menu:not(.kart-podium)', { timeout: 10_000 });
+  run.check('podium button returns to the map select', await host.isVisible(CUP_SELECTOR) && !(await host.isVisible('.kart-podium')));
+
+  // ── Sunny Meadow ──
+  const gameStartedCup = framesIn(run, 'phone:Ada', 'game_started');
+  await host.click(SUNNY_SELECTOR);
+  const sunnyTrack = await waitForRaceStart(run, ada);
+  run.check('picking Sunny Meadow starts sunny-meadow', sunnyTrack === 'sunny-meadow', String(sunnyTrack));
+  run.check('game_started reached the phone again', framesIn(run, 'phone:Ada', 'game_started') > gameStartedCup, `${framesIn(run, 'phone:Ada', 'game_started')} frames`);
+  await run.capture(host, '05-sunny-meadow-start');
+}
+
 // ── Tennis ────────────────────────────────────────────────────────────────────
 
 async function tennisMatch(run) {
@@ -1439,6 +1582,7 @@ const FEATURES = {
   'kart-split': kartSplit,
   'kart-drift': kartDrift,
   'kart-items': kartItems,
+  'kart-cup': kartCup,
   'tennis-match': tennisMatch,
 };
 

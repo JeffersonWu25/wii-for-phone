@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { redTarget, findLock, fireShell, stepShell, GREEN_MAX_BOUNCES, LOCK_RANGE, SHELL_SPEED } from './shells.js';
 import { KART_RADIUS } from './physics.js';
 import { createRace } from './race.js';
-import { buildTrack, PIECES, pieceLength } from './track.js';
+import { loadTrack } from './tracks/index.js';
 
-const track = buildTrack();
+const track = loadTrack('sunny-meadow');
 
 test('redTarget is the id one place ahead, null for 1st', () => {
   const race = { standings: ['a', 'b', 'c'] };
@@ -74,14 +74,7 @@ const DT = 1 / 60;
 const HIT_R = KART_RADIUS + 0.5;
 const DEG = Math.PI / 180;
 
-const pieceStart = (tag) => {
-  let s = 0;
-  for (const p of PIECES) {
-    if (p.tag === tag) return s;
-    s += pieceLength(p);
-  }
-  throw new Error(`no piece ${tag}`);
-};
+const pieceStart = (tag) => track.pieceRange(tag).s0;
 const wrapAngle = (a) => a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
 const wrapDs = (d) => d - track.length * Math.round(d / track.length);
 

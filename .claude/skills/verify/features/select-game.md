@@ -36,4 +36,5 @@ Evidence in `artifacts/select-game/`: `host-game-select.png` and `host-game-sele
 
 - The `Select Game` button is disabled until a player joins. Starting this feature on an empty lobby waits and fails, which is correct.
 - A disabled card is a `button` with the `disabled` attribute. Clicking it does nothing, so do not treat a click as proof the game started. Start a game through its enabled card, as the bowling feature does.
+- Clicking the Kart Racer card opens the map select (`.kart-menu`), not a race. Other kart features click `.kart-track-card[data-track="sunny-meadow"]` after it (the `selectGame` helper does); the map select itself is covered by `kart-cup`.
 - Selecting a card sends `game_selected` to the phones before the host switches screens. Phones that already joined load the game, so the select step is also the start of the game features.
