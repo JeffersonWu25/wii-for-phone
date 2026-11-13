@@ -1,10 +1,10 @@
 # Rally a tennis point
 
-Two phones join one host and start a one-game singles match. The court splits down the middle, the camera sits close to the ground, a rolled phone sends a backhand grip, and someone runs once the serve is in the air.
+Two phones join one host and start a one-game singles match. The court splits down the middle into two panes, the camera is pulled back so each pane shows the whole court, a rolled phone sends a backhand grip, and someone runs once the serve is in the air.
 
 ## Sub-features
 
-- `split-court`: Ada against Bea shows `.tennis-split`, `.tennis-court` `data-split` `1`, and `data-cam-y` between 1.45 and 2.05. The score sits over the join.
+- `split-court`: Ada against Bea shows `.tennis-split`, `.tennis-court` `data-split` `1`, and `data-cam-y` between 7 and 11. The score sits over the join.
 - `backhand-grip`: a `deviceorientation` event with `gamma` 80 sends one `grip` of `backhand` from Bea's phone.
 - `chase`: after Ada tosses and serves, `window.__tennisView()` shows a flight or a called point, or a player whose `speed` is above 0.5.
 
@@ -31,7 +31,7 @@ Steps the script performs:
 
 - Join Ada and Bea, press `Select Game`, and click the Tennis card.
 - Expect `.tennis-format` `1v1`. Click `.tennis-length[data-best-of="1"]`, then `.tennis-start`.
-- Expect `.tennis-court canvas` and `.tennis-split`. Expect `data-split` `1`, `data-cam-y` from 1.45 to 2.05, and `.tennis-score` centered. Capture `host-split`.
+- Expect `.tennis-court canvas` and `.tennis-split`. Expect `data-split` `1`, `data-cam-y` from 7 to 11, and `.tennis-score` centered. Capture `host-split`.
 - On Bea's page, dispatch one `deviceorientation` with `beta` 90 and `gamma` 80. From `frames.jsonl`, expect one outbound `grip` with `hand` `backhand`.
 - On Ada's page, dispatch the same toss flick and forehand swing the tennis-match drive uses.
 - Poll `window.__tennisView()` (read only) until `phase` is `flight` or `called`, or a player's `speed` is above 0.5. Capture `host-chase`.

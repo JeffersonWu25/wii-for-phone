@@ -1062,22 +1062,22 @@ function animatePlayer(state, pl, view, ball, dt, now) {
 }
 
 const BASELINE_PLAYER_Z = 11.185;
-// Each pane's camera stays on its own baseline centre. Players run inside a still frame, the way the console's court
-// camera holds still. Height, setback and field of view are the numbers that make the near player and racket large.
+// One camera per side, never more than two panes. It sits back and above the baseline so a
+// half-width pane still holds the whole doubles court and both players on that side.
 const COURT_CAMERA = {
-  y: 1.9,
-  behindPlayer: 3.2,
-  fov: 48,
-  pitchDown: (6.7 * Math.PI) / 180,
+  y: 7.5,
+  behindPlayer: 3.4,
+  fov: 66,
+  lookY: 0.2,
+  lookAhead: 10,
 };
 
 function courtCameraFor(side) {
   const toward = side === 'B' ? -1 : 1;
   const z = -toward * (BASELINE_PLAYER_Z + COURT_CAMERA.behindPlayer);
-  const reach = 20;
   return {
     pos: [0, COURT_CAMERA.y, z],
-    at: [0, COURT_CAMERA.y - reach * Math.tan(COURT_CAMERA.pitchDown), z + toward * reach],
+    at: [0, COURT_CAMERA.lookY, z + toward * COURT_CAMERA.lookAhead],
     fov: COURT_CAMERA.fov,
   };
 }
@@ -1125,7 +1125,7 @@ export function createTennisScene(container) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xa6d8f2);
 
-  const camera = new THREE.PerspectiveCamera(COURT_CAMERA.fov, 16 / 9, 0.1, 400);
+  const camera = new THREE.PerspectiveCamera(COURT_CAMERA.fov, 16 / 9, 0.3, 80);
 
   const sun = new THREE.DirectionalLight(0xfff4dc, 2.4);
   sun.position.set(14, 24, 10);
@@ -1150,9 +1150,10 @@ export function createTennisScene(container) {
 
   const grassTex = makeGrassTexture(renderer);
   const tile = 4.8;
-  grassTex.repeat.set(160 / tile, 160 / tile);
+  const groundSize = 26;
+  grassTex.repeat.set(groundSize / tile, groundSize / tile);
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(160, 160),
+    new THREE.PlaneGeometry(groundSize, groundSize),
     new THREE.MeshLambertMaterial({ map: grassTex }),
   );
   ground.rotation.x = -Math.PI / 2;
@@ -1362,7 +1363,7 @@ export function createTennisScene(container) {
       y: COURT_CAMERA.y,
       behindPlayer: COURT_CAMERA.behindPlayer,
       fov: COURT_CAMERA.fov,
-      pitchDown: COURT_CAMERA.pitchDown,
+      pitchDown: Math.atan2(COURT_CAMERA.y - COURT_CAMERA.lookY, COURT_CAMERA.lookAhead),
       split: split && !manualCamera,
     };
   }
