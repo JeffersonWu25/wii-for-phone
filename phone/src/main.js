@@ -126,19 +126,35 @@ function showSessionEndedScreen() {
 
 // ── Permission + motion ───────────────────────────────────────────────────────
 
+// Both permission calls have to start in this click, before the first await.
+// iOS drops a requestPermission that runs after the gesture has yielded.
+function requestOrientationPermission() {
+  if (typeof DeviceOrientationEvent === 'undefined') return Promise.resolve();
+  if (typeof DeviceOrientationEvent.requestPermission !== 'function') return Promise.resolve();
+  try {
+    return Promise.resolve(DeviceOrientationEvent.requestPermission()).catch(() => {});
+  } catch (e) {
+    return Promise.resolve();
+  }
+}
+
 async function requestPermission() {
+  const orientationPermission = requestOrientationPermission();
   if (typeof DeviceMotionEvent.requestPermission === 'function') {
     try {
       const result = await DeviceMotionEvent.requestPermission();
       if (result !== 'granted') {
+        await orientationPermission;
         alert('Motion permission denied. Please allow it in Settings and reload.');
         return;
       }
     } catch (e) {
+      await orientationPermission;
       alert('Could not request motion permission.');
       return;
     }
   }
+  await orientationPermission;
   startMotionListener();
   showNameScreen();
 }
@@ -153,6 +169,10 @@ function startMotionListener() {
     };
     // Delegate raw motion data to the active game module.
     currentGame?.onMotion?.(sample);
+  });
+  // Degrees from DeviceOrientationEvent. A missing event leaves the game's grip alone.
+  window.addEventListener('deviceorientation', (e) => {
+    currentGame?.onOrientation?.({ beta: e.beta, gamma: e.gamma });
   });
 }
 

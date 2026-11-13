@@ -296,6 +296,12 @@ test('toss, swing, and window_ack are forwarded with the player id', async () =>
   assert.equal(swing.windowId, 2);
   assert.equal(swing.power, 0.5);
 
+  phone.send(JSON.stringify({ type: 'grip', hand: 'backhand' }));
+  const grip = await nextMsg(host);
+  assert.equal(grip.type, 'grip');
+  assert.equal(grip.hand, 'backhand');
+  assert.equal(grip.playerId, msg.playerId);
+
   phone.send(JSON.stringify({ type: 'window_ack', windowId: 2 }));
   const ack = await nextMsg(host);
   assert.equal(ack.type, 'window_ack');

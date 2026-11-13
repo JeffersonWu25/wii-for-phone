@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { judgeTiming } from './timing.js';
-import { createMatch, step } from './rally.js';
+import { createMatch, step, view } from './rally.js';
 import { afterPhysics, begin, createFlow, onPhone, winnerNames } from './flow.js';
 
 const DASH = '\u2013';
@@ -39,6 +39,19 @@ function singles() {
 function advance(flow, dt, now, disconnectedIds) {
   step(flow.match, dt);
   return afterPhysics(flow, now, disconnectedIds);
+}
+
+function stepUntilReachable(match, playerId, seconds = 3) {
+  let t = 0;
+  while (t < seconds) {
+    const snap = view(match);
+    const player = snap.players.find((entry) => entry.id === playerId);
+    const ball = snap.ball;
+    if (snap.phase !== 'flight') return;
+    if (ball && player && Math.hypot(ball.x - player.x, ball.z - player.z) <= 1.75) return;
+    step(match, 1 / 60);
+    t += 1 / 60;
+  }
 }
 
 test('the serve opens one toss window and does not repeat it every frame', () => {
@@ -128,6 +141,7 @@ test('the return uses judged timing, the last ack, and otherwise 80 ms', () => {
     shape: 'flat',
   }, 1500);
   const contact = opened.window.contactInMs;
+  stepUntilReachable(match, 'b');
   const perfect = onPhone(flow, {
     type: 'swing',
     playerId: 'b',
@@ -161,6 +175,7 @@ test('an ack replaces the 80 ms guess and a late or early return aims', () => {
   assert.equal(onPhone(flow, { type: 'window_ack', windowId: opened.window.windowId, playerId: 'b' }, sent + 200), null);
   assert.equal(flow.rtt.get('b'), 200);
   const contact = opened.window.contactInMs;
+  stepUntilReachable(match, 'b');
   onPhone(flow, {
     type: 'swing',
     playerId: 'b',

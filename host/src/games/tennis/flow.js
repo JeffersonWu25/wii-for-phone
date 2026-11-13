@@ -2,7 +2,7 @@
 // This module only opens hit windows, judges phone swings, and advances points.
 
 import { judgeTiming } from './timing.js';
-import { nextPoint, planShot, swing, toss, view } from './rally.js';
+import { nextPoint, planShot, setGrip, swing, toss, view } from './rally.js';
 
 const SERVE_LIMIT_MS = 8000;
 const CALLED_HOLD_MS = 1200;
@@ -67,7 +67,8 @@ function notePhase(flow, now) {
 
 function launch(flow, args) {
   const plan = planShot(flow.match, args);
-  swing(flow.match, args);
+  const connected = swing(flow.match, args);
+  if (!connected) return;
   if (flow.match.phase !== 'flight') return;
   // A ball that is already going into the net is not a return. Leaving the
   // window open let the other phone replace the point.
@@ -140,6 +141,11 @@ export function onPhone(flow, msg, now) {
   if (msg.type === 'window_ack') {
     const sent = flow.sentAt.get(msg.windowId);
     if (sent != null && msg.playerId != null) flow.rtt.set(msg.playerId, now - sent);
+    return null;
+  }
+
+  if (msg.type === 'grip') {
+    if (msg.hand === 'forehand' || msg.hand === 'backhand') setGrip(match, msg.playerId, msg.hand);
     return null;
   }
 

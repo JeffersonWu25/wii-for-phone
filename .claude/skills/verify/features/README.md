@@ -47,6 +47,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Kart drift](./kart-drift.md) covers the phone's stick, DRIFT and ITEM buttons: gas always on, the slide, charge levels 1 to 3, the boost on release, and the ITEM tap that sends `use_item`. The stick Y is item aim only (no brake or reverse).
 - [Kart items](./kart-items.md) covers item boxes: driving through the first box row, the phone ITEM button and TV slot roulette, the landed icon, tapping ITEM to use the item (mushroom boost, banana or shell entity), and the hit spin-out followed by invulnerability when it happens.
 - [Play a tennis point](./tennis-match.md) covers five phones on the team screen (2v2, an illegal side, 1v1, and 1v2), a one-game start, the toss and serve, and the called point on the court.
+- [Rally a tennis point](./tennis-rally.md) covers a 1v1 split court, the pulled-back camera, a backhand grip from the phone, and a player running after the serve.
 
 ## Not mapped yet
 

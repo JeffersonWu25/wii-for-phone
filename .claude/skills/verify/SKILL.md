@@ -60,6 +60,7 @@ node .claude/skills/verify/scripts/drive.mjs kart-split  # about 2 minutes
 node .claude/skills/verify/scripts/drive.mjs kart-drift  # about 1.5 minutes
 node .claude/skills/verify/scripts/drive.mjs kart-cup    # about 3.5 minutes
 node .claude/skills/verify/scripts/drive.mjs tennis-match
+node .claude/skills/verify/scripts/drive.mjs tennis-rally
 ```
 
 Set `HEADED=1` to watch it run. Exit 0 means every check passed. Each check prints `PASS` or `FAIL` with the observed value.
@@ -74,7 +75,7 @@ Stable handles, from the source:
 - Phone bowling: `#screen-bowl`, `#btn-bowl` (hold for a throw), `#screen-result`.
 - Host bowling scoreboard: `.scoreboard-player`, `.roll-cell`.
 - Phone kart: `#screen-kart`, `#kart-zone` (free stick: X steers, Y is item aim only; no brake or reverse), `#kart-joystick`, `#kart-knob`, `#btn-drift` (hold), `#btn-item` (tap, sends `use_item`), `#kart-finish`. There is no GAS button; the kart always accelerates. Host kart: `.kart-canvas canvas`, `.kart-app[data-players]`, `.kart-pane[data-slot][data-side]` (with `.kart-item-slot.main` and `.reserve`, `.kart-coins`, `.kart-lapcount`, `.kart-place`), `.kart-minimap` with `.kart-map-marker`, `.kart-map-quadrant`, `.kart-results`, `.kart-countdown` (one per pane, read `.first()`); debug reads `window.__kartRace` (live race: `events`, `entities`, read-only), `window.__kartState` (snapshot; also `entities`, `boxes`, and per kart `item = { main, reserve, rollMain, rollReserve }`, `hit`, `invuln`, `mushroom`; each kart also carries `vx`, `vz`, `boost`, `boostLevel` and `drift = { sliding, dir, charge, level }`) and `window.__kartTrack`.
-- Host tennis teams: `.tennis-teams`, `.tennis-title` (`Choose sides`), `.tennis-format` (`1v1`, `1v2`, `2v2`, or `Need 2 to 4 players`), `.tennis-player` (`.tennis-name`, `.tennis-side-a`, `.tennis-side-b`, `.tennis-sit`, each with `aria-pressed`), `.tennis-length` (`data-best-of` `1` / `3` / `5`, labels `One game`, `Best of 3`, `Best of 5`), `.tennis-start`. Host court: `.tennis-court canvas`. Read `window.__tennisView()` only (`phase`, `score.pointsA`, `score.pointsB`, `score.gamesA`, `score.gamesB`, `call`). Do not assign it.
+- Host tennis teams: `.tennis-teams`, `.tennis-title` (`Choose sides`), `.tennis-format` (`1v1`, `1v2`, `2v2`, or `Need 2 to 4 players`), `.tennis-player` (`.tennis-name`, `.tennis-side-a`, `.tennis-side-b`, `.tennis-sit`, each with `aria-pressed`), `.tennis-length` (`data-best-of` `1` / `3` / `5`, labels `One game`, `Best of 3`, `Best of 5`), `.tennis-start`. Host court: `.tennis-court canvas`, `.tennis-split` (the vertical divider), `.tennis-score`. The court element carries `data-split` (`1` when both sides have a player) and `data-cam-y` (camera height in metres). Read `window.__tennisView()` only (`phase`, `score.pointsA`, `score.pointsB`, `score.gamesA`, `score.gamesB`, `call`, and each player's `speed`). Do not assign it.
 - Phone tennis: `#screen-tennis`, `#tennis-score`, `#tennis-label` (`Swing up to toss`, `Swing to serve`, `Watch the point`, `Sitting this one out`), `#tennis-hand`.
 
 Motion permission: Chrome on desktop exposes `DeviceMotionEvent.requestPermission`, so the controller opens on the permission screen. The driver clicks the real button, and Chrome grants it. This is not a stub. The iOS Safari grant path is not exercised here.
