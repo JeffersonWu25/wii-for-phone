@@ -2,7 +2,6 @@
 - img
 - text: "00"
 - img
-- text: 1/3 GO!
+- text: 1/3
 - img: A
-- button "Settings"
 - button "Quit"

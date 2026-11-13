@@ -46,6 +46,7 @@ uniform float uLen;
 uniform int uMarkN;
 uniform vec4 uMark[40];
 uniform vec4 uPad[4];
+uniform vec3 uCurb;
 varying vec4 vTr;
 varying vec4 vW;
 varying vec4 vR;
@@ -137,10 +138,10 @@ vec3 gGlow = vec3(0.0);
   sandC *= 1.1;
   col = mix(col, sandC, sandM);
 
-  // ---- curbs: green/white stripes
+  // ---- curbs: uCurb (green by default)/white stripes
   float cm = bd(a, hw, hw + curb, wl) * smoothstep(0.05, 0.25, curb) * nf;
   float stripeM = bd(mod(s, 3.0), 0.0, 1.5, ws);
-  vec3 curbC = mix(C(0.97, 0.97, 0.95), C(0.10, 0.70, 0.22), stripeM);
+  vec3 curbC = mix(C(0.97, 0.97, 0.95), pow(uCurb, vec3(2.2)), stripeM);
   col = mix(col, curbC, cm);
 
   // ---- asphalt
@@ -234,7 +235,7 @@ vec3 gGlow = vec3(0.0);
 }
 `;
 
-export function buildGround(track, sun) {
+export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
   const samples = track.samples;
   const N = samples.length - 1;
   const ds = track.sampleStep;
@@ -378,9 +379,9 @@ export function buildGround(track, sun) {
         const ridge = 0.5 + 0.5 * (0.6 * Math.sin(ang * 3 + 1.1) + 0.4 * Math.sin(ang * 7 + 0.3) * Math.cos(d / 140));
         const t = (big * (50 + 190 * ridge)) / 16;
         const terr = Math.floor(t) + smooth(0.3, 1.0, t - Math.floor(t));
-        y = rollingHills(x, z) + (big > 0.001 ? (0.5 * t + 0.5 * terr) * 16 : 0);
+        y = track.distantTerrain ? track.distantTerrain(x, z) : rollingHills(x, z) + (big > 0.001 ? (0.5 * t + 0.5 * terr) * 16 : 0);
         tt.set([0, 999, 0, 1], o * 4);
-        th[o] = big;
+        th[o] = track.distantTerrain ? 0 : big;
         tw.set([8, 0, 0, 0], o * 4);
       }
       tp.set([x, y, z], o * 3);
@@ -407,6 +408,7 @@ export function buildGround(track, sun) {
   // ── Shared material + uniforms ────────────────────────────────────────────
   const uniforms = {
     uTime: { value: 0 },
+    uCurb: { value: new THREE.Vector3(...curb) },
     uLen: { value: L },
     uMarkN: { value: 0 },
     uMark: { value: Array.from({ length: 40 }, () => new THREE.Vector4()) },

@@ -193,16 +193,25 @@ export function stepKart(kart, input, dt, track, tune = DEFAULT_TUNING) {
   kart.x += kart.vx * dt;
   kart.z += kart.vz * dt;
 
-  // Track frame and walls (both corridor limits are solid).
+  // Track frame and walls (both corridor limits are solid, and so is a fence between the road and a shortcut).
   const p = track.project(kart.x, kart.z, kart.s);
   let { s, lateral } = p;
   let surf = track.surfaceAt(s, lateral);
   const maxR = surf.limitR - KART_RADIUS;
   const maxL = surf.limitL - KART_RADIUS;
-  if (lateral > maxR || lateral < -maxL) {
-    const side = lateral > 0 ? 1 : -1;
+  let wallSide = 0; // direction (+1 right, -1 left) the wall pushes the kart out of: the side it was hit from
+  if (lateral > maxR) wallSide = 1;
+  else if (lateral < -maxL) wallSide = -1;
+  const fence = surf.fence;
+  if (fence && lateral > fence.lo - KART_RADIUS && lateral < fence.hi + KART_RADIUS) {
+    // Stand on the side the kart came from; a kart that was inside the fence band goes to the nearer side.
+    const from = kart.lateral > fence.lo - KART_RADIUS && kart.lateral < fence.hi + KART_RADIUS ? lateral : kart.lateral;
+    wallSide = from < (fence.lo + fence.hi) / 2 ? 1 : -1;
+  }
+  if (wallSide) {
+    const side = wallSide;
     const fr = track.frameAt(s);
-    lateral = side > 0 ? maxR : -maxL;
+    lateral = side > 0 ? (lateral > maxR ? maxR : fence.lo - KART_RADIUS) : lateral < -maxL ? -maxL : fence ? fence.hi + KART_RADIUS : -maxL;
     kart.x = fr.x + fr.rx * lateral;
     kart.z = fr.z + fr.rz * lateral;
 

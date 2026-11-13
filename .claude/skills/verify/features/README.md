@@ -42,11 +42,12 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Select a game](./select-game.md) covers the game hub, with Bowling, Kart Racer, and Tennis enabled and the unbuilt games disabled.
 - [Bowl a throw](./bowling-throw.md) covers starting Bowling, the phone's turn screen, a hold-and-release throw, the result, and the host scoreboard.
 - [Race Kart Racer](./kart-race.md) covers starting Kart Racer with two phones, the countdown, a full 3-lap drive steering with the real phone joystick (no GAS button, the kart drives itself), boost pads, the corridor wall without respawn, the results card, and returning to the hub.
+- [Kart map select and cup](./kart-cup.md) covers the Kart Racer map select (Coconut Cup with one unlocked slot and three locked, Sunny Meadow standalone), arrow keys and Back, the Coconut Coast race, the podium and its button back to the menu, and a Sunny Meadow race.
 - [Kart Racer split screen](./kart-split.md) covers one view per racer for 1 to 4 players, the pane layout and per-pane HUD, the shared minimap, the cap at 4 racers, and karts moving from GO with no input.
 - [Kart drift](./kart-drift.md) covers the phone's stick, DRIFT and ITEM buttons: gas always on, the slide, charge levels 1 to 3, the boost on release, and the ITEM tap that sends `use_item`. The stick Y is item aim only (no brake or reverse).
 - [Kart items](./kart-items.md) covers item boxes: driving through the first box row, the phone ITEM button and TV slot roulette, the landed icon, tapping ITEM to use the item (mushroom boost, banana or shell entity), and the hit spin-out followed by invulnerability when it happens.
 - [Play a tennis point](./tennis-match.md) covers five phones on the team screen (2v2, an illegal side, 1v1, and 1v2), a one-game start, the toss and serve, and the called point on the court.
-- [Rally a tennis point](./tennis-rally.md) covers a 1v1 split court, the low camera, a backhand grip from the phone, and a player running after the serve.
+- [Rally a tennis point](./tennis-rally.md) covers a 1v1 split court, the pulled-back camera, a backhand grip from the phone, and a player running after the serve.
 
 ## Not mapped yet
 

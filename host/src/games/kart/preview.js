@@ -1,4 +1,5 @@
 // Dev preview for the kart scene: no relay, 4 karts on the grid.
+//   /kart-preview.html?track=coconut-coast   pick the track (default sunny-meadow); combine with any option below
 //   /kart-preview.html                 drive kart 0 with arrows / WASD, others idle on the grid
 //   /kart-preview.html?shot=<name>     fixed debug camera (see shots.js); karts are placed around the shot
 //   /kart-preview.html?ai=1            karts 1-3 drive themselves
@@ -11,7 +12,7 @@
 //   /kart-preview.html?hit=spin|tumble&t=0..1   kart 0 frozen at that point of its hit (pair with shot=hitSide)
 //   /kart-preview.html?seed=N          item RNG seed
 //   Keys: arrows / WASD steer, Up / Down aim, E / Enter uses an item, Space / Shift drifts.
-import { buildTrack } from './track.js';
+import { loadTrack } from './tracks/index.js';
 import { createRace, stepRace } from './race.js';
 import { pushEvent } from './items.js';
 import { createKartScene } from './scene/createKartScene.js';
@@ -23,7 +24,8 @@ import { ITEM_ICONS } from './itemIcons.js';
 const ITEM_KINDS = Object.keys(ITEM_ICONS);
 
 const params = new URLSearchParams(location.search);
-const track = buildTrack();
+const track = loadTrack(params.get('track') ?? 'sunny-meadow');
+const shots = SHOTS[track.id];
 const entrants = [
   { id: 'p1', name: 'Red', color: 0xe8423a },
   { id: 'p2', name: 'Blue', color: 0x3a7be8 },
@@ -41,8 +43,8 @@ window.addEventListener('resize', () => scene.resize());
 
 // Park the karts around a shot's target so the camera has something to frame.
 function placeKartsForShot(name) {
-  const shot = SHOTS[name];
-  if (!shot || name === 'grid' || name === 'overview') return;
+  const shot = shots[name];
+  if (!shot || shot.eye || ['grid', 'overview', 'ccStart'].includes(name)) return;
   race.karts.forEach((k, i) => {
     const s = track.wrapS(shot.s + shot.lookAhead * 0.35 + (i >> 1) * 7);
     const lateral = i & 1 ? 3.5 : -3.5;

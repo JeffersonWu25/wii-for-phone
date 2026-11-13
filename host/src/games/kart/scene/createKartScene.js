@@ -153,9 +153,9 @@ export function createKartScene(container, track) {
   function focusSun(v, useShot) {
     if (!world.sun) return;
     // Chase: tight frustum around the followed kart. Overview shot: wide frustum over the whole infield.
-    const wide = useShot && shotName === 'overview';
+    const wide = useShot && (shotName === 'overview' || shotName === 'ccOverview');
     const focus = wide ? new THREE.Vector3(world.center.x, 0, world.center.z) : useShot ? v.camera.position : meshes.get(v.id)?.position ?? v.camera.position;
-    const ext = wide ? 230 : 45;
+    const ext = wide ? (track.length > 900 ? 330 : 230) : 45;
     const cam = world.sun.shadow.camera;
     if (cam.right !== ext) {
       Object.assign(cam, { left: -ext, right: ext, top: ext, bottom: -ext });
@@ -188,8 +188,12 @@ export function createKartScene(container, track) {
     scene.traverse((o) => {
       o.geometry?.dispose();
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-      mats.forEach((mat) => mat.dispose());
+      for (const mat of mats) {
+        for (const v of Object.values(mat)) if (v?.isTexture) v.dispose();
+        mat.dispose();
+      }
     });
+    renderer.forceContextLoss();
     renderer.dispose();
     renderer.domElement.remove();
   }

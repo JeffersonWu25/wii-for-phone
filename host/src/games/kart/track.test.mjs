@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTrack, CHECKPOINT_COUNT } from './track.js';
+import { CHECKPOINT_COUNT } from './track.js';
+import { loadTrack } from './tracks/index.js';
 import { SHOTS, shotCamera } from './shots.js';
 
-const track = buildTrack();
+const track = loadTrack('sunny-meadow');
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) < eps, `${msg ?? ''} ${a} vs ${b}`);
 
 test('the loop closes within 1 cm and 1e-6 rad', () => {
@@ -147,7 +148,7 @@ test('grid slots are staggered behind the line, 2 wide', () => {
 });
 
 test('every named shot yields a finite camera above the ground', () => {
-  for (const name of Object.keys(SHOTS)) {
+  for (const name of Object.keys(SHOTS['sunny-meadow'])) {
     const cam = shotCamera(track, name);
     assert.ok(Object.values({ ...cam.position, ...cam.target }).every(Number.isFinite), name);
     assert.ok(cam.position.y > track.terrainHeight(cam.position.x, cam.position.z), `${name} above terrain`);

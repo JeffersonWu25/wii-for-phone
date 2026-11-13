@@ -1,2 +1,2 @@
-[relay] Player joined: Ada (f19f2584)
-[relay] Player joined: Grace (9c59e092)
+[relay] Player joined: Ada (ce42b479)
+[relay] Player joined: Grace (dc7cecef)

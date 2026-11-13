@@ -1,9 +1,10 @@
+- button "Settings"
 - heading "Wii Playground" [level=1]
 - paragraph: Scan to join on your phone
 - paragraph:
   - text: "Session:"
-  - strong: ec1e35
-- paragraph: http://127.0.0.1:15174?session=ec1e35
+  - strong: f91820
+- paragraph: http://127.0.0.1:15174?session=f91820
 - heading "Players (0)" [level=2]
 - list:
   - listitem: Waiting for players...

@@ -99,7 +99,6 @@ export default function App() {
         send={send}
         players={players}
         disconnectedPlayerIds={disconnectedPlayerIds}
-        onGameOver={leaveToSelect}
         onAbandon={leaveToSelect}
         status={status}
       />

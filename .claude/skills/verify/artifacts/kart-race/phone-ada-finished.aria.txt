@@ -1,6 +1,3 @@
 - text: LAP 3/3 1st
-- button:
-  - img
-  - img
-- button "DRIFT"
+- button "GAS"
 - text: Finished! 1st
