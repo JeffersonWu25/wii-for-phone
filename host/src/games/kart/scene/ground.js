@@ -235,7 +235,8 @@ vec3 gGlow = vec3(0.0);
 }
 `;
 
-export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
+// `look` ({ key, edits: [[glslFrom, glslTo]] }) re-skins the fragment shader (Clover Meadows: dirt road, grass runoff).
+export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22], look = null } = {}) {
   const samples = track.samples;
   const N = samples.length - 1;
   const ds = track.sampleStep;
@@ -434,6 +435,10 @@ export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
   uniforms.uMarkN.value = Math.min(40, marks.length);
   track.boostPads.slice(0, 4).forEach((p, i) => uniforms.uPad.value[i].set(p.s, p.lateral, p.length, p.width));
 
+  const body = (look?.edits ?? []).reduce((src, [from, to]) => {
+    if (!src.includes(from)) throw new Error(`ground look: shader text not found: ${from}`);
+    return src.replace(from, to);
+  }, FRAG_BODY);
   const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);
@@ -442,10 +447,10 @@ export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
       .replace('#include <begin_vertex>', `#include <begin_vertex>\nvTr = aTr; vW = aW; vR = aR; vH = aH; vWp = position;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\n${FRAG_DECL}`)
-      .replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_BODY}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${body}`)
       .replace('#include <opaque_fragment>', 'outgoingLight += gGlow;\n#include <opaque_fragment>');
   };
-  mat.customProgramCacheKey = () => 'kart-ground';
+  mat.customProgramCacheKey = () => (look ? `kart-ground-${look.key}` : 'kart-ground');
 
   const ribbon = new THREE.Mesh(rgeo, mat);
   const terrain = new THREE.Mesh(tgeo, mat);

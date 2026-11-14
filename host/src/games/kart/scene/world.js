@@ -7,9 +7,11 @@ import { buildWalls } from './walls.js';
 import { buildSky, HORIZON } from './sky.js';
 import { buildDecor } from './decor.js';
 import { buildCoconutWorld } from './coconut/world.js';
+import { buildCloverWorld } from './clover/world.js';
 
 export function buildWorld(track, renderer) {
   if (track.id === 'coconut-coast') return buildCoconutWorld(track, renderer);
+  if (track.id === 'clover-meadows') return buildCloverWorld(track, renderer);
   return buildSunnyWorld(track);
 }
 

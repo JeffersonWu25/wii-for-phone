@@ -1,9 +1,10 @@
 // Named debug camera spots per track, shared by the preview page and the screenshot tool.
 // SHOTS[trackId][name]. Camera sits at frameAt(s - back), offset sideways by `lateral` (+ = right) and raised by `up`,
-// and looks at frameAt(s + lookAhead). A shot with `eye` and `look` ({ x, y, z }) is placed at those world points instead.
+// and looks at frameAt(s + lookAhead), aimed `lookLateral` m to the right of it when set. A shot with `eye` and `look` ({ x, y, z }) is placed at those world points instead.
 import { pieceLength } from './track.js';
 import { sunnyMeadow } from './tracks/sunnyMeadow.js';
 import { coconutCoast } from './tracks/coconutCoast.js';
+import { cloverMeadows } from './tracks/cloverMeadows.js';
 
 function rangeOf(def) {
   const lens = def.pieces.map(pieceLength);
@@ -19,6 +20,7 @@ function rangeOf(def) {
 
 const sm = rangeOf(sunnyMeadow);
 const cc = rangeOf(coconutCoast);
+const cm = rangeOf(cloverMeadows);
 
 export const SHOTS = {
   'sunny-meadow': {
@@ -52,6 +54,16 @@ export const SHOTS = {
     // Straight down onto the island from the south-east, the whole loop in frame.
     ccOverview: { eye: { x: 130, y: 360, z: 150 }, look: { x: -5, y: 0, z: -135 } },
   },
+  // One shot per section id (the barn is on the left of the start straight).
+  'clover-meadows': {
+    farmhouse: { s: 22, lateral: 4, up: 4.5, back: 34, lookAhead: 30, lookLateral: -16 },
+    wildflower: { s: cm.mid('wf2', 0.6), lateral: 4, up: 5, back: 26, lookAhead: 30 },
+    windmill: { s: cm.start('windIn') + 4, lateral: 4, up: 4.5, back: 24, lookAhead: 40 },
+    meadowfield: { s: cm.start('mf4') - 4, lateral: 2, up: 4.5, back: 22, lookAhead: 50 },
+    switchbacks: { s: cm.mid('sb1', 0.3), lateral: 4, up: 6, back: 24, lookAhead: 30 },
+    creek: { s: cm.start('bridge') + 8, lateral: 7, up: 3.5, back: 22, lookAhead: 14, lookLateral: -3 },
+    cows: { s: cm.start('cowA') + 4, lateral: 0, up: 4, back: 22, lookAhead: 60 },
+  },
 };
 
 export function shotCamera(track, name) {
@@ -66,6 +78,6 @@ export function shotCamera(track, name) {
       y: track.heightAt(at.s, 0) + shot.up,
       z: at.z + at.rz * shot.lateral,
     },
-    target: { x: to.x, y: to.y + 1, z: to.z },
+    target: { x: to.x + to.rx * (shot.lookLateral ?? 0), y: to.y + 1, z: to.z + to.rz * (shot.lookLateral ?? 0) },
   };
 }
