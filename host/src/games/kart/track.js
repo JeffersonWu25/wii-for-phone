@@ -13,6 +13,9 @@
 //     expressed in the main line's (s, lateral) frame, so progress, checkpoints and wrong-way need no change: where it runs beside the
 //     road it is fenced off from it (surfaceAt().fence) and the road's left limit moves out to the path's outer edge.
 
+// Optional: piece `dish`, `patches` [{ id, kind: 'grass'|'mud', piece, at, lateral, length, width, seed? }], `ramps`, `obstacles` (cows, blade gates).
+import { cowPose, bladeState, COW_RADIUS, COW_HEIGHT } from './obstacles.js';
+
 // ── Data ─────────────────────────────────────────────────────────────────────
 
 export const SAMPLE_STEP = 0.5;
@@ -166,6 +169,10 @@ export function buildTrack(def) {
     const b = p.bank ?? 0;
     const bn = next.bank ?? 0;
     const bank = toEnd < TRANSITION ? lerp(b, bn, smoothstep(1 - toEnd / TRANSITION)) : b;
+    // Dish (road centre sunk below the edges) blends the same way.
+    const dsh = p.dish ?? 0;
+    const dishNext = next.dish ?? 0;
+    const dish = toEnd < TRANSITION ? lerp(dsh, dishNext, smoothstep(1 - toEnd / TRANSITION)) : dsh;
 
     const e = profile(n);
     const k = p.kind === 'straight' ? 0 : (p.turn === 'right' ? 1 : -1) / p.radius;
@@ -177,6 +184,7 @@ export function buildTrack(def) {
       y: e.y,
       grade: e.grade,
       bank: (bank * Math.PI) / 180,
+      dish,
       halfWidth: width / 2,
       curvature: k,
       pieceIndex: idx,
@@ -261,6 +269,7 @@ export function buildTrack(def) {
       grade: a.grade,
       bank,
       tb: Math.tan(bank),
+      dish: lerp(a.dish, b.dish, f),
       hw: lerp(a.halfWidth, b.halfWidth, f),
       curbL: lerp(a.curbL, b.curbL, f),
       curbR: lerp(a.curbR, b.curbR, f),
@@ -278,7 +287,28 @@ export function buildTrack(def) {
     };
   }
 
-  const heightOf = (e, lat) => e.y - e.tb * clamp(lat, -(e.hw + e.curbL), e.hw + e.curbR);
+  // Parabolic dish across the road width: -dish at the centre, 0 at the edges and beyond.
+  const dishAt = (e, lat) => (e.dish > 0 && Math.abs(lat) < e.hw ? -e.dish * (1 - (lat / e.hw) ** 2) : 0);
+  const heightOf = (e, lat) => e.y - e.tb * clamp(lat, -(e.hw + e.curbL), e.hw + e.curbR) + dishAt(e, lat);
+
+  // Patches: blobs whose radius (in units of the half-length / half-width ellipse) wobbles between 0.7 and 1.24.
+  const patches = (def.patches ?? []).map((p, i) => {
+    const seed = p.seed ?? i + 1;
+    const ph = [1, 2, 3].map((k) => (Math.abs(Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453) % 1) * Math.PI * 2);
+    return { ...p, s: resolve(p.piece, p.at), ph };
+  });
+  const wobble = (ph, th) => 0.97 + 0.27 * (0.5 * Math.sin(2 * th + ph[0]) + 0.3 * Math.sin(3 * th + ph[1]) + 0.2 * Math.sin(5 * th + ph[2]));
+  function patchAt(s, lateral) {
+    for (const p of patches) {
+      let ds = s - p.s;
+      ds -= length * Math.round(ds / length);
+      const u = ds / (p.length / 2);
+      const v = (lateral - p.lateral) / (p.width / 2);
+      if (Math.abs(u) > 1.25 || Math.abs(v) > 1.25) continue;
+      if (Math.hypot(u, v) <= wobble(p.ph, Math.atan2(v, u))) return p;
+    }
+    return null;
+  }
 
   function heightAt(s, lateral) {
     return heightOf(edgesAt(s), lateral);
@@ -308,8 +338,12 @@ export function buildTrack(def) {
       }
     }
 
-    // Surface gradient in xz: grade along forward, -tan(bank) along right (banked only on road + curb).
-    const onBank = a <= e.hw + curb ? e.tb : 0;
+    // Grass / mud patches lie on the road and curb only; walls and shortcuts stay as they are.
+    if (patches.length && (kind === 'road' || kind === 'curb')) kind = patchAt(s, lateral)?.kind ?? kind;
+
+    // Surface gradient in xz: grade along forward, -tan(bank) plus the dish slope along right (banked only on road + curb).
+    const dishSlope = e.dish > 0 && a < e.hw ? (2 * e.dish * lateral) / (e.hw * e.hw) : 0;
+    const onBank = (a <= e.hw + curb ? e.tb : 0) - dishSlope;
     const fx = Math.cos(e.h);
     const fz = Math.sin(e.h);
     const gx = e.grade * fx - onBank * -fz;
@@ -452,7 +486,34 @@ export function buildTrack(def) {
   const checkpoints = Array.from({ length: CHECKPOINT_COUNT }, (_, index) => ({ index, s: (index * length) / CHECKPOINT_COUNT }));
   const boostPads = (def.boostPads ?? []).map((p) => ({ s: resolve(p.piece, p.at), lateral: p.lateral, length: PAD_LENGTH, width: PAD_WIDTH }));
   const itemRows = (def.itemRows ?? []).map((r) => ({ s: resolve(r.piece, r.at), laterals: r.laterals }));
-  const ramps = (def.ramps ?? []).map((r) => ({ s: resolve(r.piece, r.at), lateral: r.lateral, length: r.length, width: r.width }));
+  const ramps = (def.ramps ?? []).map((r) => ({ s: resolve(r.piece, r.at), lateral: r.lateral, length: r.length, width: r.width, jump: r.jump !== false }));
+
+  // Obstacles: positions are pure functions of race time (see obstacles.js).
+  const obstacles = (def.obstacles ?? []).map((o) => ({ ...o, s: resolve(o.piece, o.at) }));
+  function obstaclesAt(t) {
+    return obstacles.map((o) => {
+      const fr = frameAt(o.s);
+      const cow = o.kind === 'cow';
+      const pose = cow ? cowPose(o, t) : { lateral: 0, dir: 1 };
+      const gate = cow ? null : bladeState(o, t);
+      const x = fr.x + fr.rx * pose.lateral;
+      const z = fr.z + fr.rz * pose.lateral;
+      return {
+        id: o.id,
+        kind: o.kind,
+        s: fr.s,
+        lateral: pose.lateral,
+        x,
+        y: heightAt(o.s, pose.lateral),
+        z,
+        h: fr.h + (pose.dir > 0 ? Math.PI / 2 : -Math.PI / 2),
+        radius: cow ? COW_RADIUS : fr.halfWidth,
+        height: cow ? COW_HEIGHT : 0,
+        blocking: gate ? gate.blocking : false,
+        ...(gate ? { angle: gate.angle } : {}),
+      };
+    });
+  }
 
   // Slot i: row-major over `grid.cols` columns; odd columns sit half a row further back.
   function gridSlots(n) {
@@ -590,6 +651,10 @@ export function buildTrack(def) {
     boostPads,
     itemRows,
     ramps,
+    patches,
+    patchAt,
+    obstacles,
+    obstaclesAt,
     gridSlots,
     pieceRange,
     wrapS,
