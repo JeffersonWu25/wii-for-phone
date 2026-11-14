@@ -862,7 +862,7 @@ function animatePlayer(state, pl, view, ball, dt, now) {
   if (
     mode === 'ready'
     && (pl.hand === 'forehand' || pl.hand === 'backhand')
-    && (view.phase === 'flight' || view.phase === 'toss')
+    && view.phase === 'flight'
   ) {
     mode = pl.hand;
   }

@@ -1,0 +1,33 @@
+{
+  "feature": "tennis-cpu",
+  "passed": true,
+  "finishedAt": "2026-11-14T23:35:59.065Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "one phone cannot start a match alone",
+      "ok": true,
+      "detail": "Need 2 to 4 players"
+    },
+    {
+      "name": "Ada against the CPU is 1v1",
+      "ok": true,
+      "detail": "1v1"
+    },
+    {
+      "name": "the CPU brings a partner and Ada brings hers",
+      "ok": true,
+      "detail": "[{\"id\":\"cpu\",\"role\":\"solo\",\"controlledBy\":\"cpu\"},{\"id\":\"cpu~partner\",\"role\":\"net\",\"controlledBy\":\"cpu\"},{\"id\":\"ccfb6e30\",\"role\":\"solo\",\"controlledBy\":\"ccfb6e30\"},{\"id\":\"ccfb6e30~partner\",\"role\":\"net\",\"controlledBy\":\"ccfb6e30\"}]"
+    },
+    {
+      "name": "the CPU serves without a phone swing",
+      "ok": true,
+      "detail": "{\"phase\":\"flight\",\"serverId\":\"cpu\",\"hands\":[\"forehand\",\"forehand\",\"backhand\",\"forehand\"]}"
+    },
+    {
+      "name": "both receivers are already showing a stroke",
+      "ok": true,
+      "detail": "[\"forehand\",\"forehand\",\"backhand\",\"forehand\"]"
+    }
+  ]
+}

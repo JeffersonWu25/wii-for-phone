@@ -286,6 +286,7 @@ function strikerId(match, playerId) {
   if (match.phase !== 'flight') return playerId;
   const side = sideOfId(match, playerId);
   if (!side) return playerId;
+  if (match.shot?.serve) return baselineBodyId(match, side) || playerId;
   const net = netBodyId(match, side);
   const bounced = (match.flight?.bounces || 0) > 0;
   if (!bounced && tuning.volleyPriority && net && match.actors.has(net) && withinReach(match.actors.get(net), match.ball, tuning)) {

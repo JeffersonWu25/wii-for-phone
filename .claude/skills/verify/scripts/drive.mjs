@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, kart-cup, tennis-match, tennis-rally, tennis-tune.
+// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, kart-cup, tennis-match, tennis-rally, tennis-tune, tennis-cpu.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -1737,6 +1737,54 @@ async function tennisTune(run) {
   run.check('reset restores the forgiveness default', restored === '180', restored);
 }
 
+async function tennisCpu(run) {
+  const host = await run.openHost({ viewport: { width: 1280, height: 720 } });
+  const ada = await run.openPhone('Ada');
+  await waitForWaitingLabel(ada);
+  await host.waitForSelector('.player-item:has-text("Ada")', { timeout: 10_000 });
+  await selectGame(run, 'Tennis');
+  await host.waitForSelector('.tennis-teams', { timeout: 15_000 });
+  const alone = (await host.locator('.tennis-format').innerText()).trim();
+  run.check('one phone cannot start a match alone', alone === 'Need 2 to 4 players', alone);
+  await host.locator('.tennis-player', { hasText: 'Ada' }).locator('.tennis-side-b').click();
+  await host.locator('.tennis-cpu').click();
+  await host.waitForSelector('.tennis-player:has-text("CPU")', { timeout: 5_000 });
+  const format = (await host.locator('.tennis-format').innerText()).trim();
+  run.check('Ada against the CPU is 1v1', format === '1v1', format);
+  await host.locator('.tennis-length[data-best-of="1"]').click();
+  await run.capture(host, 'host-teams');
+  await host.locator('.tennis-start').click();
+  await host.waitForSelector('.tennis-court canvas', { timeout: 15_000 });
+
+  const bodies = await host.evaluate(() => (window.__tennisView?.().players || []).map((p) => ({
+    id: p.id, role: p.role, controlledBy: p.controlledBy,
+  })));
+  const cpuBodies = bodies.filter((p) => p.controlledBy === 'cpu');
+  run.check('the CPU brings a partner and Ada brings hers', bodies.length === 4 && cpuBodies.length === 2, JSON.stringify(bodies));
+
+  await ada.waitForFunction(
+    () => document.querySelector('#tennis-label')?.textContent === 'Swing',
+    null,
+    { timeout: 8_000 },
+  );
+  const point = await host.evaluate(() => {
+    const view = window.__tennisView?.();
+    return view && {
+      phase: view.phase,
+      serverId: view.serverId,
+      hands: (view.players || []).map((p) => p.hand),
+    };
+  });
+  const swings = run.frames.filter((frame) => frame.page.startsWith('phone') && frame.dir === 'out' && frame.msg?.type === 'swing');
+  run.check('the CPU serves without a phone swing', point?.phase === 'flight' && point.serverId === 'cpu' && swings.length === 0, JSON.stringify(point));
+  run.check(
+    'both receivers are already showing a stroke',
+    Array.isArray(point?.hands) && point.hands.every((hand) => hand === 'forehand' || hand === 'backhand'),
+    JSON.stringify(point?.hands),
+  );
+  await run.capture(host, 'host-cpu');
+}
+
 const FEATURES = {
   'join-lobby': joinLobby,
   'select-game': selectGameFeature,
@@ -1749,6 +1797,7 @@ const FEATURES = {
   'tennis-match': tennisMatch,
   'tennis-rally': tennisRally,
   'tennis-tune': tennisTune,
+  'tennis-cpu': tennisCpu,
 };
 
 async function main() {

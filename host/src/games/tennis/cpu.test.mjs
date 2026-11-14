@@ -30,7 +30,7 @@ function playerClose(match, playerId) {
   const base = mine.find((player) => player.role !== 'net');
   const close = (player) => player
     && Math.hypot(ball.x - player.x, ball.z - player.z) <= tuning.reach + 1e-6;
-  if (!bounced && tuning.volleyPriority && close(net)) return true;
+  if (!match.shot?.serve && !bounced && tuning.volleyPriority && close(net)) return true;
   return close(base);
 }
 

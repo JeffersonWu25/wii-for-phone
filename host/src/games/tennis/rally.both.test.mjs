@@ -248,7 +248,7 @@ test('a serve return stays with the baseline human and the flight time', () => {
   toss(match, id);
   swing(match, { playerId: id, handed: 'right', shape: 'flat', timing: 0, power: 0.7, apex: 0.95 });
   assert.equal(match.shot.serve, true);
-  assert.equal(match.shot.arriveIn, undefined);
+  assert.ok(match.shot.arriveIn > match.shot.flightTime);
   assert.equal(match.receiverId, 'b');
 });
 
@@ -294,7 +294,7 @@ test('a fast serve runs the net body toward the crossing and leaves the return o
   swing(match, { playerId: id, handed: 'right', shape: 'flat', timing: 0, power: 0.7, apex: 0.95 });
   assert.equal(match.shot.serve, true);
   assert.equal(match.shot.fast, true);
-  assert.equal(match.shot.arriveIn, undefined);
+  assert.ok(match.shot.arriveIn > match.shot.flightTime);
   assert.equal(match.receiverId, 'b');
   const net = match.actors.get('b~partner');
   const homeZ = net.homeZ;
@@ -303,5 +303,23 @@ test('a fast serve runs the net body toward the crossing and leaves the return o
   assert.ok(Math.abs(net.aimZ) < 1e-9, `aimZ ${net.aimZ}`);
   assert.ok(net.z < homeZ - 0.5, `net z ${net.z} home ${homeZ}`);
   assert.equal(match.receiverId, 'b');
-  assert.equal(match.shot.arriveIn, undefined);
+  assert.ok(match.shot.arriveIn > match.shot.flightTime);
+});
+
+test('a serve return connects with the baseline player when the ball reaches them', () => {
+  const match = singles();
+  const id = view(match).serverId;
+  toss(match, id);
+  swing(match, { playerId: id, handed: 'right', shape: 'flat', timing: 0, power: 0.7, apex: 0.95 });
+  let guard = 0;
+  while (guard < 200 && match.phase === 'flight') {
+    const ball = match.ball;
+    const base = match.actors.get('b');
+    if (Math.hypot(ball.x - base.x, ball.z - base.z) <= 1.75 && ball.y <= 3.2) break;
+    step(match, DT);
+    guard += 1;
+  }
+  const hit = swing(match, { playerId: 'b', handed: 'right', shape: 'flat', timing: 0, power: 0.6, apex: 0 });
+  assert.equal(hit, true);
+  assert.equal(match.swingingId, 'b');
 });

@@ -437,6 +437,7 @@ function strikerBody(match, humanId, tuning) {
   if (match.phase !== 'flight') return humanId;
   const side = sideOf(match, humanId);
   if (!side) return humanId;
+  if (match.shot?.serve) return baselineId(match, side) || humanId;
   const net = netId(match, side);
   const bounced = (match.flight?.bounces || 0) > 0;
   if (!bounced && tuning.volleyPriority && net && match.actors.has(net) && inReach(match, net, tuning)) {
@@ -557,10 +558,14 @@ export function swing(match, input) {
   };
   match.receiverId = receiverFor(match, hitterSide);
   const chase = planChase(match, tuning);
-  if (chase && !isServe && plan.outcome !== 'net') {
-    const meeting = chase.netTakes ? chase.net : chase.base;
-    match.receiverId = ownerId(chase.netTakes ? chase.netId : chase.baseId);
-    if (meeting) match.shot.arriveIn = meeting.t;
+  if (chase && plan.outcome !== 'net') {
+    if (isServe) {
+      if (chase.base) match.shot.arriveIn = chase.base.t;
+    } else {
+      const meeting = chase.netTakes ? chase.net : chase.base;
+      match.receiverId = ownerId(chase.netTakes ? chase.netId : chase.baseId);
+      if (meeting) match.shot.arriveIn = meeting.t;
+    }
   }
   return true;
 }
@@ -654,18 +659,36 @@ function riseOrApex(y, vy, target) {
 }
 
 // Restitution is already applied. Rise to min(head, peak) from the bounce.
-function meetingFromBounce(x, z, vx, vz, vy, t0) {
+// A meeting past the baseline is where the ball crosses the line the player can stand on.
+function clipToBaseline(side, bounce, meeting) {
+  if (!side || !bounce) return meeting;
+  const line = side === 'A' ? -BASELINE_Z : BASELINE_Z;
+  const past = side === 'A' ? meeting.z < line - 1e-4 : meeting.z > line + 1e-4;
+  if (!past || !(Math.abs(bounce.vz) > 1e-6)) return meeting;
+  const tLine = (line - bounce.z) / bounce.vz;
+  if (!(tLine >= 0)) return meeting;
+  return {
+    t: bounce.t + tLine,
+    x: bounce.x + bounce.vx * tLine,
+    z: line,
+    y: bounce.vy * tLine - 0.5 * G * tLine * tLine,
+    peak: meeting.peak,
+  };
+}
+
+function meetingFromBounce(x, z, vx, vz, vy, t0, side) {
   if (!(vy > 0)) return { t: t0, x, z, y: 0, peak: 0 };
   const peak = (vy * vy) / (2 * G);
   const target = Math.min(HEAD_Y, peak);
   const tRise = riseOrApex(0, vy, target);
-  return {
+  const meeting = {
     t: t0 + tRise,
     x: x + vx * tRise,
     z: z + vz * tRise,
     y: target,
     peak,
   };
+  return clipToBaseline(side, { t: t0, x, z, vx, vz, vy }, meeting);
 }
 
 // The meeting is already behind the ball. Walk back along this parabola.
@@ -743,7 +766,7 @@ function baselineMeeting(match, side) {
       vz *= REST_H;
       lift = 0;
       t += k;
-      if (onReceiveSide(z, side)) return meetingFromBounce(x, z, vx, vz, vy, t);
+      if (onReceiveSide(z, side)) return meetingFromBounce(x, z, vx, vz, vy, t, side);
       const rem = h - k;
       t += rem;
       if (rem > 1e-8) {
