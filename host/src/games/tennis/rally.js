@@ -410,8 +410,7 @@ function strokeHand(side, actor, ball, handed) {
     : (actor?.handed === 'left' ? 'left' : 'right');
   if (!actor || !ball) return 'forehand';
   const dx = (ball.x - actor.x) * (side === 'A' ? 1 : -1);
-  let forehand = dx > -0.05;
-  if (who === 'left') forehand = !forehand;
+  const forehand = who === 'left' ? dx < 0.05 : dx > -0.05;
   return forehand ? 'forehand' : 'backhand';
 }
 
@@ -608,7 +607,7 @@ function nextBounceTime(ball, ay) {
 
 // Closed form. Volley is the pre-bounce y=1.15 crossing on the receiving side.
 // Groundstroke applies one bounce, then the later rise through y=1.05.
-function solveZones(ball, side, bounces) {
+function solveZones(ball, side, bounces, knownBounce) {
   const ay = -G + (ball.lift || 0);
   const tb = nextBounceTime(ball, ay);
   let volley = null;
@@ -655,31 +654,34 @@ function solveZones(ball, side, bounces) {
       .sort((a, b) => a.t - b.t);
     if (ups.length) ground = ups[0];
   }
-  return { volley, ground };
+  let bounce = null;
+  if ((bounces || 0) === 0 && tb != null) {
+    bounce = { t: tb, x: ball.x + ball.vx * tb, z: ball.z + ball.vz * tb };
+  } else if ((bounces || 0) >= 1) {
+    bounce = knownBounce
+      ? { t: 0, x: knownBounce.x, z: knownBounce.z }
+      : { t: 0, x: ball.x, z: ball.z };
+  }
+  return { volley, ground, bounce };
 }
 
-// Time to reach `dist` and stop, starting at speed v0, accelerating at `accel` up to `top`.
-function timeToArrive(dist, speed, accel, top) {
+// Time to cover `dist` from rest: ramp to moveSpeed, then cruise. No braking.
+function coverTime(dist, moveSpeed, accel) {
   if (!(dist > 1e-6)) return 0;
-  const v0 = clamp(speed || 0, 0, top);
-  const brake = (v0 * v0) / (2 * accel);
-  if (brake >= dist) {
-    const disc = v0 * v0 - 2 * accel * dist;
-    return (v0 - Math.sqrt(Math.max(0, disc))) / accel;
-  }
-  const dAtTop = (2 * top * top - v0 * v0) / (2 * accel);
-  if (dist >= dAtTop) {
-    const dAcc = (top * top - v0 * v0) / (2 * accel);
-    const dDec = (top * top) / (2 * accel);
-    return (top - v0) / accel + (dist - dAcc - dDec) / top + top / accel;
-  }
-  const peak = Math.sqrt(accel * dist + 0.5 * v0 * v0);
-  return (peak - v0) / accel + peak / accel;
+  const ramp = (moveSpeed * moveSpeed) / (2 * accel);
+  if (dist <= ramp) return Math.sqrt((2 * dist) / accel);
+  return moveSpeed / accel + (dist - ramp) / moveSpeed;
 }
 
-function spareTime(actor, point, tBall, tuning) {
+function spareTime(actor, point, tuning) {
   const dist = Math.hypot(point.x - actor.x, point.z - actor.z);
-  return tBall - timeToArrive(dist, actor.speed, tuning.accel, tuning.moveSpeed) - tuning.interceptLead;
+  return point.t - coverTime(dist, tuning.moveSpeed, tuning.accel) - tuning.interceptLead;
+}
+
+// Racket height only when it is within 1 m of the bounce. Otherwise the bounce.
+function pointBesideBounce(racket, bounce) {
+  if (racket && bounce && Math.hypot(racket.x - bounce.x, racket.z - bounce.z) <= 1) return racket;
+  return bounce || racket || null;
 }
 
 function receivingSide(match) {
@@ -695,68 +697,45 @@ function chooseContact(match, tuning) {
   const delay = (1 - ai) * 0.35;
   if ((match.flight?.t || 0) < delay) return null;
   const serve = match.shot.serve === true;
-  const zones = solveZones(match.ball, side, match.flight?.bounces || 0);
+  const zones = solveZones(match.ball, side, match.flight?.bounces || 0, match.flight?.bounce);
   const baseId = baselineId(match, side);
   const net = netId(match, side);
   const baseline = match.actors.get(baseId);
   const netBody = net ? match.actors.get(net) : null;
-  const options = [];
-  if (!serve && tuning.volleyPriority && zones.volley && netBody) {
-    const spare = spareTime(netBody, zones.volley, zones.volley.t, tuning);
-    if (spare >= 0) options.push({ id: net, spare, point: zones.volley, kind: 'volley' });
+  if (!serve && tuning.volleyPriority && zones.volley && zones.bounce && netBody) {
+    const near = Math.hypot(zones.volley.x - zones.bounce.x, zones.volley.z - zones.bounce.z) <= 1;
+    if (near) {
+      const spare = spareTime(netBody, zones.volley, tuning);
+      if (spare >= 0) {
+        return finishContact(match, {
+          id: net, spare, point: zones.volley, kind: 'volley',
+        }, side, ai);
+      }
+    }
   }
-  if (zones.ground && baseline) {
-    const spare = spareTime(baseline, zones.ground, zones.ground.t, tuning);
-    if (spare >= -0.05) options.push({ id: baseId, spare, point: zones.ground, kind: 'ground' });
-  }
-  if (serve && tuning.volleyPriority && zones.volley && baseline) {
-    const spare = spareTime(baseline, zones.volley, zones.volley.t, tuning);
-    if (spare >= 0) options.push({ id: baseId, spare, point: zones.volley, kind: 'volley' });
-  }
-  if (!options.length) return null;
-  // Both gates are already applied. The larger spare wins, so a deep
-  // groundstroke is not given up for a tighter volley.
-  options.sort((a, b) => b.spare - a.spare);
-  const best = options[0];
-  if (best.kind === 'ground' && !(best.spare >= -0.05)) return null;
-  if (best.kind === 'volley' && !(best.spare >= 0)) return null;
-  return finishContact(match, best, side, ai, tuning);
+  if (!baseline) return null;
+  const point = pointBesideBounce(zones.ground, zones.bounce);
+  if (!point) return null;
+  return finishContact(match, {
+    id: baseId,
+    spare: spareTime(baseline, point, tuning),
+    point,
+    kind: 'ground',
+  }, side, ai);
 }
 
-// Where the ball is `lead` seconds before the racket-height crossing. Arrival is
-// early by the lead, on the same closed-form parabola, including the bounce.
-function stateAt(ball, t, bounces) {
-  const ay = -G + (ball.lift || 0);
-  const tb = (bounces || 0) === 0 ? nextBounceTime(ball, ay) : null;
-  if (tb != null && t > tb + 1e-8) {
-    const vyImpact = ball.vy + ay * tb;
-    const vyR = Math.max(MIN_REBOUND, -vyImpact * REST_V);
-    const u = t - tb;
-    return {
-      x: ball.x + ball.vx * tb + ball.vx * REST_H * u,
-      z: ball.z + ball.vz * tb + ball.vz * REST_H * u,
-    };
-  }
-  return {
-    x: ball.x + ball.vx * t,
-    z: ball.z + ball.vz * t,
-  };
-}
-
-function finishContact(match, option, side, ai, tuning) {
+function finishContact(match, option, side, ai) {
   const sign = match.pointIndex % 2 === 0 ? 1 : -1;
   const shift = (1 - ai) * 0.6 * sign;
-  const lead = tuning.interceptLead;
-  const when = Math.max(0, option.point.t - lead);
-  const early = stateAt(match.ball, when, match.flight?.bounces || 0);
-  const aim = clampSide(match, side, early.x + shift, early.z);
+  const spot = clampSide(match, side, option.point.x, option.point.z);
+  const aim = clampSide(match, side, option.point.x + shift, option.point.z);
   return {
     id: option.id,
     side,
     kind: option.kind,
     t: option.point.t,
-    x: option.point.x,
-    z: option.point.z,
+    x: spot.x,
+    z: spot.z,
     aimX: aim.x,
     aimZ: aim.z,
     spare: option.spare,
@@ -844,6 +823,7 @@ function advance(match, h) {
     ball.vz *= REST_H;
     ball.lift = 0;
     match.flight.bounces += 1;
+    if (match.flight.bounces === 1) match.flight.bounce = { x: ball.x, z: ball.z };
     onBounce(match);
     const rem = h - k;
     if (rem > 1e-8 && ballStillGoing(match)) {

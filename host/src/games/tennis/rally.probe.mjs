@@ -29,13 +29,28 @@ function player(v, id) {
   return v.players.find((p) => p.id === id);
 }
 
+function closeEnough(v, id) {
+  const body = player(v, id);
+  const ball = v.ball;
+  if (!body || !ball) return false;
+  if (!(ball.y <= 3.2)) return false;
+  return Math.hypot(ball.x - body.x, ball.z - body.z) <= 1.75 + 1e-6;
+}
+
+function strikerSpot(v, playerId) {
+  const bounced = (v.flight?.bounces || 0) > 0;
+  const partnerId = `${playerId}~partner`;
+  if (!closeEnough(v, playerId) && !bounced && player(v, partnerId) && closeEnough(v, partnerId)) {
+    return player(v, partnerId);
+  }
+  return player(v, playerId);
+}
+
 function expectedPlan(v, playerId, args) {
   const power = clamp(Number(args.power ?? 0), 0, 1);
   const apexHit = clamp(Number(args.apex ?? 0), 0, 1);
-  let timing = clamp(Number(args.timing ?? 0), -1, 1);
-  if (args.handed === 'left') timing = -timing;
+  const timing = clamp(Number(args.timing ?? 0), -1, 1);
   const side = player(v, playerId).side;
-  const meters = timing * (2.4 + 3.2 * power);
   const toward = side === 'A' ? 1 : -1;
   const serve = v.phase === 'toss';
   if (serve) {
@@ -62,7 +77,15 @@ function expectedPlan(v, playerId, args) {
     return { outcome: 'net', landX: 0, landZ: 0, apex: 1, flightTime: 0.4, fast: false };
   }
   const depth = 2.5 + 8.2 * ((power - 0.18) / 0.82);
-  const landX = side === 'A' ? meters : -meters;
+  const spot = strikerSpot(v, playerId);
+  const ballX = v.ball ? v.ball.x : spot.x;
+  const dx = (ballX - spot.x) * (side === 'A' ? 1 : -1);
+  const forehand = args.handed === 'left' ? dx < 0.05 : dx > -0.05;
+  const mag = Math.abs(timing) * (2.4 + 3.2 * power);
+  let sign = forehand ? -1 : 1;
+  if (side === 'B') sign = -sign;
+  if (timing > 0) sign = -sign;
+  const landX = mag > 0 && (timing < 0 || timing > 0) ? sign * mag : 0;
   const landZ = toward * depth;
   const half = v.format === '1v1' ? COURT.singlesHalfWidth : COURT.doublesHalfWidth;
   const out = Math.abs(landX) > half || Math.abs(landZ) > COURT.halfLength;
@@ -177,7 +200,14 @@ test('opening formation puts the server and the returner at the back', () => {
   near(b.z, 11.185, 0.02, 'b.z');
   near(d.x, 2.4, 0.02, 'd.x');
   near(d.z, 5.6, 0.02, 'd.z');
-  assert.equal(view(matchOf(['a'], ['b'])).players.every((p) => p.role === 'solo'), true);
+  const singles = view(matchOf(['a'], ['b']));
+  assert.equal(singles.players.length, 4);
+  assert.equal(player(singles, 'a').role, 'solo');
+  assert.equal(player(singles, 'b').role, 'solo');
+  assert.equal(player(singles, 'a~partner').role, 'net');
+  assert.equal(player(singles, 'b~partner').role, 'net');
+  assert.equal(player(singles, 'a~partner').controlledBy, 'a');
+  assert.equal(player(singles, 'b~partner').controlledBy, 'b');
   assert.equal(player(view(matchOf(['a', 'c'], ['b'])), 'b').role, 'solo');
   const colors = new Set(v.players.map((p) => p.color));
   assert.equal(colors.size, 4);
@@ -416,15 +446,26 @@ test('best of one ends when a side wins the game, best of three continues', () =
 });
 
 test('a left-handed timing aims the other way on a rally shot', () => {
-  function land(handed, timing) {
-    const m = matchOf(['a'], ['b'], 3);
-    serveIn(m);
-    driveUntil(m, (v, info) => info.bounceAt, 3);
-    return planShot(m, {
-      playerId: 'b', hand: 'backhand', handed, shape: 'flat', timing, power: 0.7, apex: 0,
-    }).landX;
-  }
-  const right = land('right', 1);
-  near(land('left', 1), -right, 0.05, 'mirror');
-  assert.ok(right < 0, 'from side B a righty late shot goes to the hitter\'s right');
+  const m = matchOf(['a'], ['b'], 3);
+  serveIn(m);
+  driveUntil(m, (v, info) => info.bounceAt, 3);
+  const shot = (handed) => planShot(m, {
+    playerId: 'b', hand: 'backhand', handed, shape: 'flat', timing: 1, power: 0.7, apex: 0,
+  }).landX;
+  const right = shot('right');
+  const left = shot('left');
+  const v = view(m);
+  const body = player(v, 'b');
+  const dx = (v.ball.x - body.x) * (body.side === 'A' ? 1 : -1);
+  const mag = 2.4 + 3.2 * 0.7;
+  const land = (forehand) => {
+    let sign = forehand ? -1 : 1;
+    if (body.side === 'B') sign = -sign;
+    sign = -sign;
+    return sign * mag;
+  };
+  near(right, land(dx > -0.05), 0.05, 'righty hand');
+  near(left, land(dx < 0.05), 0.05, 'lefty hand');
+  if (dx > -0.05) assert.ok(right < 0, 'side B late forehand is negative');
+  else assert.ok(right > 0, 'side B late backhand is positive');
 });

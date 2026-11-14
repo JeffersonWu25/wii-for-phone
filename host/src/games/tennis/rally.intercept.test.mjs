@@ -92,7 +92,7 @@ test('early and late forehands land on opposite sides and perfect is straight', 
   assert.ok(early.landX > 0, `early ${early.landX}`);
   assert.ok(late.landX < 0, `late ${late.landX}`);
   assert.ok(Math.sign(early.landX) !== Math.sign(late.landX));
-  assert.ok(Math.abs(shot(-0.5, 'left').landX + early.landX) < 1e-9);
+  assert.ok(Math.abs(shot(-0.5, 'left').landX - early.landX) < 1e-9);
 });
 
 test('direction sensitivity scales landX and the timing window does not', () => {
