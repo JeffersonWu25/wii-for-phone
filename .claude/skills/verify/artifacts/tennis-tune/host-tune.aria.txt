@@ -1,0 +1,27 @@
+- text: 0 – 15 Games 0 – 0
+- button "Tune" [pressed]
+- button "Quit"
+- heading "Timing" [level=2]
+- text: Swing timing forgiveness 240
+- slider "Swing timing forgiveness": "240"
+- text: Shot direction sensitivity 1.00
+- slider "Shot direction sensitivity": "1"
+- text: Swing cooldown 0.28
+- slider "Swing cooldown": "0.28"
+- heading "Movement" [level=2]
+- text: Interception lead time 0.22
+- slider "Interception lead time": "0.22"
+- text: Player movement speed 11.0
+- slider "Player movement speed": "11"
+- text: Racket hitbox size 1.75
+- slider "Racket hitbox size": "1.75"
+- text: AI difficulty 1.00
+- slider "AI difficulty": "1"
+- checkbox "Automatic volley priority" [checked]
+- text: Automatic volley priority on
+- heading "Shots" [level=2]
+- text: Swing power sensitivity 1.00
+- slider "Swing power sensitivity": "1"
+- text: Lob and slice intensity 1.00
+- slider "Lob and slice intensity": "1"
+- button "Reset"
