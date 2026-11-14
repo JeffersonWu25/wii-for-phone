@@ -1617,7 +1617,7 @@ async function tennisRally(run) {
   run.check('the court is split between the two players', framing.split === '1' && framing.divider === 'block', JSON.stringify(framing));
   run.check(
     'the camera is pulled back over the court',
-    framing.camY >= 7 && framing.camY <= 11,
+    framing.camY >= 12 && framing.camY <= 16,
     `camY ${framing.camY}`,
   );
   run.check(
