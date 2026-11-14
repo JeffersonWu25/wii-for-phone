@@ -36,3 +36,20 @@ function formatOf(sideACount, sideBCount) {
   if (sideACount === 2 && sideBCount === 2) return '2v2';
   return null;
 }
+
+// The first CPU is cpu / CPU. Later ones are cpu-2, cpu-3, and CPU 2, CPU 3.
+export function cpuPlayer(index) {
+  const n = index + 1;
+  if (n === 1) return { playerId: 'cpu', name: 'CPU' };
+  return { playerId: `cpu-${n}`, name: `CPU ${n}` };
+}
+
+// The new CPU joins the smaller side, or side B when the counts match.
+// A side of three is not a seat, so this returns null instead of making one.
+export function seatForCpu(players, assignments) {
+  const { sideA, sideB } = lineupFromAssignments(players, assignments);
+  const seat = sideA.length < sideB.length ? 'A' : 'B';
+  const count = seat === 'A' ? sideA.length : sideB.length;
+  if (count >= 2) return null;
+  return seat;
+}
