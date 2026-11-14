@@ -49,6 +49,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Play a tennis point](./tennis-match.md) covers five phones on the team screen (2v2, an illegal side, 1v1, and 1v2), a one-game start, the toss and serve, and the called point on the court.
 - [Rally a tennis point](./tennis-rally.md) covers a 1v1 split court, the pulled-back camera, a backhand grip from the phone, and a player running after the serve.
 - [Tune a tennis match](./tennis-tune.md) covers a 1v1 court with four bodies, the closed Tune panel, a forgiveness slider that does not move direction sensitivity, and Reset.
+- [Play a CPU](./tennis-cpu.md) covers one phone against an added CPU, four bodies on court, and the CPU serving with no phone swing.
 
 ## Not mapped yet
 

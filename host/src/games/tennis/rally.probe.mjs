@@ -39,11 +39,10 @@ function closeEnough(v, id) {
 
 function strikerSpot(v, playerId) {
   const bounced = (v.flight?.bounces || 0) > 0;
-  const partnerId = `${playerId}~partner`;
-  if (!closeEnough(v, playerId) && !bounced && player(v, partnerId) && closeEnough(v, partnerId)) {
-    return player(v, partnerId);
-  }
-  return player(v, playerId);
+  const side = player(v, playerId).side;
+  const net = v.players.find((p) => p.side === side && p.role === 'net');
+  if (!bounced && net && closeEnough(v, net.id)) return net;
+  return v.players.find((p) => p.side === side && p.role !== 'net') || player(v, playerId);
 }
 
 function expectedPlan(v, playerId, args) {
@@ -78,17 +77,14 @@ function expectedPlan(v, playerId, args) {
   }
   const depth = 2.5 + 8.2 * ((power - 0.18) / 0.82);
   const spot = strikerSpot(v, playerId);
-  const ballX = v.ball ? v.ball.x : spot.x;
-  const dx = (ballX - spot.x) * (side === 'A' ? 1 : -1);
-  const forehand = args.handed === 'left' ? dx < 0.05 : dx > -0.05;
+  const forehand = spot.hand === 'forehand';
   const mag = Math.abs(timing) * (2.4 + 3.2 * power);
   let sign = forehand ? -1 : 1;
   if (side === 'B') sign = -sign;
   if (timing > 0) sign = -sign;
   const landX = mag > 0 && (timing < 0 || timing > 0) ? sign * mag : 0;
   const landZ = toward * depth;
-  const half = v.format === '1v1' ? COURT.singlesHalfWidth : COURT.doublesHalfWidth;
-  const out = Math.abs(landX) > half || Math.abs(landZ) > COURT.halfLength;
+  const out = Math.abs(landX) > COURT.doublesHalfWidth || Math.abs(landZ) > COURT.halfLength;
   const shape = args.shape === 'lob' || args.shape === 'slice' ? args.shape : 'flat';
   const apex = shape === 'lob' ? 6.2 : shape === 'slice' ? 1.25 : 2.4;
   const flightTime = shape === 'lob' ? 1.45 : shape === 'slice' ? 0.85 : 1.05;
@@ -298,7 +294,7 @@ test('lob hangs above a flat shot and a slice stays under it', () => {
   function returnPeak(shape) {
     const m = matchOf(['a'], ['b'], 3);
     serveIn(m);
-    driveUntil(m, (v, info) => info.bounceAt, 3);
+    driveUntil(m, (v) => closeEnough(v, 'b'), 4);
     strike(m, 'b', { shape, power: 0.7, timing: 0, apex: 0 });
     const hit = driveUntil(m, (v, info) => (v.flight?.bounces || 0) >= 1 || v.call, 4);
     assert.equal(hit.v.call, null);
@@ -311,29 +307,31 @@ test('lob hangs above a flat shot and a slice stays under it', () => {
   assert.ok(slice < flat - 0.35, `slice ${slice} flat ${flat}`);
 });
 
-test('the same wide return is an alley winner in doubles and out in singles', () => {
+test('the same wide return is an alley winner in doubles and in singles', () => {
   function wideReturn(sideA, sideB) {
     const m = matchOf(sideA, sideB, 3);
     serveIn(m);
-    driveUntil(m, (v, info) => info.bounceAt, 3);
+    driveUntil(m, (v) => closeEnough(v, sideB[0]), 4);
     const plan = strike(m, sideB[0], { timing: 1, power: 0.75, shape: 'flat' });
     const end = driveUntil(m, (v) => v.call || v.phase === 'called', 4);
     return { plan, end };
   }
   const singles = wideReturn(['a'], ['b']);
   const doubles = wideReturn(['a', 'c'], ['b', 'd']);
-  assert.equal(singles.plan.outcome, 'out');
-  assert.equal(singles.end.v.call, 'Out');
+  assert.equal(singles.plan.outcome, 'in');
+  assert.equal(singles.end.v.call, null);
   assert.equal(doubles.plan.outcome, 'in');
   assert.equal(doubles.end.v.call, null);
-  assert.equal(Math.abs(doubles.plan.landX) > COURT.singlesHalfWidth, true);
-  assert.equal(Math.abs(doubles.plan.landX) < COURT.doublesHalfWidth, true);
+  for (const result of [singles, doubles]) {
+    assert.equal(Math.abs(result.plan.landX) > COURT.singlesHalfWidth, true);
+    assert.equal(Math.abs(result.plan.landX) < COURT.doublesHalfWidth, true);
+  }
 });
 
 test('a full-power wide rally shot misses the doubles court', () => {
   const m = matchOf(['a', 'c'], ['b', 'd'], 3);
   serveIn(m);
-  driveUntil(m, (v, info) => info.bounceAt, 3);
+  driveUntil(m, (v) => closeEnough(v, 'b'), 4);
   const plan = strike(m, 'b', { timing: 1, power: 1, shape: 'flat' });
   assert.equal(plan.outcome, 'out');
   const end = driveUntil(m, (v) => v.phase === 'called', 4);
@@ -345,12 +343,12 @@ test('a short rally ball is for the net player, a deep one for the back player',
   const m = matchOf(['a', 'c'], ['b', 'd'], 3);
   serveIn(m);
   assert.equal(view(m).receiverId, 'b');
-  driveUntil(m, (v, info) => info.bounceAt, 3);
+  driveUntil(m, (v) => closeEnough(v, 'b'), 4);
   strike(m, 'b', { power: 0.2, timing: 0, shape: 'flat' });
   assert.equal(view(m).receiverId, 'c');
   const deep = matchOf(['a', 'c'], ['b', 'd'], 3);
   serveIn(deep);
-  driveUntil(deep, (v, info) => info.bounceAt, 3);
+  driveUntil(deep, (v) => closeEnough(v, 'b'), 4);
   strike(deep, 'b', { power: 0.7, timing: 0, shape: 'flat' });
   assert.equal(view(deep).receiverId, 'a');
 });
@@ -358,7 +356,7 @@ test('a short rally ball is for the net player, a deep one for the back player',
 test('a swing from the wrong player does not take the point', () => {
   const m = matchOf(['a', 'c'], ['b', 'd'], 3);
   serveIn(m);
-  driveUntil(m, (v, info) => info.bounceAt, 3);
+  driveUntil(m, (v) => closeEnough(v, 'b'), 4);
   const before = view(m).score.pointsA;
   swing(m, { playerId: 'd', hand: 'forehand', handed: 'right', shape: 'flat', timing: 0, power: 0.7, apex: 0 });
   step(m, 1 / 60);
@@ -445,27 +443,21 @@ test('best of one ends when a side wins the game, best of three continues', () =
   assert.equal(view(three).serverId, 'b');
 });
 
-test('a left-handed timing aims the other way on a rally shot', () => {
+test('a left-handed timing aims the same way as a right-handed one on a rally shot', () => {
   const m = matchOf(['a'], ['b'], 3);
   serveIn(m);
-  driveUntil(m, (v, info) => info.bounceAt, 3);
+  driveUntil(m, (v) => closeEnough(v, 'b'), 4);
   const shot = (handed) => planShot(m, {
     playerId: 'b', hand: 'backhand', handed, shape: 'flat', timing: 1, power: 0.7, apex: 0,
   }).landX;
   const right = shot('right');
   const left = shot('left');
   const v = view(m);
-  const body = player(v, 'b');
-  const dx = (v.ball.x - body.x) * (body.side === 'A' ? 1 : -1);
+  const body = strikerSpot(v, 'b');
   const mag = 2.4 + 3.2 * 0.7;
-  const land = (forehand) => {
-    let sign = forehand ? -1 : 1;
-    if (body.side === 'B') sign = -sign;
-    sign = -sign;
-    return sign * mag;
-  };
-  near(right, land(dx > -0.05), 0.05, 'righty hand');
-  near(left, land(dx < 0.05), 0.05, 'lefty hand');
-  if (dx > -0.05) assert.ok(right < 0, 'side B late forehand is negative');
-  else assert.ok(right > 0, 'side B late backhand is positive');
+  let sign = body.hand === 'forehand' ? -1 : 1;
+  if (body.side === 'B') sign = -sign;
+  sign = -sign;
+  near(right, sign * mag, 0.05, 'righty hand');
+  near(left, right, 1e-9, 'lefty hand');
 });

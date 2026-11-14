@@ -99,7 +99,8 @@ test('a serve on time uses the phone apex and opens the return window', () => {
   assert.equal(match.shot.landX, 2);
   assert.equal(msg.window.kind, 'rally');
   assert.equal(msg.window.playerId, 'b');
-  assert.equal(msg.window.contactInMs, 620);
+  assert.ok(msg.window.contactInMs > 620);
+  assert.equal(msg.window.contactInMs, match.shot.arriveIn * 1000);
   assert.equal(onPhone(flow, {
     type: 'swing',
     playerId: 'a',

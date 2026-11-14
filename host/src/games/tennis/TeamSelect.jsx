@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { lineupFromAssignments, seatPlayers } from './teamSeat.js';
+import { cpuPlayer, lineupFromAssignments, seatForCpu, seatPlayers } from './teamSeat.js';
 import './team.css';
 
 const LENGTHS = [
@@ -9,8 +9,11 @@ const LENGTHS = [
 ];
 
 export default function TeamSelect({ players, onStart, onBack }) {
+  const [cpus, setCpus] = useState([]);
   const [setup, setSetup] = useState(() => seatPlayers(players));
-  const lineup = lineupFromAssignments(players, setup.assignments);
+  const roster = [...players, ...cpus];
+  const lineup = lineupFromAssignments(roster, setup.assignments);
+  const nextSeat = seatForCpu(roster, setup.assignments);
   const formatLabel = lineup.format ?? 'Need 2 to 4 players';
 
   function assign(playerId, seat) {
@@ -20,12 +23,27 @@ export default function TeamSelect({ players, onStart, onBack }) {
     }));
   }
 
+  function addCpu() {
+    if (!nextSeat) return;
+    const cpu = cpuPlayer(cpus.length);
+    setCpus((current) => [...current, cpu]);
+    setSetup((current) => ({
+      ...current,
+      assignments: { ...current.assignments, [cpu.playerId]: nextSeat },
+    }));
+  }
+
   function start() {
     if (!lineup.legal) return;
     onStart({
       sideA: lineup.sideA,
       sideB: lineup.sideB,
       bestOf: setup.bestOf,
+      cpus: cpus.map((cpu) => ({
+        id: cpu.playerId,
+        playerId: cpu.playerId,
+        name: cpu.name,
+      })),
     });
   }
 
@@ -36,7 +54,7 @@ export default function TeamSelect({ players, onStart, onBack }) {
         <p className="tennis-format">{formatLabel}</p>
       </header>
       <ol className="tennis-roster">
-        {players.map((player) => {
+        {roster.map((player) => {
           const seat = setup.assignments[player.playerId] ?? 'out';
           return (
             <li
@@ -95,6 +113,9 @@ export default function TeamSelect({ players, onStart, onBack }) {
       <div className="tennis-actions">
         <button type="button" className="tennis-back" onClick={onBack}>
           Back
+        </button>
+        <button type="button" className="tennis-cpu" onClick={addCpu} disabled={!nextSeat}>
+          Add CPU
         </button>
         <button type="button" className="tennis-start" disabled={!lineup.legal} onClick={start}>
           Start

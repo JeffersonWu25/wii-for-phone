@@ -1,0 +1,21 @@
+- banner:
+  - heading "Choose sides" [level=1]
+  - paragraph: 1v1
+- list:
+  - listitem:
+    - text: Ada
+    - button "Side A"
+    - button "Side B" [pressed]
+    - button "Sit out"
+  - listitem:
+    - text: CPU
+    - button "Side A" [pressed]
+    - button "Side B"
+    - button "Sit out"
+- paragraph: Match length
+- button "One game" [pressed]
+- button "Best of 3"
+- button "Best of 5"
+- button "Back"
+- button "Add CPU"
+- button "Start"
