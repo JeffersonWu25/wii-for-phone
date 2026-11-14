@@ -100,6 +100,7 @@
 .tennis-sit,
 .tennis-length,
 .tennis-back,
+.tennis-cpu,
 .tennis-start {
   min-height: 68px;
   padding: 0 22px;
@@ -136,7 +137,8 @@
 .tennis-side-b:hover,
 .tennis-sit:hover,
 .tennis-length:hover,
-.tennis-back:hover {
+.tennis-back:hover,
+.tennis-cpu:hover:not(:disabled) {
   border-color: #6a6aaa;
 }
 
@@ -175,10 +177,16 @@
   gap: 16px;
 }
 
-.tennis-back {
+.tennis-back,
+.tennis-cpu {
   min-width: 180px;
   color: #d0d0ee;
   background: transparent;
+}
+
+.tennis-cpu:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
 }
 
 .tennis-start {

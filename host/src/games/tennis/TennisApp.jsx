@@ -25,8 +25,12 @@ export default function TennisApp({ wsRef, send, players, disconnectedPlayerIds,
   useEffect(() => {
     if (!lineup || startedRef.current) return;
     startedRef.current = true;
+    const cpus = Array.isArray(lineup.cpus) ? lineup.cpus : [];
     const match = createMatch({
-      players: players.map((player) => ({ id: player.playerId, name: player.name })),
+      players: [
+        ...players.map((player) => ({ id: player.playerId, name: player.name })),
+        ...cpus.map((cpu) => ({ id: cpu.id || cpu.playerId, name: cpu.name })),
+      ],
       sideA: lineup.sideA,
       sideB: lineup.sideB,
       bestOf: lineup.bestOf,
