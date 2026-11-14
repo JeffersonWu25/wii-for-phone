@@ -1202,6 +1202,78 @@ export function createTennisScene(container) {
   ball.visible = false;
   world.add(ball);
 
+  // A short bright streak of the ball's recent positions. Only a power serve sets ball.fast.
+  const TRAIL_SPACING = 0.16;
+  const TRAIL_COUNT = 8;
+  const trailBehind = [];
+  let trailTip = null;
+  const trailGeo = new THREE.SphereGeometry(0.11, 10, 8);
+  const trailDots = [];
+  for (let i = 0; i < TRAIL_COUNT; i++) {
+    const fade = 1 - i / TRAIL_COUNT;
+    const dot = new THREE.Mesh(
+      trailGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0xfff6c2,
+        transparent: true,
+        opacity: 0.18 + 0.78 * fade,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    dot.scale.setScalar(0.45 + 0.55 * fade);
+    dot.visible = false;
+    dot.renderOrder = 4;
+    world.add(dot);
+    trailDots.push(dot);
+  }
+
+  function hideTrail() {
+    trailTip = null;
+    trailBehind.length = 0;
+    for (const dot of trailDots) dot.visible = false;
+  }
+
+  function syncTrail(b) {
+    if (!b || b.fast !== true) {
+      hideTrail();
+      return;
+    }
+    if (!trailTip) {
+      trailTip = { x: b.x, y: b.y, z: b.z };
+      for (const dot of trailDots) dot.visible = false;
+      return;
+    }
+    let dx = b.x - trailTip.x;
+    let dy = b.y - trailTip.y;
+    let dz = b.z - trailTip.z;
+    let dist = Math.hypot(dx, dy, dz);
+    while (dist >= TRAIL_SPACING) {
+      const u = TRAIL_SPACING / dist;
+      trailTip = {
+        x: trailTip.x + dx * u,
+        y: trailTip.y + dy * u,
+        z: trailTip.z + dz * u,
+      };
+      trailBehind.push({ x: trailTip.x, y: trailTip.y, z: trailTip.z });
+      dx = b.x - trailTip.x;
+      dy = b.y - trailTip.y;
+      dz = b.z - trailTip.z;
+      dist = Math.hypot(dx, dy, dz);
+    }
+    while (trailBehind.length > TRAIL_COUNT) trailBehind.shift();
+    for (let i = 0; i < TRAIL_COUNT; i++) {
+      const sample = trailBehind[trailBehind.length - 1 - i];
+      const dot = trailDots[i];
+      if (!sample) {
+        dot.visible = false;
+        continue;
+      }
+      dot.position.set(sample.x, sample.y, sample.z);
+      dot.visible = true;
+    }
+  }
+
   if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
   const divider = document.createElement('div');
@@ -1288,6 +1360,7 @@ export function createTennisScene(container) {
     const b = view.ball;
     ball.visible = Boolean(b);
     if (b) ball.position.set(b.x, b.y, b.z);
+    syncTrail(b);
 
     const seen = new Set();
     const sides = new Set();

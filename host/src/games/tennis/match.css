@@ -18,11 +18,19 @@
   height: 100%;
 }
 
-.tennis-quit {
+.tennis-match-actions {
   position: absolute;
   top: 14px;
   right: 16px;
   z-index: 5;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tennis-quit,
+.tennis-tune,
+.tennis-tune-reset {
   width: auto;
   padding: 8px 18px;
   border: 2px solid rgba(255, 255, 255, 0.75);
@@ -31,6 +39,66 @@
   color: #fff;
   font: 700 0.95rem/1 system-ui, sans-serif;
   cursor: pointer;
+}
+
+.tennis-tune-panel {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 5;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(300px, 38vw);
+  max-height: calc(100% - 28px);
+  overflow: auto;
+  padding: 12px 14px 14px;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  border-radius: 10px;
+  background: rgba(13, 13, 26, 0.88);
+  color: #fff;
+  font: 600 0.82rem/1.35 system-ui, sans-serif;
+}
+
+.tennis-tune-panel[hidden] {
+  display: none;
+}
+
+.tennis-tune-group h2 {
+  margin: 0 0 8px;
+  font: 800 0.78rem/1 system-ui, sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.tennis-tune-row,
+.tennis-tune-check {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+
+.tennis-tune-check {
+  grid-template-columns: auto 1fr auto;
+  margin-bottom: 0;
+}
+
+.tennis-tune-row input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  accent-color: #fff;
+}
+
+.tennis-tune-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.tennis-tune-reset {
+  align-self: flex-start;
 }
 
 .tennis-winner {

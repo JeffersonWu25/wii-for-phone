@@ -4,7 +4,7 @@
 //   node .claude/skills/verify/scripts/drive.mjs <feature-id>
 //   HEADED=1 node .claude/skills/verify/scripts/drive.mjs bowling-throw   # watch it run
 //
-// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, kart-cup, tennis-match, tennis-rally.
+// Feature ids: join-lobby, select-game, bowling-throw, kart-race, kart-split, kart-drift, kart-items, kart-cup, tennis-match, tennis-rally, tennis-tune.
 // Each run opens a fresh host page, so each run is a new session on the relay.
 // Proof lands in .claude/skills/verify/artifacts/<feature-id>/.
 
@@ -1678,6 +1678,65 @@ async function tennisRally(run) {
   await run.capture(host, 'host-chase');
 }
 
+async function tennisTune(run) {
+  const host = await run.openHost({ viewport: { width: 1280, height: 720 } });
+  const ada = await run.openPhone('Ada');
+  const bea = await run.openPhone('Bea');
+  await waitForWaitingLabel(ada);
+  await waitForWaitingLabel(bea);
+  await host.waitForSelector('.player-item:has-text("Bea")', { timeout: 10_000 });
+  await selectGame(run, 'Tennis');
+  await host.waitForSelector('.tennis-teams', { timeout: 15_000 });
+  const format = (await host.locator('.tennis-format').innerText()).trim();
+  run.check('two phones sit down as 1v1', format === '1v1', format);
+  await host.locator('.tennis-length[data-best-of="1"]').click();
+  await host.locator('.tennis-start').click();
+  await host.waitForSelector('.tennis-court canvas', { timeout: 15_000 });
+
+  const bodies = await host.evaluate(() => {
+    const players = window.__tennisView?.().players || [];
+    return players.map((p) => ({ id: p.id, role: p.role, controlledBy: p.controlledBy }));
+  });
+  const partners = bodies.filter((p) => p.id.endsWith('~partner'));
+  run.check('a 1v1 match puts four bodies on court', bodies.length === 4, JSON.stringify(bodies));
+  run.check(
+    'each human controls the net partner',
+    partners.length === 2
+      && partners.every((p) => p.role === 'net' && p.id === `${p.controlledBy}~partner`),
+    JSON.stringify(partners),
+  );
+
+  const panel = host.locator('.tennis-tune-panel');
+  const closed = await panel.getAttribute('hidden');
+  run.check('the tune panel starts closed', closed !== null, String(closed));
+  await run.capture(host, 'host-court');
+
+  await host.locator('.tennis-tune').click();
+  await host.waitForFunction(
+    () => document.querySelector('.tennis-tune-panel')?.hasAttribute('hidden') === false,
+    null,
+    { timeout: 5_000 },
+  );
+  const row = host.locator('.tennis-tune-row', { hasText: 'Swing timing forgiveness' });
+  const direction = host.locator('.tennis-tune-row', { hasText: 'Shot direction sensitivity' });
+  const before = (await row.locator('.tennis-tune-value').innerText()).trim();
+  await row.locator('input').evaluate((el) => {
+    const proto = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+    proto.set.call(el, '240');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const after = (await row.locator('.tennis-tune-value').innerText()).trim();
+  const directionValue = (await direction.locator('.tennis-tune-value').innerText()).trim();
+  run.check('forgiveness changes on its own slider', before === '180' && after === '240', `${before} -> ${after}`);
+  run.check('direction sensitivity stays at its own default', directionValue === '1.00', directionValue);
+  await run.capture(host, 'host-tune');
+
+  await host.locator('.tennis-tune-reset').click();
+  const restored = (await row.locator('.tennis-tune-value').innerText()).trim();
+  run.check('reset restores the forgiveness default', restored === '180', restored);
+}
+
 const FEATURES = {
   'join-lobby': joinLobby,
   'select-game': selectGameFeature,
@@ -1689,6 +1748,7 @@ const FEATURES = {
   'kart-cup': kartCup,
   'tennis-match': tennisMatch,
   'tennis-rally': tennisRally,
+  'tennis-tune': tennisTune,
 };
 
 async function main() {

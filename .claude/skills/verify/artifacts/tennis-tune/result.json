@@ -1,0 +1,43 @@
+{
+  "feature": "tennis-tune",
+  "passed": true,
+  "finishedAt": "2026-11-14T19:43:34.818Z",
+  "error": null,
+  "checks": [
+    {
+      "name": "two phones sit down as 1v1",
+      "ok": true,
+      "detail": "1v1"
+    },
+    {
+      "name": "a 1v1 match puts four bodies on court",
+      "ok": true,
+      "detail": "[{\"id\":\"34374197\",\"role\":\"solo\",\"controlledBy\":\"34374197\"},{\"id\":\"34374197~partner\",\"role\":\"net\",\"controlledBy\":\"34374197\"},{\"id\":\"3faff6ff\",\"role\":\"solo\",\"controlledBy\":\"3faff6ff\"},{\"id\":\"3faff6ff~partner\",\"role\":\"net\",\"controlledBy\":\"3faff6ff\"}]"
+    },
+    {
+      "name": "each human controls the net partner",
+      "ok": true,
+      "detail": "[{\"id\":\"34374197~partner\",\"role\":\"net\",\"controlledBy\":\"34374197\"},{\"id\":\"3faff6ff~partner\",\"role\":\"net\",\"controlledBy\":\"3faff6ff\"}]"
+    },
+    {
+      "name": "the tune panel starts closed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "forgiveness changes on its own slider",
+      "ok": true,
+      "detail": "180 -> 240"
+    },
+    {
+      "name": "direction sensitivity stays at its own default",
+      "ok": true,
+      "detail": "1.00"
+    },
+    {
+      "name": "reset restores the forgiveness default",
+      "ok": true,
+      "detail": "180"
+    }
+  ]
+}
