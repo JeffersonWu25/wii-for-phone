@@ -76,7 +76,9 @@ function launch(flow, args) {
     flow.open = null;
     return;
   }
-  openWindow(flow, 'rally', flow.match.receiverId, plan.flightTime * 1000);
+  const arrive = flow.match.shot && flow.match.shot.arriveIn;
+  const contactMs = (arrive > 0 ? arrive : plan.flightTime) * 1000;
+  openWindow(flow, 'rally', flow.match.receiverId, contactMs);
 }
 
 function faultServe(flow) {

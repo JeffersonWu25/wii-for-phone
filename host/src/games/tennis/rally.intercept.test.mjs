@@ -435,3 +435,62 @@ test('a lower ai waits, then aims off the intercept by a stable shift', () => {
     resetTuning();
   }
 });
+
+test('a left-handed late serve lands on the other side of the box', () => {
+  function land(handed) {
+    const match = singles();
+    const id = view(match).serverId;
+    toss(match, id);
+    return planShot(match, {
+      playerId: id,
+      handed,
+      shape: 'flat',
+      timing: 0.8,
+      power: 0.7,
+      apex: 0.5,
+    }).landX;
+  }
+  const right = land('right');
+  const left = land('left');
+  assert.ok(right > 0, `right ${right}`);
+  assert.ok(left < 0, `left ${left}`);
+});
+
+test('the volley window is the crossing, not the bounce', () => {
+  const match = singles();
+  match.phase = 'flight';
+  match.receiverId = 'b';
+  match.flight = { bounces: 0, t: 0.4 };
+  match.shot = {
+    outcome: 'in',
+    hitterSide: 'A',
+    landX: 0,
+    landZ: 8,
+    flightTime: 1.05,
+    serve: false,
+    fast: false,
+  };
+  const partner = match.actors.get('b~partner');
+  match.ball = {
+    x: partner.x,
+    y: 1.2,
+    z: partner.z,
+    vx: 0,
+    vy: -0.4,
+    vz: 2,
+    lift: 0,
+    fast: false,
+  };
+  const connected = swing(match, {
+    playerId: 'b',
+    handed: 'right',
+    shape: 'flat',
+    timing: 0,
+    power: 0.25,
+    apex: 0,
+  });
+  assert.equal(connected, true);
+  assert.equal(match.shot.serve, false);
+  assert.ok(match.shot.arriveIn > 0, `arrive ${match.shot.arriveIn}`);
+  assert.ok(match.shot.arriveIn < match.shot.flightTime, `arrive ${match.shot.arriveIn} flight ${match.shot.flightTime}`);
+});

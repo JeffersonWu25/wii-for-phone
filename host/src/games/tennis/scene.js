@@ -1244,23 +1244,24 @@ export function createTennisScene(container) {
       for (const dot of trailDots) dot.visible = false;
       return;
     }
-    const dx = b.x - trailTip.x;
-    const dy = b.y - trailTip.y;
-    const dz = b.z - trailTip.z;
-    const dist = Math.hypot(dx, dy, dz);
-    if (dist > 1e-4) {
-      const steps = Math.max(1, Math.round(dist / TRAIL_SPACING));
-      for (let s = 1; s <= steps; s++) {
-        const u = s / steps;
-        trailBehind.push({
-          x: trailTip.x + dx * u,
-          y: trailTip.y + dy * u,
-          z: trailTip.z + dz * u,
-        });
-      }
-      trailTip = trailBehind.pop();
-      while (trailBehind.length > TRAIL_COUNT) trailBehind.shift();
+    let dx = b.x - trailTip.x;
+    let dy = b.y - trailTip.y;
+    let dz = b.z - trailTip.z;
+    let dist = Math.hypot(dx, dy, dz);
+    while (dist >= TRAIL_SPACING) {
+      const u = TRAIL_SPACING / dist;
+      trailTip = {
+        x: trailTip.x + dx * u,
+        y: trailTip.y + dy * u,
+        z: trailTip.z + dz * u,
+      };
+      trailBehind.push({ x: trailTip.x, y: trailTip.y, z: trailTip.z });
+      dx = b.x - trailTip.x;
+      dy = b.y - trailTip.y;
+      dz = b.z - trailTip.z;
+      dist = Math.hypot(dx, dy, dz);
     }
+    while (trailBehind.length > TRAIL_COUNT) trailBehind.shift();
     for (let i = 0; i < TRAIL_COUNT; i++) {
       const sample = trailBehind[trailBehind.length - 1 - i];
       const dot = trailDots[i];

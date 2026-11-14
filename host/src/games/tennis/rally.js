@@ -365,11 +365,12 @@ export function planShot(match, swing) {
     if (power < 0.2) {
       return { outcome: 'net', landX: 0, landZ: 0, apex, flightTime, fast };
     }
+    const serveTiming = (swing.handed ?? 'right') === 'left' ? -timing : timing;
     const deuce = match.pointIndex % 2 === 0;
     const boxSign = deuce ? 1 : -1;
     const xSign = side === 'A' ? boxSign : -boxSign;
-    const landX = xSign * (2.0 + timing * 2.6);
-    const landZ = toward * (3.2 + 1.4 * (1 - Math.abs(timing)));
+    const landX = xSign * (2.0 + serveTiming * 2.6);
+    const landZ = toward * (3.2 + 1.4 * (1 - Math.abs(serveTiming)));
     const wide = Math.abs(landX) > COURT.singlesHalfWidth;
     return { outcome: wide ? 'out' : 'in', landX, landZ, apex, flightTime, fast };
   }
@@ -540,7 +541,10 @@ export function swing(match, input) {
   match.receiverId = receiverFor(match, hitterSide, plan, isServe);
   if (!isServe && plan.outcome !== 'net') {
     const chase = chooseContact(match, tuning);
-    if (chase) match.receiverId = ownerId(chase.id);
+    if (chase) {
+      match.receiverId = ownerId(chase.id);
+      if (chase.kind === 'volley') match.shot.arriveIn = chase.t;
+    }
   }
   return true;
 }
@@ -693,13 +697,19 @@ function receivingSide(match) {
   return match.shot.hitterSide === 'A' ? 'B' : 'A';
 }
 
+function inTime(actor, point, ball, tuning) {
+  const toPoint = Math.hypot(point.x - actor.x, point.z - actor.z);
+  const toBall = ball ? Math.hypot(ball.x - actor.x, ball.z - actor.z) : Infinity;
+  if (toPoint <= tuning.reach || toBall <= tuning.reach) return true;
+  const cover = coverTime(toPoint, tuning.moveSpeed, tuning.accel);
+  return point.t - cover >= -0.02;
+}
+
 function chooseContact(match, tuning) {
   if (match.phase !== 'flight' || !match.ball || !match.shot) return null;
   const side = receivingSide(match);
   if (!side) return null;
   const ai = clamp(tuning.aiDifficulty, 0, 1);
-  const delay = (1 - ai) * 0.35;
-  if ((match.flight?.t || 0) < delay) return null;
   const serve = match.shot.serve === true;
   const zones = solveZones(match.ball, side, match.flight?.bounces || 0, match.flight?.bounce);
   const baseId = baselineId(match, side);
@@ -709,13 +719,13 @@ function chooseContact(match, tuning) {
   // A volley is a crossing in front of the net player. A ball dropping behind them is a groundstroke.
   const volleyInFront = zones.volley && netBody
     && Math.abs(zones.volley.z) < Math.abs(netBody.homeZ) - 0.4;
-  if (!serve && tuning.volleyPriority && volleyInFront) {
-    const spare = spareTime(netBody, zones.volley, tuning);
-    if (spare >= 0) {
-      return finishContact(match, {
-        id: net, spare, point: zones.volley, kind: 'volley',
-      }, side, ai);
-    }
+  if (!serve && tuning.volleyPriority && volleyInFront && inTime(netBody, zones.volley, match.ball, tuning)) {
+    return finishContact(match, {
+      id: net,
+      spare: spareTime(netBody, zones.volley, tuning),
+      point: zones.volley,
+      kind: 'volley',
+    }, side, ai);
   }
   if (!baseline) return null;
   const point = pointBesideBounce(zones.ground, zones.bounce);
@@ -998,7 +1008,7 @@ function movePlayers(match, dt, tuning) {
     if (actor.cooldown > 0) actor.cooldown = Math.max(0, actor.cooldown - dt);
   }
   const chase = chooseContact(match, tuning);
-  match.contact = chase;
+  const waited = (match.flight?.t || 0) < (1 - clamp(tuning.aiDifficulty, 0, 1)) * 0.35;
   for (const [id, actor] of match.actors) {
     const side = sideOf(match, id);
     const holdStill = match.phase === 'match' || (match.phase === 'toss' && id === match.serverId);
@@ -1011,7 +1021,7 @@ function movePlayers(match, dt, tuning) {
       continue;
     }
     const mate = teammate(match, id);
-    const chasing = chase && id === chase.id;
+    const chasing = chase && !waited && id === chase.id;
     let target = { x: actor.homeX, z: actor.homeZ };
     let top = tuning.walkSpeed;
     if (chasing) {
