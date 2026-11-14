@@ -74,7 +74,7 @@ export function buildCloverWorld(track) {
   sky.group.children[0].material.fragmentShader = DOME;
 
   const sections = track.sections.map((s) => (BUILDERS[s.id] ? BUILDERS[s.id](ctx, s) : section(s.id)));
-  const hazards = buildHazards(track);
+  const hazards = buildHazards(track, ctx.windmill);
 
   // Distance culling for small props, on top of frustum culling; landmarks and big ribbons stay.
   const sphere = new THREE.Sphere();
