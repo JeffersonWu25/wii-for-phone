@@ -1,7 +1,8 @@
 // Stepwise tennis rally. A swing solves a launch velocity so the integrated
 // path peaks at the planned height and bounces on the planned point.
-// Movement samples a copy of the live ball with the same bounce rules to find
-// where the baseline player and the net player each meet it.
+// The net player aims at the plane where the live parabola crosses z = 0.
+// The baseline player aims at the rise after the first bounce on the
+// receiving side. Both points are cached for the rest of the flight.
 
 import { getTuning } from './tuning.js';
 
@@ -616,11 +617,97 @@ function onReceiveSide(z, side) {
   return side === 'A' ? z <= 1e-4 : z >= -1e-4;
 }
 
-// Steps a copy of the live ball with the same bounce rules advance() uses.
-// Samples sit on the 1/240 s grid of flight time, so the same instant is
-// found whenever the plan is recomputed during a flight. Returns the net
-// crossing and the post-bounce meeting for the receiving side.
-function sampleIntercepts(match, side) {
+// z = 0 on the live parabola, including lift. t is negative after the crossing.
+function netCrossing(ball) {
+  const ay = -G + (Number(ball.lift) || 0);
+  if (!(Math.abs(ball.vz) > 1e-8)) {
+    if (Math.abs(ball.z) > 1e-3) return null;
+    return { t: 0, x: ball.x, y: ball.y, z: 0 };
+  }
+  const t = -ball.z / ball.vz;
+  return {
+    t,
+    x: ball.x + ball.vx * t,
+    y: ball.y + ball.vy * t + 0.5 * ay * t * t,
+    z: 0,
+  };
+}
+
+// Smaller non-negative root where the ball is still rising through `target`.
+// Lift is already cleared on the bounce, so the acceleration is gravity.
+function riseTime(y, vy, target) {
+  const ay = -G;
+  const roots = parabolaRoots(y, vy, ay, target)
+    .filter((t) => t >= -1e-6)
+    .map((t) => (t < 0 ? 0 : t));
+  const rising = roots.filter((t) => vy + ay * t >= -1e-3);
+  if (!rising.length) return null;
+  return Math.min(...rising);
+}
+
+// Time to `target` on the way up. A missing root clamps to the apex time.
+function riseOrApex(y, vy, target) {
+  const solved = riseTime(y, vy, target);
+  if (solved != null) return solved;
+  const disc = Math.max(0, vy * vy - 2 * G * (target - y));
+  return (vy - Math.sqrt(disc)) / G;
+}
+
+// Restitution is already applied. Rise to min(head, peak) from the bounce.
+function meetingFromBounce(x, z, vx, vz, vy, t0) {
+  if (!(vy > 0)) return { t: t0, x, z, y: 0, peak: 0 };
+  const peak = (vy * vy) / (2 * G);
+  const target = Math.min(HEAD_Y, peak);
+  const tRise = riseOrApex(0, vy, target);
+  return {
+    t: t0 + tRise,
+    x: x + vx * tRise,
+    z: z + vz * tRise,
+    y: target,
+    peak,
+  };
+}
+
+// The meeting is already behind the ball. Walk back along this parabola.
+function pastMeeting(x, y, z, vx, vy, vz) {
+  const tSincePeak = vy < 0 ? -vy / G : 0;
+  const peakX = x - vx * tSincePeak;
+  const peakZ = z - vz * tSincePeak;
+  const peakY = y - vy * tSincePeak - 0.5 * G * tSincePeak * tSincePeak;
+  if (!(peakY > HEAD_Y + 1e-4)) return { t: 0, x: peakX, z: peakZ, y: peakY, peak: peakY };
+  const tBefore = Math.sqrt(Math.max(0, (2 * (peakY - HEAD_Y)) / G));
+  return {
+    t: 0,
+    x: peakX - vx * tBefore,
+    z: peakZ - vz * tBefore,
+    y: HEAD_Y,
+    peak: peakY,
+  };
+}
+
+function meetingOnArc(x, y, z, vx, vy, vz) {
+  if (vy > 0) {
+    const tPeak = vy / G;
+    const peakY = y + vy * tPeak - 0.5 * G * tPeak * tPeak;
+    const target = Math.min(HEAD_Y, peakY);
+    if (y <= target + 1e-3) {
+      const tRise = riseOrApex(y, vy, target);
+      return {
+        t: tRise,
+        x: x + vx * tRise,
+        z: z + vz * tRise,
+        y: target,
+        peak: peakY,
+      };
+    }
+  }
+  return pastMeeting(x, y, z, vx, vy, vz);
+}
+
+// Same bounce rules as advance(): REST_H, REST_V, MIN_REBOUND, then lift 0.
+// The arc is the first bounce on the receiving side, skipping one that is
+// still on the hitter's side. The meeting is min(head, peak) on the way up.
+function baselineMeeting(match, side) {
   const live = match.ball;
   const startBounces = match.flight?.bounces || 0;
   let x = live.x;
@@ -630,36 +717,18 @@ function sampleIntercepts(match, side) {
   let vy = live.vy;
   let vz = live.vz;
   let lift = live.lift || 0;
-  let bounces = startBounces;
   let t = 0;
   const flightT = match.flight?.t || 0;
   const phase = flightT / SAMPLE_DT;
   const onGrid = Math.abs(phase - Math.round(phase)) < 1e-6;
   const firstStep = onGrid ? SAMPLE_DT : (Math.ceil(phase) * SAMPLE_DT - flightT);
 
-  let net = null;
-  let arc = null;
-  let arcDone = false;
-  const consider = (bounced) => {
-    if (arcDone) return;
-    const sample = { t, x, y, z, vy };
-    if (!net && startBounces === 0 && onReceiveSide(z, side)) net = { ...sample };
-    if (arc) {
-      if (bounced) {
-        arcDone = true;
-        return;
-      }
-      arc.push(sample);
-    } else if (bounced && onReceiveSide(z, side)) {
-      arc = [sample];
-    } else if (!bounced && t === 0 && startBounces >= 1 && onReceiveSide(z, side)) {
-      arc = [sample];
-    }
-  };
+  if (startBounces >= 1 && onReceiveSide(z, side)) {
+    return meetingOnArc(x, y, z, vx, vy, vz);
+  }
 
-  consider(false);
   const steps = Math.ceil(SAMPLE_SECONDS / SAMPLE_DT);
-  for (let i = 0; i < steps && !arcDone; i += 1) {
+  for (let i = 0; i < steps; i += 1) {
     const h = i === 0 ? firstStep : SAMPLE_DT;
     const ay = -G + lift;
     const y1 = y + vy * h + 0.5 * ay * h * h;
@@ -673,9 +742,8 @@ function sampleIntercepts(match, side) {
       vx *= REST_H;
       vz *= REST_H;
       lift = 0;
-      bounces += 1;
       t += k;
-      consider(true);
+      if (onReceiveSide(z, side)) return meetingFromBounce(x, z, vx, vz, vy, t);
       const rem = h - k;
       t += rem;
       if (rem > 1e-8) {
@@ -691,24 +759,8 @@ function sampleIntercepts(match, side) {
       vy += ay * h;
       t += h;
     }
-    consider(false);
   }
-
-  let ground = null;
-  if (arc && arc.length) {
-    let top = 0;
-    for (let i = 1; i < arc.length; i += 1) {
-      if (arc[i].y > arc[top].y) top = i;
-    }
-    const peak = arc[top].y;
-    const want = Math.min(HEAD_Y, peak);
-    let best = 0;
-    for (let i = 1; i <= top; i += 1) {
-      if (Math.abs(arc[i].y - want) < Math.abs(arc[best].y - want) - 1e-12) best = i;
-    }
-    ground = { t: arc[best].t, x: arc[best].x, z: arc[best].z, y: arc[best].y, peak };
-  }
-  return { net, ground };
+  return null;
 }
 
 // Time to cover `dist` from rest: ramp to moveSpeed, then cruise. No braking.
@@ -764,28 +816,40 @@ function planChase(match, tuning) {
   const serve = match.shot.serve === true;
   const live = match.shot.outcome !== 'net';
 
-  const found = sampleIntercepts(match, side);
   if (flight.netCross === undefined) {
-    flight.netCross = found.net
-      ? { at: (flight.t || 0) + found.net.t, x: found.net.x, y: found.net.y, z: found.net.z }
+    const solved = netCrossing(match.ball);
+    flight.netCross = solved
+      ? { at: (flight.t || 0) + solved.t, x: solved.x, y: solved.y, z: 0 }
+      : null;
+  }
+  if (flight.baseMeet === undefined) {
+    const solved = baselineMeeting(match, side);
+    flight.baseMeet = solved
+      ? { at: (flight.t || 0) + solved.t, x: solved.x, y: solved.y, z: solved.z, peak: solved.peak }
       : null;
   }
   const cross = flight.netCross
     ? { t: Math.max(0, flight.netCross.at - (flight.t || 0)), x: flight.netCross.x, y: flight.netCross.y, z: flight.netCross.z }
     : null;
+  const ground = flight.baseMeet
+    ? { t: Math.max(0, flight.baseMeet.at - (flight.t || 0)), x: flight.baseMeet.x, z: flight.baseMeet.z, y: flight.baseMeet.y, peak: flight.baseMeet.peak }
+    : null;
 
   if (!flight.locks) {
     const clampedCross = cross ? clampSide(match, side, cross.x, cross.z) : null;
-    const clampedGround = found.ground ? clampSide(match, side, found.ground.x, found.ground.z) : null;
+    const clampedGround = ground ? clampSide(match, side, ground.x, ground.z) : null;
     flight.locks = {};
     if (baseId) flight.locks[baseId] = strokeFor(side, baseActor, clampedGround);
     if (netBodyId) flight.locks[netBodyId] = strokeFor(side, netActor, clampedCross);
   }
 
-  const netChasing = live && !serve && tuning.volleyPriority && !!netActor && !!cross
-    && cross.y <= tuning.reachY;
+  // A crossing above reach sends the net body home. A negative time does not:
+  // the cached plane point stays the aim after the ball has gone through it.
+  // volleyPriority can park the net body on a rally. A serve still runs in.
+  const netChasing = live && !!netActor && !!cross && cross.y <= tuning.reachY
+    && (serve || tuning.volleyPriority);
   let netTakes = false;
-  if (netChasing && (flight.bounces || 0) === 0) {
+  if (!serve && netChasing && (flight.bounces || 0) === 0) {
     const spot = clampSide(match, side, cross.x, cross.z);
     const dist = Math.hypot(spot.x - netActor.x, spot.z - netActor.z);
     netTakes = dist <= tuning.reach + 1e-6
@@ -797,8 +861,8 @@ function planChase(match, tuning) {
     baseId,
     netId: netBodyId,
     locks: flight.locks,
-    base: live && found.ground && baseActor
-      ? contactFor(match, side, baseId, found.ground, 'ground', flight.locks[baseId], tuning)
+    base: live && ground && baseActor
+      ? contactFor(match, side, baseId, ground, 'ground', flight.locks[baseId], tuning)
       : null,
     net: netChasing
       ? contactFor(match, side, netBodyId, cross, 'volley', flight.locks[netBodyId], tuning)

@@ -251,3 +251,57 @@ test('a serve return stays with the baseline human and the flight time', () => {
   assert.equal(match.shot.arriveIn, undefined);
   assert.equal(match.receiverId, 'b');
 });
+
+test('the baseline aim stays on the cached meeting after the ball passes it', () => {
+  const ball = { x: 0, y: 2, z: -2, vx: 0, vy: 1, vz: 8 };
+  const match = fly(singles(), ball);
+  step(match, DT);
+  const back = match.actors.get('b');
+  const cached = back.aimZ;
+  const expected = reboundApex(ball);
+  assert.ok(Math.abs(cached - expected.meetZ) < 0.1, `cached ${cached} meet ${expected.meetZ}`);
+  let guard = 0;
+  while (guard < 200 && match.phase === 'flight' && match.ball.z <= cached + 0.5) {
+    step(match, DT);
+    guard += 1;
+  }
+  assert.equal(match.phase, 'flight');
+  assert.ok(match.ball.z > cached + 0.5, `ball z ${match.ball.z} aim ${cached}`);
+  assert.ok(Math.abs(back.aimZ - cached) < 1e-9, `aim moved to ${back.aimZ}`);
+  assert.ok(Math.abs(back.aimZ - match.ball.z) > 0.5, `aim followed the ball to ${back.aimZ}`);
+});
+
+test('an off-grid net crossing aims at the plane', () => {
+  const match = fly(singles(), { z: -1.7, vz: 7.3 });
+  step(match, DT);
+  const net = match.actors.get('b~partner');
+  assert.equal(net.aimZ, 0);
+  let guard = 0;
+  while (guard < 200 && match.phase === 'flight' && (match.flight.bounces || 0) < 1) {
+    step(match, DT);
+    guard += 1;
+  }
+  assert.ok((match.flight.bounces || 0) >= 1, 'the ball bounced');
+  assert.ok(match.ball.z > 0, `ball still at ${match.ball.z}`);
+  assert.equal(net.aimZ, 0);
+  assert.notEqual(net.aimZ, net.homeZ);
+});
+
+test('a fast serve runs the net body toward the crossing and leaves the return on the baseline', () => {
+  const match = singles();
+  const id = view(match).serverId;
+  toss(match, id);
+  swing(match, { playerId: id, handed: 'right', shape: 'flat', timing: 0, power: 0.7, apex: 0.95 });
+  assert.equal(match.shot.serve, true);
+  assert.equal(match.shot.fast, true);
+  assert.equal(match.shot.arriveIn, undefined);
+  assert.equal(match.receiverId, 'b');
+  const net = match.actors.get('b~partner');
+  const homeZ = net.homeZ;
+  for (let i = 0; i < 20; i += 1) step(match, DT);
+  assert.ok(net.aimZ < homeZ - 1, `aimZ ${net.aimZ} home ${homeZ}`);
+  assert.ok(Math.abs(net.aimZ) < 1e-9, `aimZ ${net.aimZ}`);
+  assert.ok(net.z < homeZ - 0.5, `net z ${net.z} home ${homeZ}`);
+  assert.equal(match.receiverId, 'b');
+  assert.equal(match.shot.arriveIn, undefined);
+});
