@@ -807,7 +807,6 @@ function holdFor(view, pl) {
 
 function animatePlayer(state, pl, view, ball, dt, now) {
   const { person } = state;
-  const lefty = pl.handed === 'left';
   const sideSign = pl.side === 'B' ? -1 : 1;
 
   // Ball in the player's root frame (x right, z toward the net), or null.
@@ -840,7 +839,7 @@ function animatePlayer(state, pl, view, ball, dt, now) {
     else if (pl.hand === 'backhand') sw.kind = 'backhand';
     else if (pl.hand === 'forehand') sw.kind = 'forehand';
     else {
-      const localX = ballRoot ? ballRoot.x * (lefty ? -1 : 1) : 0;
+      const localX = ballRoot ? ballRoot.x : 0;
       sw.kind = localX < -0.05 ? 'backhand' : 'forehand';
     }
   }
@@ -856,8 +855,17 @@ function animatePlayer(state, pl, view, ball, dt, now) {
   }
   sw.t = swingT;
 
-  // Mode, with a short blend when the hold changes.
-  const mode = sw.active ? 'swing' : holdFor(view, pl);
+  // Mode, with a short blend when the hold changes. Once the ball is in the air the
+  // receiver's stroke is already on the view, so the hold is that takeback. The
+  // server's toss keeps its own pose. Handedness does not pick the stroke.
+  let mode = sw.active ? 'swing' : holdFor(view, pl);
+  if (
+    mode === 'ready'
+    && (pl.hand === 'forehand' || pl.hand === 'backhand')
+    && (view.phase === 'flight' || view.phase === 'toss')
+  ) {
+    mode = pl.hand;
+  }
   if (mode !== state.mode) {
     if (mode !== 'swing' && !state.fresh) {
       copyPose(state.from, state.out);
@@ -873,6 +881,10 @@ function animatePlayer(state, pl, view, ball, dt, now) {
   if (mode === 'swing') {
     const keys = sw.kind === 'serve' ? SERVE : sw.kind === 'backhand' ? BACKHAND : FOREHAND;
     sampleKeys(target, keys, Math.min(1, Math.max(0, swingT)));
+  } else if (mode === 'forehand') {
+    copyPose(target, FOREHAND[1]);
+  } else if (mode === 'backhand') {
+    copyPose(target, BACKHAND[1]);
   } else {
     copyPose(target, mode === 'toss' ? TOSS_HOLD : READY);
   }
@@ -915,8 +927,7 @@ function animatePlayer(state, pl, view, ball, dt, now) {
   const bob = Math.abs(stepSin) * 0.04 * armWalk;
   const sway = stepSin * 0.05 * armWalk;
 
-  // Trunk transform before contact correction.
-  const mirror = lefty ? -1 : 1;
+  // Trunk transform before contact correction. The racket stays in the right hand.
   const upper = person.upper;
   const lockRoot = sw.active && sw.lock ? sw.lock : mode === 'toss' && ballRoot ? ballRoot : null;
   let shiftX = 0;
@@ -925,8 +936,8 @@ function animatePlayer(state, pl, view, ball, dt, now) {
   let jump = 0;
 
   const applyTrunk = (pose) => {
-    upper.rotation.set(pose.lean, pose.yaw * mirror, 0, 'YXZ');
-    upper.scale.set(mirror, 1, 1);
+    upper.rotation.set(pose.lean, pose.yaw, 0, 'YXZ');
+    upper.scale.set(1, 1, 1);
     upper.position.set(shiftX, HIP_Y + shiftY, shiftZ);
     upper.updateMatrix();
   };
@@ -973,7 +984,7 @@ function animatePlayer(state, pl, view, ball, dt, now) {
       const pitch = typeof pl.facePitch === 'number' && Number.isFinite(pl.facePitch) ? pl.facePitch : 0;
       const dirX = Math.sin(pl.faceYaw) * Math.cos(pitch) * sideSign;
       const dirZ = Math.cos(pl.faceYaw) * Math.cos(pitch) * sideSign;
-      face = new V3(dirX * mirror, Math.sin(pitch), dirZ);
+      face = new V3(dirX, Math.sin(pitch), dirZ);
       // Forehand and backhand both keep the string bed toward the net. A backhand used to
       // flip this normal, and the blend from the key then turned the hoop edge-on.
       if (face.z < 0.2) face = null;
@@ -1020,8 +1031,8 @@ function animatePlayer(state, pl, view, ball, dt, now) {
   hand.z += stepSin * 0.035 * armWalk;
   hand.y += bob * 0.8;
 
-  upper.rotation.set(poseNow.lean, poseNow.yaw * mirror, 0, 'YXZ');
-  upper.scale.set(mirror, 1, 1);
+  upper.rotation.set(poseNow.lean, poseNow.yaw, 0, 'YXZ');
+  upper.scale.set(1, 1, 1);
   upper.position.set(shiftX, HIP_Y + shiftY, shiftZ);
   upper.updateMatrix();
   person.group.position.y = jump + bob;
@@ -1065,11 +1076,11 @@ const BASELINE_PLAYER_Z = 11.185;
 // One camera per side, never more than two panes. It sits back and above the baseline so a
 // half-width pane still holds the whole doubles court and both players on that side.
 const COURT_CAMERA = {
-  y: 7.5,
-  behindPlayer: 3.4,
-  fov: 66,
+  y: 14,
+  behindPlayer: 11,
+  fov: 46,
   lookY: 0.2,
-  lookAhead: 10,
+  lookAhead: 18,
 };
 
 function courtCameraFor(side) {
