@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import TeamSelect from './TeamSelect.jsx';
+import TunePanel, { TuneButton } from './TunePanel.jsx';
 import { createMatch, step, view } from './rally.js';
 import { createTennisScene } from './scene.js';
 import { afterPhysics, begin, createFlow, onPhone, winnerNames } from './flow.js';
@@ -9,6 +10,7 @@ import './match.css';
 export default function TennisApp({ wsRef, send, players, disconnectedPlayerIds, onGameOver, onAbandon }) {
   const [lineup, setLineup] = useState(null);
   const [winner, setWinner] = useState(null);
+  const [tuneOpen, setTuneOpen] = useState(false);
 
   const containerRef = useRef(null);
   const flowRef = useRef(null);
@@ -110,7 +112,11 @@ export default function TennisApp({ wsRef, send, players, disconnectedPlayerIds,
   return (
     <div className="tennis-app">
       <div className="tennis-court" ref={containerRef} />
-      <button type="button" className="tennis-quit" onClick={onAbandon}>Quit</button>
+      <div className="tennis-match-actions">
+        <TuneButton pressed={tuneOpen} onToggle={() => setTuneOpen((open) => !open)} />
+        <button type="button" className="tennis-quit" onClick={onAbandon}>Quit</button>
+      </div>
+      <TunePanel open={tuneOpen} />
       {winner && (
         <div className="tennis-winner">
           <p className="tennis-winner-names">{winnerText}</p>
