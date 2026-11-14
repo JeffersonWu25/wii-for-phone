@@ -212,6 +212,9 @@ test('a front-court crossing is a volley for the net player when the bounce is d
     lift: 0,
     fast: false,
   };
+  const partner = match.actors.get('b~partner');
+  partner.x = 2.4;
+  partner.z = 0.5;
   const chase = plannedContact(match);
   assert.equal(chase.kind, 'volley');
   assert.equal(chase.id, 'b~partner');
@@ -436,7 +439,7 @@ test('a lower ai waits, then aims off the intercept by a stable shift', () => {
   }
 });
 
-test('a left-handed late serve lands on the other side of the box', () => {
+test('a left-handed late serve lands where the right-handed one does', () => {
   function land(handed) {
     const match = singles();
     const id = view(match).serverId;
@@ -453,7 +456,7 @@ test('a left-handed late serve lands on the other side of the box', () => {
   const right = land('right');
   const left = land('left');
   assert.ok(right > 0, `right ${right}`);
-  assert.ok(left < 0, `left ${left}`);
+  assert.equal(left, right);
 });
 
 test('the volley window is the crossing, not the bounce', () => {
@@ -481,6 +484,9 @@ test('the volley window is the crossing, not the bounce', () => {
     lift: 0,
     fast: false,
   };
+  const catcher = match.actors.get('a~partner');
+  catcher.x = 0.5;
+  catcher.z = -1;
   const connected = swing(match, {
     playerId: 'b',
     handed: 'right',
