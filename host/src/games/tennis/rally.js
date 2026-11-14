@@ -538,6 +538,10 @@ export function swing(match, input) {
     fast: plan.fast === true,
   };
   match.receiverId = receiverFor(match, hitterSide, plan, isServe);
+  if (!isServe && plan.outcome !== 'net') {
+    const chase = chooseContact(match, tuning);
+    if (chase) match.receiverId = ownerId(chase.id);
+  }
   return true;
 }
 
@@ -702,15 +706,15 @@ function chooseContact(match, tuning) {
   const net = netId(match, side);
   const baseline = match.actors.get(baseId);
   const netBody = net ? match.actors.get(net) : null;
-  if (!serve && tuning.volleyPriority && zones.volley && zones.bounce && netBody) {
-    const near = Math.hypot(zones.volley.x - zones.bounce.x, zones.volley.z - zones.bounce.z) <= 1;
-    if (near) {
-      const spare = spareTime(netBody, zones.volley, tuning);
-      if (spare >= 0) {
-        return finishContact(match, {
-          id: net, spare, point: zones.volley, kind: 'volley',
-        }, side, ai);
-      }
+  // A volley is a crossing in front of the net player. A ball dropping behind them is a groundstroke.
+  const volleyInFront = zones.volley && netBody
+    && Math.abs(zones.volley.z) < Math.abs(netBody.homeZ) - 0.4;
+  if (!serve && tuning.volleyPriority && volleyInFront) {
+    const spare = spareTime(netBody, zones.volley, tuning);
+    if (spare >= 0) {
+      return finishContact(match, {
+        id: net, spare, point: zones.volley, kind: 'volley',
+      }, side, ai);
     }
   }
   if (!baseline) return null;

@@ -188,6 +188,37 @@ test('a short unbounced ball is struck by the partner when the baseline cannot r
   assert.equal(String(match.receiverId).includes('~'), false);
 });
 
+test('a front-court crossing is a volley for the net player when the bounce is deeper', () => {
+  const match = singles();
+  match.phase = 'flight';
+  match.receiverId = 'b';
+  match.flight = { bounces: 0, t: 0.3 };
+  match.shot = {
+    outcome: 'in',
+    hitterSide: 'A',
+    landX: 2.4,
+    landZ: 9,
+    flightTime: 1.2,
+    serve: false,
+    fast: false,
+  };
+  match.ball = {
+    x: 2.4,
+    y: 3.18,
+    z: 1.0,
+    vx: 0,
+    vy: -1,
+    vz: 5.45,
+    lift: 0,
+    fast: false,
+  };
+  const chase = plannedContact(match);
+  assert.equal(chase.kind, 'volley');
+  assert.equal(chase.id, 'b~partner');
+  assert.ok(Math.abs(chase.z) <= 6.4);
+  assert.ok(Math.abs(chase.z - 9) > 1);
+});
+
 test('teammates stay at least 1.5m apart over a short rally', () => {
   const match = singles();
   serve(match, { apex: 0.3, timing: 0, power: 0.6 });
