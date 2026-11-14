@@ -158,7 +158,8 @@ export const cloverMeadows = {
     { id: 'mf-m4', kind: 'mud', piece: 'mf5', at: 30, lateral: 6, length: 16, width: 13, seed: 34 },
   ],
   obstacles: [
-    { id: 'blades', kind: 'blades', piece: 'tunnel', at: 0, period: 4, phase: 0, blockFraction: 0.35 },
+    // Sail reach 27.0 m from a hub 27.2 m over the road, arch half-width 8.15 m: a sail tip is in the opening for +/-17.5 deg = 0.39 of its 90 deg quarter turn.
+    { id: 'blades', kind: 'blades', piece: 'tunnel', at: 0, period: 4, phase: 0, blockFraction: 0.39 },
     crosser('cow-1', 'cowA', 12, -8, 8, 0),
     crosser('cow-2', 'cowB', 14, 8, -8, 5),
     crosser('cow-3', 'cowC', 12, -7, 7, 10),

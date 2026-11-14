@@ -92,6 +92,8 @@ export function buildSky() {
   group.add(cloudGroup);
   return {
     group,
+    dome,
+    cloudMaterial: mat,
     tick(t, camera) {
       if (camera) group.position.copy(camera.position);
       cloudGroup.rotation.y = t * 0.004;

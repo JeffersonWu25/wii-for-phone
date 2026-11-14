@@ -9,6 +9,8 @@ import { CL, chevTex, cutRange, fenceLine, ground } from './kit.js';
 const WALL = 2.4;
 const RY = 5.8;
 const K = 12;
+export const HUB_RISE = WALL + RY + 5.5 * 0.9 + 14; // m, rotor hub above the road at the tower
+export const ARCH_HALF = (hw) => hw + 0.15; // m, arch opening half-width over a road of half-width hw
 const archPt = (hw, k, grow, lift = 0) => {
   const A = hw + 0.15 + grow;
   const ph = (k / K) * Math.PI;
@@ -90,8 +92,8 @@ export function buildWindmill(ctx, sec) {
   const hub = ground(track, sT - 6.6, 0);
   const stub = cyl(0.8, 0.8, 2.6, 8);
   stub.rotateZ(Math.PI / 2);
-  tb.add(stub, xform(hub.x, c.y + topY + 14, hub.z, -c.h), CL.woodDark);
-  ctx.windmill = { s: t0, hub: { x: hub.x, y: c.y + topY + 14, z: hub.z }, heading: c.h, archTop: WALL + RY, halfWidth: c.f.halfWidth, tower: { x: c.x, y: c.y + topY, z: c.z } };
+  tb.add(stub, xform(hub.x, c.y + HUB_RISE, hub.z, -c.h), CL.woodDark);
+  ctx.windmill = { s: t0, hub: { x: hub.x, y: c.y + HUB_RISE, z: hub.z }, heading: c.h, archTop: WALL + RY, halfWidth: c.f.halfWidth, tower: { x: c.x, y: c.y + topY, z: c.z } };
   g.add(propGroup('tunnelShell', [m.mesh(mats.col(), { shadow: true, receive: true })]), propGroup('tower', [tb.mesh(mats.col(), { shadow: true })]));
 
   // Bypass: dirt road ribbon over the grass, rails on both sides, and the blue boost pad drawn on it.

@@ -1,6 +1,6 @@
 // Animated hazards: cows walking/grazing (posed from track.obstaclesAt) and the windmill blades that sweep the tunnel mouth.
-// Blades: the rotor is a 4-sail wheel on the tower's axle, turned 90 degrees while the gate is closed (the bottom sail sweeps
-// from the left of the arch to the right exactly during `blocking`) and held in an X, clear of the road, while it is open.
+// Blades: the rotor is a 4-sail wheel on the tower's axle that never stops; obstacles.js bladeState gives its angle, with one
+// sail's tip across the arch exactly while the gate is `blocking`.
 import * as THREE from 'three';
 import { mats } from '../coconut/kit.js';
 import { CL } from './kit.js';
@@ -46,15 +46,6 @@ function merge(parts) {
   return out;
 }
 
-export const SAIL_REST = -Math.PI / 4; // rotor angle (down-pointing sail, + = toward the road's right) while the gate is open
-
-// Rotor angle for a blade-gate entry: rest X, then 90 degrees across the arch during blocking.
-export function rotorAngle(angle, blockFraction) {
-  const u = (((angle / (Math.PI * 2)) % 1) + 1) % 1;
-  const k = u < blockFraction ? u / blockFraction : 1;
-  return SAIL_REST + (Math.PI / 2) * k;
-}
-
 function buildBlades(track, wm, def) {
   const f = track.frameAt(def.s - PLANE_BACK);
   const hubY = wm.hub.y;
@@ -76,7 +67,7 @@ function buildBlades(track, wm, def) {
   const run = Math.hypot(wm.hub.x - f.x, wm.hub.z - f.z);
   const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, run, 8).rotateX(Math.PI / 2).translate(0, 0, -run / 2), new THREE.MeshLambertMaterial({ color: CL.woodDark }));
   g.add(axle, rotor);
-  return { group: g, rotor, blockFraction: def.blockFraction };
+  return { group: g, rotor };
 }
 
 function buildCow(variant) {
@@ -120,6 +111,7 @@ export function buildHazards(track, windmill) {
   let last = null;
 
   function tick(raceTime) {
+    if (raceTime === last) return; // one pose per race time, however many split-screen views call
     const dt = last == null ? 0 : raceTime - last;
     last = raceTime;
     for (const o of track.obstaclesAt(raceTime)) {
@@ -140,7 +132,7 @@ export function buildHazards(track, windmill) {
         c.head.rotation.z = -c.graze * 0.95 + (walking ? Math.sin(c.walk) * 0.08 : Math.sin(raceTime * 1.3 + o.x) * 0.04 * c.graze);
         c.head.position.y = 1.55 - c.graze * 0.25;
       } else if (o.kind === 'blades' && blades) {
-        blades.rotor.rotation.z = rotorAngle(o.angle, blades.blockFraction);
+        blades.rotor.rotation.z = o.angle;
       }
     }
   }

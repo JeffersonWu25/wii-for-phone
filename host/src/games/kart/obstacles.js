@@ -28,10 +28,14 @@ export function cowPose(o, t) {
   return { lateral: a + (b - a) * e, dir: Math.sign(o.to - o.from) * (leg === 0 ? 1 : -1) };
 }
 
-// Blade gate: closed for the first blockFraction of each period; one blade turn per period.
+// Blade gate: a continuously turning 4-sail rotor, one quarter turn per period, so one sail crosses the arch each period.
+// `angle` is the rotor's render angle (0 = a sail pointing straight down, + toward the road's right). The gate is closed for the
+// first blockFraction of each period, and that window is centred on the sail hanging straight down, so the sail sweeps
+// +/-(blockFraction * 45) degrees about vertical: the angular span the closed gate must cover. Collision and renderer share this.
 export function bladeState(o, t) {
-  const u = mod(t + o.phase, o.period) / o.period;
-  return { blocking: u < o.blockFraction, angle: u * Math.PI * 2 };
+  const turns = (t + o.phase) / o.period;
+  const u = mod(turns, 1);
+  return { blocking: u < o.blockFraction, angle: (turns - o.blockFraction / 2) * (Math.PI / 2) };
 }
 
 // Records a hit and returns true when it is a fresh one (outside the cooldown of this obstacle).
@@ -64,17 +68,25 @@ function bounce(race, kart, track, id, nx, nz, pen) {
     kart.speed = fresh ? along : Math.max(along, Math.min(kart.speed, SCRAPE_SPEED));
   }
   const p = track.project(kart.x, kart.z, kart.s);
+  // Keep the push inside the corridor walls (bridge, tunnel).
+  const surf = track.surfaceAt(p.s, p.lateral);
+  const lateral = Math.min(surf.limitR - KART_RADIUS, Math.max(-(surf.limitL - KART_RADIUS), p.lateral));
+  if (lateral !== p.lateral) {
+    const fr = track.frameAt(p.s);
+    kart.x = fr.x + fr.rx * lateral;
+    kart.z = fr.z + fr.rz * lateral;
+  }
   kart.s = p.s;
-  kart.lateral = p.lateral;
+  kart.lateral = lateral;
 }
 
 export function collideObstacles(race, track) {
   if (!track.obstacles?.length) return;
   const obs = track.obstaclesAt(race.time);
   for (const kart of race.karts) {
-    if (kart.airborne) continue;
     for (const o of obs) {
       if (o.kind === 'cow') {
+        if (kart.airborne) continue; // a kart in the air flies over cows, but never through a closed gate
         const dx = kart.x - o.x;
         const dz = kart.z - o.z;
         const d = Math.hypot(dx, dz);
@@ -84,6 +96,7 @@ export function collideObstacles(race, track) {
         const [nx, nz] = d > 1e-6 ? [dx / d, dz / d] : [-fr.fx, -fr.fz];
         bounce(race, kart, track, o.id, nx, nz, min - d);
       } else if (o.kind === 'blades' && o.blocking) {
+        if (Math.abs(kart.lateral - o.lateral) > o.radius) continue; // the wall spans the road, not the bypass
         let d = kart.s - o.s;
         d -= track.length * Math.round(d / track.length);
         const min = KART_RADIUS + GATE_HALF;

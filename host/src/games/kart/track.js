@@ -490,8 +490,10 @@ export function buildTrack(def) {
 
   // Obstacles: positions are pure functions of race time (see obstacles.js).
   const obstacles = (def.obstacles ?? []).map((o) => ({ ...o, s: resolve(o.piece, o.at) }));
+  let memo = { t: NaN, list: [] }; // the sim step and each split-screen view ask for the same t
   function obstaclesAt(t) {
-    return obstacles.map((o) => {
+    if (memo.t === t) return memo.list;
+    const list = obstacles.map((o) => {
       const fr = frameAt(o.s);
       const cow = o.kind === 'cow';
       const pose = cow ? cowPose(o, t) : { lateral: 0, dir: 1 };
@@ -513,6 +515,8 @@ export function buildTrack(def) {
         ...(gate ? { angle: gate.angle } : {}),
       };
     });
+    memo = { t, list };
+    return list;
   }
 
   // Slot i: row-major over `grid.cols` columns; odd columns sit half a row further back.

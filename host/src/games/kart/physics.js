@@ -104,7 +104,9 @@ function updateDrift(kart, input, steer, surface, dt, tune) {
   const mud = surface === 'mud';
   const d = kart.drift;
   const held = !!input.drift;
-  if (d.sliding) {
+  if (d.sliding && mud) {
+    Object.assign(d, { sliding: false, dir: 0, charge: 0, level: 0 }); // mud ends a slide, no boost
+  } else if (d.sliding) {
     const released = !held;
     // The release only takes over when it outlasts the boost already running, so a weak release
     // never cuts short or recolors a stronger one.
@@ -149,7 +151,8 @@ function gripHeading(kart, steer, v, surface, dt, tune) {
   }
   const fx = Math.cos(kart.h);
   const fz = Math.sin(kart.h);
-  const catchUp = 1 - Math.exp(-(surface === 'grass' || surface === 'sand' ? GRIP_OFFROAD : mud ? GRIP_ROAD * MUD_GRIP : GRIP_ROAD) * dt);
+  const grip = surface === 'grass' || surface === 'sand' ? GRIP_OFFROAD : mud ? GRIP_ROAD * MUD_GRIP : GRIP_ROAD;
+  const catchUp = 1 - Math.exp(-grip * dt);
   kart.vx += (fx * v - kart.vx) * catchUp;
   kart.vz += (fz * v - kart.vz) * catchUp;
   const vmag = Math.hypot(kart.vx, kart.vz);
@@ -293,7 +296,7 @@ export function stepKart(kart, input, dt, track, tune = DEFAULT_TUNING) {
 // Parabola over distance travelled: y = surface + 4 peak u (1 - u), u = dist / len. Lands when u reaches 1.
 function flyRamp(kart, surfaceY, dt) {
   const a = kart.air;
-  a.dist += Math.max(0, kart.speed) * dt;
+  a.dist += Math.max(RAMP_MIN_SPEED / 2, kart.speed) * dt; // a stopped kart still comes down
   const u = Math.min(1, a.dist / a.len);
   if (u >= 1) {
     kart.airborne = false;
@@ -317,7 +320,7 @@ function tryLaunch(kart, track) {
   kart.ramp = over ?? null;
   if (!over || over === was || kart.speed < RAMP_MIN_SPEED) return;
   const len = Math.min(RAMP_AIR_MAX, kart.speed * RAMP_AIR_RATIO);
-  Object.assign(kart, { airborne: true, air: { dist: 0, len, peak: len * RAMP_HEIGHT_RATIO }, vy: (4 * len * RAMP_HEIGHT_RATIO / len) * kart.speed });
+  Object.assign(kart, { airborne: true, air: { dist: 0, len, peak: len * RAMP_HEIGHT_RATIO }, vy: 4 * RAMP_HEIGHT_RATIO * kart.speed });
   if (kart.boost < BOOST_TIME) {
     kart.boost = BOOST_TIME;
     kart.boostLevel = 0;

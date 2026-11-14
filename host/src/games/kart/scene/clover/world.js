@@ -38,7 +38,7 @@ const BUILDERS = {
 };
 
 // GLSL edits for the shared ground: dirt road without asphalt markings, grass runoff in place of sand, plain green hills.
-const LOOK = {
+export const LOOK = {
   key: 'clover',
   edits: [
     ['vec3 grassA = C(0.24, 0.63, 0.10);', 'vec3 grassA = C(0.247, 0.604, 0.180);'],
@@ -70,8 +70,8 @@ export function buildCloverWorld(track) {
   const sky = buildSky();
   sky.group.name = 'sky';
   // Pink-tinted clouds and a softer pastel gradient dome.
-  sky.group.children[1]?.children[0]?.material.color.set(0xffd9e6);
-  sky.group.children[0].material.fragmentShader = DOME;
+  sky.cloudMaterial.color.set(0xffd9e6);
+  sky.dome.material.fragmentShader = DOME;
 
   const sections = track.sections.map((s) => (BUILDERS[s.id] ? BUILDERS[s.id](ctx, s) : section(s.id)));
   const hazards = buildHazards(track, ctx.windmill);
