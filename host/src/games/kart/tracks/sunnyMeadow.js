@@ -46,8 +46,8 @@ export const sunnyMeadow = {
     { piece: 'start', at: 80 },
     { piece: 'back', at: 90 },
   ].map((r) => ({ ...r, laterals: ITEM_ROW_LATERALS })),
-  // Data only for the ramp; nothing consumes it yet.
-  ramps: [{ piece: 'back', at: 150, lateral: 0, length: 8, width: 6 }],
+  // The ramp is decorative: jump: false opts it out of launching.
+  ramps: [{ piece: 'back', at: 150, lateral: 0, length: 8, width: 6, jump: false }], // jump: false keeps this ramp decorative so lap times stay as before
   grid: { cols: 2, colGap: 8, rowGap: 8 },
   terrain: (x, z, dist) => rollingHills(x, z) * smoothstep((dist - 120) / 60),
 };

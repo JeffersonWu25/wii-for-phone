@@ -1,5 +1,6 @@
 // Race state machine — pure. Steps karts, tracks checkpoints / laps, standings, wrong-way flag.
 import { createKart, stepKart, resolveKartCollisions } from './physics.js';
+import { collideObstacles } from './obstacles.js';
 import { createBoxes, mulberry32, stepItems } from './items.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -88,6 +89,7 @@ export function stepRace(race, inputsById, dt, track, tune) {
     stepKart(kart, kart.finished ? { steer: 0, throttle: 0 } : input, dt, track, tune);
   }
   resolveKartCollisions(race.karts);
+  collideObstacles(race, track);
   stepItems(race, inputsById, dt, track);
 
   race.karts.forEach((kart, i) => {

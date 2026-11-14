@@ -174,7 +174,7 @@ export function createKartScene(container, track) {
       const useShot = !!shotName && i === 0; // debug shots take over the first view only
       placeCamera(v, race, dt, useShot);
       if (!useShot) applyViewFx(v, race, dt);
-      world.tick?.(time, v.camera);
+      world.tick?.(time, v.camera, race.time);
       focusSun(v, useShot);
       const { x, y, w, h } = viewRect(v, width, height);
       renderer.setViewport(x, y, w, h);

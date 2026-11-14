@@ -68,7 +68,7 @@ float cv(float d, float w) { return clamp(d / max(w, 1e-4) + 0.5, 0.0, 1.0); }
 float bd(float x, float a, float b, float w) { return cv(x - a, w) * cv(b - x, w); }
 `;
 
-const FRAG_BODY = `
+export const FRAG_BODY = `
 vec3 gGlow = vec3(0.0);
 {
   float s = vTr.x;
@@ -235,7 +235,17 @@ vec3 gGlow = vec3(0.0);
 }
 `;
 
-export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
+// `look` ({ key, edits: [[glslFrom, glslTo]] }) re-skins the fragment shader (Clover Meadows: dirt road, grass runoff).
+// Applies a look's [from, to] text edits to the fragment body; each `from` must occur exactly once.
+export function applyLook(src, look) {
+  return (look?.edits ?? []).reduce((acc, [from, to]) => {
+    const n = acc.split(from).length - 1;
+    if (n !== 1) throw new Error(`ground look: shader text matched ${n} times (want 1): ${from}`);
+    return acc.replace(from, () => to);
+  }, src);
+}
+
+export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22], look = null } = {}) {
   const samples = track.samples;
   const N = samples.length - 1;
   const ds = track.sampleStep;
@@ -271,9 +281,12 @@ export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
   const stationsOf = (sp) => {
     const l = offs(sp, -1).reverse().map((v) => -v);
     const r = offs(sp, 1);
-    return [...l, ...r];
+    // A dished road needs vertices across the road itself, else the drawn quad sits flat above the physics surface.
+    const mid = dished ? [-1, -0.5, 0, 0.5, 1].map((f) => f * sp.halfWidth) : [];
+    return [...l, ...mid, ...r];
   };
-  const SC = 10;
+  const dished = track.pieces.some((p) => p.dish > 0);
+  const SC = dished ? 15 : 10;
   const rp = new Float32Array(rows.length * SC * 3);
   const rt = new Float32Array(rows.length * SC * 4);
   const rw = new Float32Array(rows.length * SC * 4);
@@ -434,6 +447,7 @@ export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
   uniforms.uMarkN.value = Math.min(40, marks.length);
   track.boostPads.slice(0, 4).forEach((p, i) => uniforms.uPad.value[i].set(p.s, p.lateral, p.length, p.width));
 
+  const body = applyLook(FRAG_BODY, look);
   const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);
@@ -442,10 +456,10 @@ export function buildGround(track, sun, { curb = [0.10, 0.70, 0.22] } = {}) {
       .replace('#include <begin_vertex>', `#include <begin_vertex>\nvTr = aTr; vW = aW; vR = aR; vH = aH; vWp = position;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\n${FRAG_DECL}`)
-      .replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_BODY}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${body}`)
       .replace('#include <opaque_fragment>', 'outgoingLight += gGlow;\n#include <opaque_fragment>');
   };
-  mat.customProgramCacheKey = () => 'kart-ground';
+  mat.customProgramCacheKey = () => (look ? `kart-ground-${look.key}` : 'kart-ground');
 
   const ribbon = new THREE.Mesh(rgeo, mat);
   const terrain = new THREE.Mesh(tgeo, mat);

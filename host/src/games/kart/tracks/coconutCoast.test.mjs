@@ -10,9 +10,9 @@ const section = (id) => track.sections.find((s) => s.id === id);
 const inSection = (s, id) => s >= section(id).s0 && s < section(id).s1;
 const wrapAngle = (a) => a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
 
-test('registry knows both tracks, the Coconut Cup and the standalone Sunny Meadow', () => {
-  assert.deepEqual(Object.keys(TRACKS).sort(), ['coconut-coast', 'sunny-meadow']);
-  assert.deepEqual(CUPS, [{ id: 'coconut', name: 'Coconut Cup', tracks: ['coconut-coast', null, null, null] }]);
+test('registry knows the tracks, the Coconut Cup and the standalone Sunny Meadow', () => {
+  assert.deepEqual(Object.keys(TRACKS).sort(), ['clover-meadows', 'coconut-coast', 'sunny-meadow']);
+  assert.deepEqual(CUPS, [{ id: 'coconut', name: 'Coconut Cup', tracks: ['coconut-coast', 'clover-meadows', null, null] }]);
   assert.deepEqual(STANDALONE, ['sunny-meadow']);
   assert.throws(() => loadTrack('nope'), /unknown track/);
   assert.equal(track.id, 'coconut-coast');

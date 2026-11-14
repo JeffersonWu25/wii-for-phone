@@ -19,6 +19,16 @@ export const SCRUB = 1.5; // speed lost to sideways slip
 export const KART_RADIUS = 0.9;
 export const WALL_SPEED_LOSS = 0.35;
 export const WALL_RESTITUTION = 0.3;
+// Mud: not slow, but slippery — velocity barely follows the heading and the kart turns lazily.
+export const MUD_GRIP = 0.2; // x GRIP_ROAD
+export const MUD_TURN = 0.5; // x turn rate
+
+// Ramps: a scripted hop sized from the takeoff speed.
+export const RAMP_MIN_SPEED = 8; // m/s
+export const RAMP_AIR_RATIO = 1.0; // m flown per m/s of takeoff speed
+export const RAMP_AIR_MAX = 40; // m
+export const RAMP_HEIGHT_RATIO = 0.08; // peak height per m flown
+
 export const ATTITUDE_RATE = 12; // 1/s smoothing for pitch / roll
 
 // Hits: a banana spins the kart out, a shell tumbles it. Steering and items are locked meanwhile.
@@ -76,6 +86,10 @@ export function createKart({ id, color, slot } = {}) {
     drift: { sliding: false, dir: 0, charge: 0, level: 0 },
     slip: 0, // physics-internal, the renderer must not read it: heading minus travel direction, rad
     airborne: false,
+    vy: 0, // m/s, vertical speed while airborne
+    air: null, // { dist, len, peak, ramp } while airborne
+    ramp: null, // ramp the kart is still over after takeoff / landing, so it cannot re-launch from it
+    stagger: 0, // s of weakened steering after hitting an obstacle (see obstacles.js)
     steerVis: 0,
   };
 }
@@ -84,12 +98,15 @@ export const DEFAULT_TUNING = { speed: 1, turn: 1, driftTurn: 1, driftLevel: 1, 
 
 // Slide state machine. A slide needs drift held plus enough steer and speed; the direction locks
 // at the start. Charging pauses off-road, a wall hit only costs speed. Releasing the button at
-// level 1+ grants the boost; running out of speed grants nothing. Holding drift after that
+// level 1+ grants the boost; mud neither starts a slide nor charges one; running out of speed grants nothing. Holding drift after that
 // starts a new slide once the conditions hold again.
-function updateDrift(kart, input, steer, offroad, dt, tune) {
+function updateDrift(kart, input, steer, surface, dt, tune) {
+  const mud = surface === 'mud';
   const d = kart.drift;
   const held = !!input.drift;
-  if (d.sliding) {
+  if (d.sliding && mud) {
+    Object.assign(d, { sliding: false, dir: 0, charge: 0, level: 0 }); // mud ends a slide, no boost
+  } else if (d.sliding) {
     const released = !held;
     // The release only takes over when it outlasts the boost already running, so a weak release
     // never cuts short or recolors a stronger one.
@@ -99,13 +116,13 @@ function updateDrift(kart, input, steer, offroad, dt, tune) {
       kart.boostLevel = d.level;
     }
     if (released || kart.speed < DRIFT_MIN_SPEED) Object.assign(d, { sliding: false, dir: 0, charge: 0, level: 0 });
-  } else if (held && Math.abs(steer) >= DRIFT_MIN_STEER && kart.speed >= DRIFT_MIN_SPEED) {
+  } else if (held && !mud && Math.abs(steer) >= DRIFT_MIN_STEER && kart.speed >= DRIFT_MIN_SPEED) {
     Object.assign(d, { sliding: true, dir: Math.sign(steer), charge: 0, level: 0 });
     // Start from the slip the kart already has so the body does not snap.
     if (Math.hypot(kart.vx, kart.vz) > 0.5) kart.slip = wrapAngle(kart.h - Math.atan2(kart.vz, kart.vx));
   }
   if (!d.sliding) return;
-  if (!offroad) d.charge += dt;
+  if (!mud && surface !== 'grass' && surface !== 'sand') d.charge += dt;
   d.level = DRIFT_LEVEL_TIMES.filter((t) => d.charge * tune.driftLevel >= t).length;
 }
 
@@ -123,8 +140,9 @@ function slideHeading(kart, steer, v, dt, tune) {
 
 // Grip: steer the heading, ease out leftover slip, let the velocity vector lag the heading.
 // Returns the forward speed after slip scrub.
-function gripHeading(kart, steer, v, offroad, dt, tune) {
-  const turn = (TURN_RATE * tune.turn / (1 + (Math.abs(v) / TURN_FALLOFF) ** 2)) * Math.min(1, Math.abs(v) / 3);
+function gripHeading(kart, steer, v, surface, dt, tune) {
+  const mud = surface === 'mud';
+  const turn = (mud ? MUD_TURN : 1) * (TURN_RATE * tune.turn / (1 + (Math.abs(v) / TURN_FALLOFF) ** 2)) * Math.min(1, Math.abs(v) / 3);
   kart.h += steer * turn * Math.sign(v) * dt;
   if (kart.slip !== 0) {
     const eased = Math.abs(kart.slip) < 0.005 ? 0 : kart.slip * Math.exp(-DRIFT_SLIP_OUT * dt);
@@ -133,7 +151,8 @@ function gripHeading(kart, steer, v, offroad, dt, tune) {
   }
   const fx = Math.cos(kart.h);
   const fz = Math.sin(kart.h);
-  const catchUp = 1 - Math.exp(-(offroad ? GRIP_OFFROAD : GRIP_ROAD) * dt);
+  const grip = surface === 'grass' || surface === 'sand' ? GRIP_OFFROAD : mud ? GRIP_ROAD * MUD_GRIP : GRIP_ROAD;
+  const catchUp = 1 - Math.exp(-grip * dt);
   kart.vx += (fx * v - kart.vx) * catchUp;
   kart.vz += (fz * v - kart.vz) * catchUp;
   const vmag = Math.hypot(kart.vx, kart.vz);
@@ -159,11 +178,14 @@ export function applyHit(kart, kind) {
 export function stepKart(kart, input, dt, track, tune = DEFAULT_TUNING) {
   const hit = kart.hit;
   if (hit) input = { steer: 0, throttle: 0, drift: false };
-  const steer = clamp(input.steer || 0, -1, 1);
+  const steer = clamp(input.steer || 0, -1, 1) * (kart.stagger > 0 ? 0.4 : 1);
+  kart.stagger = Math.max(0, kart.stagger - dt);
   const throttle = clamp(input.throttle ?? 1, 0, 1);
-  const offroad = kart.surface === 'grass' || kart.surface === 'sand';
+  // Airborne karts feel no surface at all.
+  const surface = kart.airborne ? 'road' : kart.surface;
+  const offroad = surface === 'grass' || surface === 'sand';
 
-  updateDrift(kart, input, steer, offroad, dt, tune);
+  updateDrift(kart, input, steer, surface, dt, tune);
   const sliding = kart.drift.sliding;
   const boostTop = kart.boostLevel > 0 ? DRIFT_BOOST_TOP[kart.boostLevel - 1] : BOOST_TOP;
   const top = TOP_SPEED * tune.speed * (offroad && kart.mushroom <= 0 ? OFFROAD_TOP : 1) * (kart.boost > 0 ? boostTop : 1);
@@ -187,7 +209,7 @@ export function stepKart(kart, input, dt, track, tune = DEFAULT_TUNING) {
   kart.steerVis += (steer - kart.steerVis) * (1 - Math.exp(-10 * dt));
 
   if (sliding) slideHeading(kart, steer, v, dt, tune);
-  else v = gripHeading(kart, steer, v, offroad, dt, tune);
+  else v = gripHeading(kart, steer, v, surface, dt, tune);
   kart.speed = v;
 
   kart.x += kart.vx * dt;
@@ -237,6 +259,7 @@ export function stepKart(kart, input, dt, track, tune = DEFAULT_TUNING) {
   kart.lateral = lateral;
   kart.surface = surf.kind;
   kart.y = surf.y;
+  if (kart.airborne) flyRamp(kart, surf.y, dt);
 
   // Attitude from the surface gradient.
   const ny = surf.ny || 1;
@@ -256,7 +279,7 @@ export function stepKart(kart, input, dt, track, tune = DEFAULT_TUNING) {
       kart.invuln = HIT_INVULN;
     }
   } else kart.invuln = Math.max(0, kart.invuln - dt);
-  for (const pad of hit ? [] : track.boostPads) {
+  for (const pad of hit || kart.airborne ? [] : track.boostPads) {
     let ds = kart.s - pad.s;
     ds -= track.length * Math.round(ds / track.length);
     if (Math.abs(ds) <= pad.length / 2 && Math.abs(kart.lateral - pad.lateral) <= pad.width / 2 + 0.5 && kart.boost < BOOST_TIME) {
@@ -265,6 +288,43 @@ export function stepKart(kart, input, dt, track, tune = DEFAULT_TUNING) {
     }
   }
   if (kart.boost === 0) kart.boostLevel = 0;
+  if (!hit && !kart.airborne) tryLaunch(kart, track);
+}
+
+// ── Ramps ────────────────────────────────────────────────────────────────────
+
+// Parabola over distance travelled: y = surface + 4 peak u (1 - u), u = dist / len. Lands when u reaches 1.
+function flyRamp(kart, surfaceY, dt) {
+  const a = kart.air;
+  a.dist += Math.max(RAMP_MIN_SPEED / 2, kart.speed) * dt; // a stopped kart still comes down
+  const u = Math.min(1, a.dist / a.len);
+  if (u >= 1) {
+    kart.airborne = false;
+    kart.air = null;
+    kart.vy = 0;
+    return;
+  }
+  kart.y = surfaceY + 4 * a.peak * u * (1 - u);
+  kart.vy = ((4 * a.peak * (1 - 2 * u)) / a.len) * Math.max(0, kart.speed);
+}
+
+// Crossing a ramp fast enough launches the kart and grants a pad boost.
+function tryLaunch(kart, track) {
+  const over = (track.ramps ?? []).find((r) => {
+    if (!r.jump) return false;
+    let ds = kart.s - r.s;
+    ds -= track.length * Math.round(ds / track.length);
+    return Math.abs(ds) <= r.length / 2 && Math.abs(kart.lateral - r.lateral) <= r.width / 2 + 0.5;
+  });
+  const was = kart.ramp;
+  kart.ramp = over ?? null;
+  if (!over || over === was || kart.speed < RAMP_MIN_SPEED) return;
+  const len = Math.min(RAMP_AIR_MAX, kart.speed * RAMP_AIR_RATIO);
+  Object.assign(kart, { airborne: true, air: { dist: 0, len, peak: len * RAMP_HEIGHT_RATIO }, vy: 4 * RAMP_HEIGHT_RATIO * kart.speed });
+  if (kart.boost < BOOST_TIME) {
+    kart.boost = BOOST_TIME;
+    kart.boostLevel = 0;
+  }
 }
 
 // ── Kart-vs-kart ─────────────────────────────────────────────────────────────
