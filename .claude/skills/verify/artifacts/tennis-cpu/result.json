@@ -1,7 +1,7 @@
 {
   "feature": "tennis-cpu",
   "passed": true,
-  "finishedAt": "2026-11-15T18:57:31.767Z",
+  "finishedAt": "2026-11-15T19:18:21.871Z",
   "error": null,
   "checks": [
     {
@@ -17,7 +17,7 @@
     {
       "name": "the CPU brings a partner and Ada brings hers",
       "ok": true,
-      "detail": "[{\"id\":\"cpu\",\"role\":\"solo\",\"controlledBy\":\"cpu\"},{\"id\":\"cpu~partner\",\"role\":\"net\",\"controlledBy\":\"cpu\"},{\"id\":\"f112a7f5\",\"role\":\"solo\",\"controlledBy\":\"f112a7f5\"},{\"id\":\"f112a7f5~partner\",\"role\":\"net\",\"controlledBy\":\"f112a7f5\"}]"
+      "detail": "[{\"id\":\"cpu\",\"role\":\"solo\",\"controlledBy\":\"cpu\"},{\"id\":\"cpu~partner\",\"role\":\"net\",\"controlledBy\":\"cpu\"},{\"id\":\"b5856804\",\"role\":\"solo\",\"controlledBy\":\"b5856804\"},{\"id\":\"b5856804~partner\",\"role\":\"net\",\"controlledBy\":\"b5856804\"}]"
     },
     {
       "name": "a CPU opponent keeps one camera",

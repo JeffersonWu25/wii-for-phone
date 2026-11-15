@@ -250,8 +250,8 @@ function buildEnclosure(group, renderer) {
   buildStands(group);
 }
 
-// Side B's pane looks back down the court, so the end behind side A gets the same wall, stands and crowd
-// as the end behind side B, turned half a turn about the net. The near hedges and trees stay off: they filled the bottom of the camera.
+// Side B's pane looks back down the court, so the end behind side A gets the same wall, stands, hedges, crowd and
+// trees as the end behind side B, turned half a turn about the net.
 function buildSideWallExtension(group) {
   const wallMat = new THREE.MeshLambertMaterial({ color: 0x2f7a3e });
   const baseMat = new THREE.MeshLambertMaterial({ color: 0x25663a });
@@ -269,9 +269,7 @@ function buildSideWallExtension(group) {
   }
 }
 
-// Side hedges only. An end row sits in front of whichever camera is behind that baseline,
-// so it filled the bottom of the screen.
-function buildHedges(group, seed = 42) {
+function buildHedges(group, sideFrom = -12, seed = 42) {
   const rand = seeded(seed);
   const greens = [0x2f8a34, 0x3d9a3a, 0x2a7a30, 0x4aa63f, 0x358f37];
   const mats = greens.map((c) => new THREE.MeshLambertMaterial({ color: c }));
@@ -283,11 +281,41 @@ function buildHedges(group, seed = 42) {
     m.castShadow = true;
     group.add(m);
   };
+  for (let x = -WALL_X - 0.5; x <= WALL_X + 0.5; x += 0.95) {
+    blob(x + rand() * 0.3, WALL_H + 0.45 + rand() * 0.25, WALL_BACK_Z + 0.9, 0.85 + rand() * 0.25);
+    blob(x + 0.4 + rand() * 0.3, WALL_H + 1.0 + rand() * 0.4, WALL_BACK_Z + 2.0, 1.1 + rand() * 0.3);
+  }
   for (const s of [-1, 1]) {
-    for (let z = -WALL_BACK_Z; z <= WALL_BACK_Z; z += 1.1) {
+    for (let z = sideFrom; z <= WALL_BACK_Z; z += 1.1) {
       blob(s * (WALL_X + 4.6) + rand() * 0.3, 2.35 + rand() * 0.5, z, 0.95 + rand() * 0.25, 0.95);
     }
   }
+}
+
+function buildBackdrop(group) {
+  const rand = seeded(99);
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2a });
+  const leafMats = [0x2e8a3a, 0x3f9d3f, 0x278033, 0x4faa44].map((c) => new THREE.MeshLambertMaterial({ color: c }));
+  const trunkGeo = new THREE.CylinderGeometry(0.35, 0.5, 1, 8);
+  const leafGeo = new THREE.SphereGeometry(1, 12, 9);
+  for (let x = -34; x <= 34; x += 4.4) {
+    const z = 21 + rand() * 4;
+    const h = 5 + rand() * 2.5;
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.scale.y = h;
+    trunk.position.set(x, h / 2, z);
+    group.add(trunk);
+    for (let i = 0; i < 3; i++) {
+      const leaf = new THREE.Mesh(leafGeo, leafMats[Math.floor(rand() * leafMats.length)]);
+      const r = 2.3 + rand() * 1.1;
+      leaf.position.set(x + (rand() - 0.5) * 2.4, h + 0.8 + rand() * 1.8, z + (rand() - 0.5) * 1.5);
+      leaf.scale.set(r, r * 0.9, r);
+      group.add(leaf);
+    }
+  }
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0xe6ece4 });
+  const bandMat = new THREE.MeshLambertMaterial({ color: 0x8fa6a8 });
+  group.add(box(34, 9, 6, bodyMat, 0, 4.5, 38), box(34, 1.4, 6.2, bandMat, 0, 6.6, 38));
 }
 
 function makeStringTexture() {
@@ -1163,6 +1191,10 @@ export function createTennisScene(container) {
   buildHedges(hedges);
   world.add(hedges);
 
+  const backdrop = new THREE.Group();
+  buildBackdrop(backdrop);
+  world.add(backdrop);
+
   const crowd = new THREE.Group();
   buildCrowd(crowd);
   world.add(crowd);
@@ -1170,6 +1202,8 @@ export function createTennisScene(container) {
   const nearEnd = new THREE.Group();
   buildEndWall(nearEnd, renderer);
   buildStands(nearEnd);
+  buildHedges(nearEnd, 12, 17);
+  buildBackdrop(nearEnd);
   buildCrowd(nearEnd);
   nearEnd.rotation.y = Math.PI;
   world.add(nearEnd);
