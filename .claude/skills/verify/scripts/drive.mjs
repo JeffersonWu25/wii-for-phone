@@ -1633,8 +1633,8 @@ async function tennisRally(run) {
   });
   run.check('the court is split between the two players', framing.split === '1' && framing.divider === 'block', JSON.stringify(framing));
   run.check(
-    'the camera is pulled back over the court',
-    framing.camY >= 12 && framing.camY <= 16,
+    'the camera sits lower over the court',
+    framing.camY >= 7 && framing.camY <= 11,
     `camY ${framing.camY}`,
   );
   run.check(
@@ -1778,6 +1778,8 @@ async function tennisCpu(run) {
   })));
   const cpuBodies = bodies.filter((p) => p.controlledBy === 'cpu');
   run.check('the CPU brings a partner and Ada brings hers', bodies.length === 4 && cpuBodies.length === 2, JSON.stringify(bodies));
+  const split = await host.evaluate(() => document.querySelector('.tennis-court')?.dataset.split ?? '');
+  run.check('a CPU opponent keeps one camera', split === '0', split);
 
   await ada.waitForFunction(
     () => document.querySelector('#tennis-label')?.textContent === 'Swing',

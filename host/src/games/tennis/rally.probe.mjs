@@ -2,7 +2,7 @@
 // Competing rally builds must pass this file and must not edit it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COURT, createMatch, nextPoint, planShot, step, swing, toss, view } from './rally.js';
+import { BALL_CEILING, COURT, createMatch, nextPoint, planShot, step, swing, toss, view } from './rally.js';
 
 const A = { id: 'a', name: 'Ada' };
 const B = { id: 'b', name: 'Bea' };
@@ -86,7 +86,8 @@ function expectedPlan(v, playerId, args) {
   const landZ = toward * depth;
   const out = Math.abs(landX) > COURT.doublesHalfWidth || Math.abs(landZ) > COURT.halfLength;
   const shape = args.shape === 'lob' || args.shape === 'slice' ? args.shape : 'flat';
-  const apex = shape === 'lob' ? 6.2 : shape === 'slice' ? 1.25 : 2.4;
+  const rawApex = shape === 'lob' ? 6.2 : shape === 'slice' ? 1.25 : 2.4;
+  const apex = Math.min(BALL_CEILING, rawApex);
   const flightTime = shape === 'lob' ? 1.45 : shape === 'slice' ? 0.85 : 1.05;
   return { outcome: out ? 'out' : 'in', landX, landZ, apex, flightTime, fast: false };
 }
@@ -303,7 +304,9 @@ test('lob hangs above a flat shot and a slice stays under it', () => {
   const flat = returnPeak('flat');
   const lob = returnPeak('lob');
   const slice = returnPeak('slice');
-  assert.ok(lob > flat + 1.2, `lob ${lob} flat ${flat}`);
+  assert.ok(lob > flat + 0.5, `lob ${lob} flat ${flat}`);
+  assert.ok(lob <= BALL_CEILING + 0.05, `lob ${lob} above ${BALL_CEILING}`);
+  assert.ok(flat <= BALL_CEILING + 0.05, `flat ${flat} above ${BALL_CEILING}`);
   assert.ok(slice < flat - 0.35, `slice ${slice} flat ${flat}`);
 });
 

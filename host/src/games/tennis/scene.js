@@ -1,6 +1,7 @@
 // Mesh-first Wii Sports style tennis court: every line, net strand, wall, hedge, spectator and player is its own geometry.
 // Canvas textures are the repeating grass stripe tile, the wall wordmark, and the racket string bed.
 import * as THREE from 'three';
+import { courtFraming } from './teamSeat.js';
 
 const HALF_LENGTH = 11.885;
 const HALF_WIDTH_DOUBLES = 5.485;
@@ -250,7 +251,7 @@ function buildEnclosure(group, renderer) {
 }
 
 // Side B's pane looks back down the court, so the end behind side A gets the same wall, stands, hedges, crowd and
-// trees as the end behind side B. buildFarEnd is built once more and turned half a turn about the net.
+// trees as the end behind side B, turned half a turn about the net.
 function buildSideWallExtension(group) {
   const wallMat = new THREE.MeshLambertMaterial({ color: 0x2f7a3e });
   const baseMat = new THREE.MeshLambertMaterial({ color: 0x25663a });
@@ -1073,14 +1074,14 @@ function animatePlayer(state, pl, view, ball, dt, now) {
 }
 
 const BASELINE_PLAYER_Z = 11.185;
-// One camera per side, never more than two panes. It sits back and above the baseline so a
-// half-width pane still holds the whole doubles court and both players on that side.
+// One camera per side, never more than two panes. It sits lower and closer than the old
+// overhead view, and a half-width pane still holds the doubles sidelines.
 const COURT_CAMERA = {
-  y: 14,
-  behindPlayer: 11,
-  fov: 46,
-  lookY: 0.2,
-  lookAhead: 18,
+  y: 9,
+  behindPlayer: 7,
+  fov: 44,
+  lookY: 0.6,
+  lookAhead: 12,
 };
 
 function courtCameraFor(side) {
@@ -1134,7 +1135,8 @@ export function createTennisScene(container) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xa6d8f2);
+  // Lawn, not sky. Any gap past the court stays green instead of the old blue clear color.
+  scene.background = new THREE.Color(0x648a3c);
 
   const camera = new THREE.PerspectiveCamera(COURT_CAMERA.fov, 16 / 9, 0.3, 80);
 
@@ -1161,7 +1163,8 @@ export function createTennisScene(container) {
 
   const grassTex = makeGrassTexture(renderer);
   const tile = 4.8;
-  const groundSize = 26;
+  // Wide enough that the elevated camera hits grass at the sides and behind the near baseline, not the clear color.
+  const groundSize = 140;
   grassTex.repeat.set(groundSize / tile, groundSize / tile);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(groundSize, groundSize),
@@ -1327,8 +1330,8 @@ export function createTennisScene(container) {
   let height = 0;
   let manualCamera = null;
   let split = false;
+  let framing = 'A';
   let lastNow = null;
-  let entrySides = new Set();
 
   function resize() {
     const w = Math.max(1, container.clientWidth);
@@ -1374,10 +1377,8 @@ export function createTennisScene(container) {
     syncTrail(b);
 
     const seen = new Set();
-    const sides = new Set();
     for (const pl of view.players || []) {
       seen.add(pl.id);
-      sides.add(pl.side);
       let entry = players.get(pl.id);
       if (!entry) {
         const h = hash(pl.id);
@@ -1400,8 +1401,8 @@ export function createTennisScene(container) {
     }
     for (const id of [...players.keys()]) if (!seen.has(id)) removePlayer(id);
 
-    split = sides.has('A') && sides.has('B');
-    entrySides = sides;
+    framing = courtFraming(view.players);
+    split = framing === 'split';
     divider.style.display = split && !manualCamera ? 'block' : 'none';
     container.dataset.split = split && !manualCamera ? '1' : '0';
     container.dataset.camY = String(COURT_CAMERA.y);
@@ -1439,7 +1440,7 @@ export function createTennisScene(container) {
       drawPane(left, width - left, courtCameraFor('B'));
       return;
     }
-    drawPane(0, width, courtCameraFor(entrySides.has('B') && !entrySides.has('A') ? 'B' : 'A'));
+    drawPane(0, width, courtCameraFor(framing === 'B' ? 'B' : 'A'));
   }
 
   function cameraInfo() {

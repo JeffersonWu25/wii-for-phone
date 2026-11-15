@@ -3,6 +3,7 @@
 
 import { judgeTiming } from './timing.js';
 import { nextPoint, planShot, setGrip, swing, toss, view } from './rally.js';
+import { isCpuId } from './teamSeat.js';
 import { getTuning } from './tuning.js';
 
 const SERVE_LIMIT_MS = 8000;
@@ -10,7 +11,7 @@ const CALLED_HOLD_MS = 1200;
 const DEFAULT_RTT_MS = 80;
 const SERVE_CONTACT_MS = 450;
 const DASH = '\u2013';
-const G = 9.81;
+const CPU_SHAPES = ['flat', 'slice', 'lob'];
 
 export function createFlow(match) {
   return {
@@ -231,13 +232,13 @@ export function winnerNames(flow) {
 }
 
 function aiUnit() {
-  const value = Number(getTuning().aiDifficulty);
+  const value = Number(getTuning().cpuDifficulty);
   if (!Number.isFinite(value)) return 1;
   return Math.min(1, Math.max(0, value));
 }
 
 function isCpu(id) {
-  return id === 'cpu' || (typeof id === 'string' && /^cpu-[1-9]\d*$/.test(id));
+  return isCpuId(id);
 }
 
 function tossWaitMs(ai) {
@@ -307,52 +308,11 @@ function chaseOver(match) {
   return limit > 0 && match.flight.t > limit + 0.05;
 }
 
-function opponentNetClose(match, playerId) {
-  const side = sideOfId(match, playerId);
-  if (!side) return false;
-  const id = netBodyId(match, side === 'A' ? 'B' : 'A');
-  const actor = id ? match.actors.get(id) : null;
-  if (!actor) return false;
-  return Math.abs(actor.z) <= 7;
-}
-
-function launchVelocity(y0, landY, flightTime, apex) {
-  const T = flightTime;
-  const H = apex - y0;
-  if (!(T > 0) || !(H > 0.02) || !(apex > landY)) {
-    const ay = -G;
-    const vy = T > 0 ? (landY - y0) / T - 0.5 * ay * T : 0;
-    return { vy, lift: 0 };
-  }
-  const rise = Math.max(0, H * (apex - landY));
-  const vy = (2 / T) * (H + Math.sqrt(rise));
-  const ay = -2 * (vy - (landY - y0) / T) / T;
-  return { vy, lift: ay + G };
-}
-
-function ballHeightAtNet(ball, plan) {
-  if (!ball || !plan || !(plan.flightTime > 0)) return Infinity;
-  const solved = launchVelocity(ball.y, 0, plan.flightTime, plan.apex);
-  const vz = (plan.landZ - ball.z) / plan.flightTime;
-  if (!(Math.abs(vz) > 1e-8)) return ball.y;
-  const t = -ball.z / vz;
-  const ay = -G + solved.lift;
-  return ball.y + solved.vy * t + 0.5 * ay * t * t;
-}
-
-function cpuShape(match, playerId, timing, power) {
-  const plan = planShot(match, {
-    playerId,
-    power,
-    timing,
-    shape: 'flat',
-    apex: 0,
-    handed: 'right',
-  });
-  const height = ballHeightAtNet(match.ball, plan);
-  if (opponentNetClose(match, playerId) && height < getTuning().reachY) return 'lob';
-  if (height < 1.4) return 'slice';
-  return 'flat';
+// Serves stay flat. Rally shots rotate flat, slice, lob so a CPU does not camp on lobs.
+function cpuShape(flow) {
+  const index = (flow.cpuShots || 0) + (flow.match.pointIndex || 0);
+  flow.cpuShots = (flow.cpuShots || 0) + 1;
+  return CPU_SHAPES[Math.abs(index) % CPU_SHAPES.length];
 }
 
 // A CPU uses the same toss and the same launch as a phone. The reaction
@@ -398,7 +358,7 @@ export function cpuAct(flow, now) {
     playerId: hit.playerId,
     power,
     timing,
-    shape: cpuShape(match, hit.playerId, timing, power),
+    shape: cpuShape(flow),
     apex: 0,
     handed: 'right',
   }, now);

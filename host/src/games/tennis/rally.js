@@ -5,6 +5,7 @@
 // receiving side. Both points are cached for the rest of the flight.
 
 import { getTuning } from './tuning.js';
+import { isCpuId } from './teamSeat.js';
 
 export const COURT = {
   halfLength: 11.885,
@@ -16,6 +17,8 @@ export const COURT = {
 };
 
 const G = 9.81;
+// Three times the net post. A lob used to clear 6 m; every shot now stops here.
+export const BALL_CEILING = 3 * COURT.netPost;
 const BASELINE_Z = 11.185;
 const SUBSTEP = 1 / 240;
 const REST_V = 0.62;
@@ -331,19 +334,20 @@ function shapedPower(power, sensitivity) {
 }
 
 function rallyShape(shape, lobSlice) {
+  const mix = clamp(Number(lobSlice) || 0, 0, 2);
   if (shape === 'lob') {
     return {
-      apex: 2.4 + (6.2 - 2.4) * lobSlice,
-      flightTime: 1.05 + (1.45 - 1.05) * lobSlice,
+      apex: Math.min(BALL_CEILING, 2.4 + (6.2 - 2.4) * mix),
+      flightTime: 1.05 + (1.45 - 1.05) * mix,
     };
   }
   if (shape === 'slice') {
     return {
-      apex: 2.4 + (1.25 - 2.4) * lobSlice,
-      flightTime: 1.05 + (0.85 - 1.05) * lobSlice,
+      apex: Math.min(BALL_CEILING, 2.4 + (1.25 - 2.4) * mix),
+      flightTime: 1.05 + (0.85 - 1.05) * mix,
     };
   }
-  return { apex: 2.4, flightTime: 1.05 };
+  return { apex: Math.min(BALL_CEILING, 2.4), flightTime: 1.05 };
 }
 
 // Early cross-court: side A forehand is -x, side A backhand is +x. Side B flips both.
@@ -530,7 +534,7 @@ export function swing(match, input) {
     ball.vy = (landY - ball.y) / T + 0.5 * G * T;
     ball.lift = 0;
   } else {
-    const solved = launchVelocity(ball.y, 0, plan.flightTime, plan.apex);
+    const solved = launchVelocity(ball.y, 0, plan.flightTime, Math.min(BALL_CEILING, plan.apex));
     ball.vx = (plan.landX - ball.x) / plan.flightTime;
     ball.vz = (plan.landZ - ball.z) / plan.flightTime;
     ball.vy = solved.vy;
@@ -804,9 +808,19 @@ function receivingSide(match) {
   return match.shot.hitterSide === 'A' ? 'B' : 'A';
 }
 
+// 1 for a phone. The CPU difficulty slider scales only a CPU body: 0 misses wide and late, 1 is the full chase.
+function cpuSkill(match, id, tuning) {
+  const actor = match.actors.get(id);
+  const owner = actor?.controlledBy || id;
+  if (!isCpuId(owner)) return 1;
+  const value = Number(tuning.cpuDifficulty);
+  if (!Number.isFinite(value)) return 1;
+  return clamp(value, 0, 1);
+}
+
 function contactFor(match, side, id, point, kind, hand, tuning) {
   const sign = match.pointIndex % 2 === 0 ? 1 : -1;
-  const shift = (1 - clamp(tuning.aiDifficulty, 0, 1)) * 0.6 * sign;
+  const shift = (1 - cpuSkill(match, id, tuning)) * 2 * sign;
   const spot = clampSide(match, side, point.x, point.z);
   const stand = hand === 'forehand' ? spot.x - localSign(side) * STANCE : spot.x + localSign(side) * STANCE;
   const aim = clampSide(match, side, stand + shift, spot.z);
@@ -875,8 +889,10 @@ function planChase(match, tuning) {
   if (!serve && netChasing && (flight.bounces || 0) === 0) {
     const spot = clampSide(match, side, cross.x, cross.z);
     const dist = Math.hypot(spot.x - netActor.x, spot.z - netActor.z);
+    const netSkill = cpuSkill(match, netBodyId, tuning);
+    const netSpeed = tuning.moveSpeed * (0.42 + 0.58 * netSkill);
     netTakes = dist <= tuning.reach + 1e-6
-      || cross.t - coverTime(dist, tuning.moveSpeed, tuning.accel) >= -LATE_SLACK;
+      || cross.t - coverTime(dist, netSpeed, tuning.accel) >= -LATE_SLACK;
   }
   return {
     side,
@@ -938,6 +954,12 @@ function stopAtNet(match, h, prevZ, ay) {
   endPoint(match, other, 'Net');
 }
 
+function holdCeiling(ball) {
+  if (!ball || !(ball.y > BALL_CEILING)) return;
+  ball.y = BALL_CEILING;
+  if (ball.vy > 0) ball.vy = 0;
+}
+
 function advance(match, h) {
   const ball = match.ball;
   const ay = -G + ball.lift;
@@ -985,6 +1007,7 @@ function advance(match, h) {
       ball.z += ball.vz * rem;
       ball.y += ball.vy * rem + 0.5 * (-G) * rem * rem;
       ball.vy += -G * rem;
+      holdCeiling(ball);
     }
     return;
   }
@@ -993,6 +1016,7 @@ function advance(match, h) {
   ball.z = z1;
   ball.y = y1;
   ball.vy += ay * h;
+  holdCeiling(ball);
 
   if (match.phase === 'flight' && match.shot.outcome === 'net' && match.flight.t >= match.shot.flightTime + 0.05) {
     const other = match.shot.hitterSide === 'A' ? 'B' : 'A';
@@ -1144,9 +1168,9 @@ function movePlayers(match, dt, tuning) {
     if (actor.cooldown > 0) actor.cooldown = Math.max(0, actor.cooldown - dt);
   }
   const plan = planChase(match, tuning);
-  const waited = (match.flight?.t || 0) < (1 - clamp(tuning.aiDifficulty, 0, 1)) * 0.35;
+  const flightT = match.flight?.t || 0;
   const chasers = new Map();
-  if (plan && plan.live && !waited) {
+  if (plan && plan.live) {
     if (plan.base) chasers.set(plan.baseId, plan.base);
     if (plan.netId) chasers.set(plan.netId, plan.net);
   }
@@ -1163,11 +1187,12 @@ function movePlayers(match, dt, tuning) {
     }
     let target = { x: actor.homeX, z: actor.homeZ };
     let top = tuning.walkSpeed;
-    const chasing = chasers.has(id);
+    const skill = cpuSkill(match, id, tuning);
+    const chasing = chasers.has(id) && flightT >= (1 - skill) * 0.45;
     if (chasing) {
       const contact = chasers.get(id);
       if (contact) target = { x: contact.aimX, z: contact.aimZ };
-      top = tuning.moveSpeed;
+      top = tuning.moveSpeed * (0.42 + 0.58 * skill);
     } else {
       const mate = teammate(match, id);
       if (mate && side) {

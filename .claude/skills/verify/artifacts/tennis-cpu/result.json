@@ -1,7 +1,7 @@
 {
   "feature": "tennis-cpu",
   "passed": true,
-  "finishedAt": "2026-11-14T23:35:59.065Z",
+  "finishedAt": "2026-11-15T19:37:45.195Z",
   "error": null,
   "checks": [
     {
@@ -17,7 +17,12 @@
     {
       "name": "the CPU brings a partner and Ada brings hers",
       "ok": true,
-      "detail": "[{\"id\":\"cpu\",\"role\":\"solo\",\"controlledBy\":\"cpu\"},{\"id\":\"cpu~partner\",\"role\":\"net\",\"controlledBy\":\"cpu\"},{\"id\":\"ccfb6e30\",\"role\":\"solo\",\"controlledBy\":\"ccfb6e30\"},{\"id\":\"ccfb6e30~partner\",\"role\":\"net\",\"controlledBy\":\"ccfb6e30\"}]"
+      "detail": "[{\"id\":\"cpu\",\"role\":\"solo\",\"controlledBy\":\"cpu\"},{\"id\":\"cpu~partner\",\"role\":\"net\",\"controlledBy\":\"cpu\"},{\"id\":\"22644693\",\"role\":\"solo\",\"controlledBy\":\"22644693\"},{\"id\":\"22644693~partner\",\"role\":\"net\",\"controlledBy\":\"22644693\"}]"
+    },
+    {
+      "name": "a CPU opponent keeps one camera",
+      "ok": true,
+      "detail": "0"
     },
     {
       "name": "the CPU serves without a phone swing",

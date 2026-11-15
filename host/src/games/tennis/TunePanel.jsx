@@ -16,7 +16,7 @@ const GROUPS = [
       { key: 'interceptLead', label: 'Interception lead time', min: 0, max: 0.8, step: 0.01 },
       { key: 'moveSpeed', label: 'Player movement speed', min: 4, max: 16, step: 0.1 },
       { key: 'reach', label: 'Racket hitbox size', min: 0.6, max: 3.5, step: 0.05 },
-      { key: 'aiDifficulty', label: 'AI difficulty', min: 0, max: 1, step: 0.05 },
+      { key: 'cpuDifficulty', label: 'CPU difficulty', min: 0, max: 1, step: 0.05 },
     ],
     checkbox: { key: 'volleyPriority', label: 'Automatic volley priority' },
   },

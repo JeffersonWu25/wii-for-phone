@@ -48,7 +48,7 @@ function chase(match, playerId, now) {
 }
 
 test('a CPU tosses, serves, and returns a human drive at difficulty 1', () => {
-  setTuning({ aiDifficulty: 1 });
+  setTuning({ cpuDifficulty: 1 });
   try {
     const { match, flow } = cpuMatch(['cpu'], ['a']);
     begin(flow, 0);
@@ -114,7 +114,7 @@ test('a CPU tosses, serves, and returns a human drive at difficulty 1', () => {
 });
 
 test('difficulty 0 rally timing is about ±0.45 and not centered', () => {
-  setTuning({ aiDifficulty: 0 });
+  setTuning({ cpuDifficulty: 0 });
   try {
     for (const pointIndex of [0, 1]) {
       const { match, flow } = cpuMatch(['a'], ['cpu']);
@@ -193,38 +193,27 @@ function placeRally(match, flow, ball) {
   actor.z = match.ball.z;
 }
 
-test('a close net is a lob, a low crossing is a slice, and the rest is flat', () => {
-  setTuning({ aiDifficulty: 1 });
+test('cpu rally shots cycle flat, slice, and lob', () => {
+  setTuning({ cpuDifficulty: 1 });
   try {
-    const lob = cpuMatch(['a'], ['cpu']);
-    placeRally(lob.match, lob.flow, { y: 1.1, z: 11.185 });
-    cpuAct(lob.flow, 200);
-    assert.equal(lob.match.swingShape, 'lob');
-
-    const overNet = cpuMatch(['a'], ['cpu']);
-    overNet.match.actors.get('a~partner').z = -1;
-    placeRally(overNet.match, overNet.flow, { y: 0.45, z: 0.45 });
-    cpuAct(overNet.flow, 200);
-    assert.equal(overNet.match.swingShape, 'lob');
-
-    const slice = cpuMatch(['a'], ['cpu']);
-    slice.match.actors.get('a~partner').z = -8;
-    placeRally(slice.match, slice.flow, { y: 0.45, z: 0.45 });
-    cpuAct(slice.flow, 200);
-    assert.equal(slice.match.swingShape, 'slice');
-
-    const flat = cpuMatch(['a'], ['cpu']);
-    flat.match.actors.get('a~partner').z = -8;
-    placeRally(flat.match, flat.flow, { y: 1.1, z: 11.185 });
-    cpuAct(flat.flow, 200);
-    assert.equal(flat.match.swingShape, 'flat');
+    const { match, flow } = cpuMatch(['a'], ['cpu']);
+    const seen = [];
+    for (let i = 0; i < 6; i += 1) {
+      placeRally(match, flow, { y: 1.1, z: 11.185 });
+      flow.swungIds = new Set();
+      match.actors.get('cpu').cooldown = 0;
+      cpuAct(flow, 200);
+      seen.push(match.swingShape);
+    }
+    assert.deepEqual(seen, ['flat', 'slice', 'lob', 'flat', 'slice', 'lob']);
+    assert.ok(seen.includes('slice') && seen.includes('lob'));
   } finally {
     resetTuning();
   }
 });
 
 test('cpuAct does not swing a human window', () => {
-  setTuning({ aiDifficulty: 1 });
+  setTuning({ cpuDifficulty: 1 });
   try {
     const { match, flow } = cpuMatch(['a'], ['cpu']);
     begin(flow, 0);
@@ -239,7 +228,7 @@ test('cpuAct does not swing a human window', () => {
 });
 
 test('a late out-of-reach swing misses once and a second call does nothing', () => {
-  setTuning({ aiDifficulty: 1 });
+  setTuning({ cpuDifficulty: 1 });
   try {
     const { match, flow } = cpuMatch(['cpu'], ['a']);
     begin(flow, 0);
@@ -276,7 +265,7 @@ test('a late out-of-reach swing misses once and a second call does nothing', () 
 });
 
 test('afterPhysics tosses a CPU serve before the fault clock', () => {
-  setTuning({ aiDifficulty: 1 });
+  setTuning({ cpuDifficulty: 1 });
   try {
     const { match, flow } = cpuMatch(['cpu'], ['a']);
     begin(flow, 1_000);

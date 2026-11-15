@@ -1,7 +1,7 @@
 {
   "feature": "tennis-rally",
   "passed": true,
-  "finishedAt": "2026-11-14T23:36:41.384Z",
+  "finishedAt": "2026-11-15T19:37:54.330Z",
   "error": null,
   "checks": [
     {
@@ -12,12 +12,12 @@
     {
       "name": "the court is split between the two players",
       "ok": true,
-      "detail": "{\"split\":\"1\",\"camY\":14,\"divider\":\"block\",\"scoreX\":640}"
+      "detail": "{\"split\":\"1\",\"camY\":9,\"divider\":\"block\",\"scoreX\":640}"
     },
     {
-      "name": "the camera is pulled back over the court",
+      "name": "the camera sits lower over the court",
       "ok": true,
-      "detail": "camY 14"
+      "detail": "camY 9"
     },
     {
       "name": "the score is centered over the join",
@@ -32,7 +32,7 @@
     {
       "name": "a player runs toward the ball",
       "ok": true,
-      "detail": "{\"phase\":\"flight\",\"speeds\":[{\"id\":\"caec38f5\",\"speed\":0,\"x\":0,\"z\":-11.185},{\"id\":\"caec38f5~partner\",\"speed\":0,\"x\":-2.4,\"z\":-5.6},{\"id\":\"e08e5594\",\"speed\":11,\"x\":-0.0540271985131531,\"z\":9.510871551576516},{\"id\":\"e08e5594~partner\",\"speed\":11,\"x\":1.7597291850262586,\"z\":4.052202118009957}]}"
+      "detail": "{\"phase\":\"flight\",\"speeds\":[{\"id\":\"3909d805\",\"speed\":0,\"x\":0,\"z\":-11.185},{\"id\":\"3909d805~partner\",\"speed\":0,\"x\":-2.4,\"z\":-5.6},{\"id\":\"e660e655\",\"speed\":9,\"x\":-0.039391548291899864,\"z\":10.060689853321975},{\"id\":\"e660e655~partner\",\"speed\":9,\"x\":1.9699673630773378,\"z\":4.5604342583648965}]}"
     }
   ]
 }
