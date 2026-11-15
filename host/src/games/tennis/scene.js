@@ -1074,14 +1074,14 @@ function animatePlayer(state, pl, view, ball, dt, now) {
 }
 
 const BASELINE_PLAYER_Z = 11.185;
-// One camera per side, never more than two panes. It sits back and above the baseline so a
-// half-width pane still holds the whole doubles court and both players on that side.
+// One camera per side, never more than two panes. It sits lower and closer than the old
+// overhead view, and a half-width pane still holds the doubles sidelines.
 const COURT_CAMERA = {
-  y: 14,
-  behindPlayer: 11,
-  fov: 46,
-  lookY: 0.2,
-  lookAhead: 18,
+  y: 9,
+  behindPlayer: 7,
+  fov: 44,
+  lookY: 0.6,
+  lookAhead: 12,
 };
 
 function courtCameraFor(side) {
