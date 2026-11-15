@@ -376,14 +376,14 @@ test('tuning clamps, copies, and resets', () => {
       moveSpeed: 100,
       interceptLead: -2,
       volleyPriority: false,
-      aiDifficulty: 4,
+      cpuDifficulty: 4,
       unknown: 9,
     });
     assert.equal(got.timingWindowMs, 40);
     assert.equal(got.moveSpeed, 16);
     assert.equal(got.interceptLead, 0);
     assert.equal(got.volleyPriority, false);
-    assert.equal(got.aiDifficulty, 1);
+    assert.equal(got.cpuDifficulty, 1);
     assert.equal(got.unknown, undefined);
     const copy = getTuning();
     copy.moveSpeed = 4;
@@ -396,44 +396,73 @@ test('tuning clamps, copies, and resets', () => {
   assert.equal(getTuning().moveSpeed, 11);
 });
 
-test('a lower ai waits, then aims off the intercept by a stable shift', () => {
+test('cpu difficulty waits and aims off, and a phone does not', () => {
+  function cpuSide() {
+    return createMatch({
+      players: [{ id: 'a', name: 'Ada' }, { id: 'cpu', name: 'CPU' }],
+      sideA: ['a'],
+      sideB: ['cpu'],
+      bestOf: 3,
+    });
+  }
+  const hang = (target, receiverId) => {
+    target.phase = 'flight';
+    target.flight = { bounces: 0, t: 0.5 };
+    target.shot = {
+      outcome: 'in', hitterSide: 'A', landX: 0, landZ: 6, flightTime: 1.4, serve: false, fast: false,
+    };
+    target.ball = { x: 0, y: 3, z: -1, vx: 0.4, vy: 1, vz: 3, lift: 0, fast: false };
+    target.receiverId = receiverId;
+  };
   try {
-    setTuning({ aiDifficulty: 0 });
-    const match = singles();
+    setTuning({ cpuDifficulty: 0 });
+    const match = cpuSide();
     serve(match, { apex: 0.3, timing: 0, power: 0.7 });
-    const home = player(match, 'b');
+    const home = player(match, 'cpu');
     let t = 0;
     while (t < 0.3 - 1e-9) {
       step(match, 1 / 60);
       t += 1 / 60;
     }
-    const waiting = player(match, 'b');
+    const waiting = player(match, 'cpu');
     assert.equal(waiting.x, home.x);
     assert.equal(waiting.z, home.z);
-    const hang = (target) => {
-      target.phase = 'flight';
-      target.flight = { bounces: 0, t: 0.5 };
-      target.shot = {
-        outcome: 'in', hitterSide: 'A', landX: 0, landZ: 6, flightTime: 1.4, serve: false, fast: false,
-      };
-      target.ball = { x: 0, y: 3, z: -1, vx: 0.4, vy: 1, vz: 3, lift: 0, fast: false };
-      target.receiverId = 'b';
-    };
-    const late = singles();
-    hang(late);
+
+    const phone = singles();
+    serve(phone, { apex: 0.3, timing: 0, power: 0.7 });
+    const phoneHome = player(phone, 'b');
+    step(phone, 1 / 60);
+    const phoneMoved = player(phone, 'b');
+    assert.ok(
+      phoneMoved.speed > 0.2 || phoneMoved.x !== phoneHome.x || phoneMoved.z !== phoneHome.z,
+      'a phone still chases when CPU difficulty is 0',
+    );
+
+    const late = cpuSide();
+    hang(late, 'cpu');
     step(late, 1 / 60);
     const shifted = plannedContact(late);
     assert.ok(shifted, 'committed after the delay');
     const again = shifted.aimX;
     step(late, 1 / 60);
     assert.ok(Math.abs(plannedContact(late).aimX - again) < 0.05);
-    resetTuning();
-    const straight = singles();
-    hang(straight);
+    setTuning({ cpuDifficulty: 1 });
+    const straight = cpuSide();
+    hang(straight, 'cpu');
     step(straight, 1 / 60);
     const clean = plannedContact(straight);
     assert.ok(clean, 'full difficulty has a contact');
-    assert.ok(Math.abs((shifted.aimX - clean.aimX) - 0.6) < 0.05, `shift ${shifted.aimX - clean.aimX}`);
+    assert.ok(Math.abs((shifted.aimX - clean.aimX) - 2) < 0.05, `shift ${shifted.aimX - clean.aimX}`);
+
+    setTuning({ cpuDifficulty: 0 });
+    const humanLow = singles();
+    hang(humanLow, 'b');
+    step(humanLow, 1 / 60);
+    setTuning({ cpuDifficulty: 1 });
+    const humanHigh = singles();
+    hang(humanHigh, 'b');
+    step(humanHigh, 1 / 60);
+    assert.equal(plannedContact(humanLow).aimX, plannedContact(humanHigh).aimX);
   } finally {
     resetTuning();
   }

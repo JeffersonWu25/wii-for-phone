@@ -1,7 +1,7 @@
 {
   "feature": "tennis-rally",
   "passed": true,
-  "finishedAt": "2026-11-14T23:36:41.384Z",
+  "finishedAt": "2026-11-15T18:57:41.059Z",
   "error": null,
   "checks": [
     {
@@ -32,7 +32,7 @@
     {
       "name": "a player runs toward the ball",
       "ok": true,
-      "detail": "{\"phase\":\"flight\",\"speeds\":[{\"id\":\"caec38f5\",\"speed\":0,\"x\":0,\"z\":-11.185},{\"id\":\"caec38f5~partner\",\"speed\":0,\"x\":-2.4,\"z\":-5.6},{\"id\":\"e08e5594\",\"speed\":11,\"x\":-0.0540271985131531,\"z\":9.510871551576516},{\"id\":\"e08e5594~partner\",\"speed\":11,\"x\":1.7597291850262586,\"z\":4.052202118009957}]}"
+      "detail": "{\"phase\":\"flight\",\"speeds\":[{\"id\":\"cebb7a90\",\"speed\":0,\"x\":0,\"z\":-11.185},{\"id\":\"cebb7a90~partner\",\"speed\":0,\"x\":-2.4,\"z\":-5.6},{\"id\":\"ab230212\",\"speed\":9,\"x\":-0.039391548291899864,\"z\":10.060689853321975},{\"id\":\"ab230212~partner\",\"speed\":9,\"x\":1.9699673630773378,\"z\":4.5604342583648965}]}"
     }
   ]
 }

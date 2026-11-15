@@ -10,7 +10,7 @@ export const DEFAULT_TUNING = Object.freeze({
   powerSensitivity: 1,
   swingCooldown: 0.28,
   lobSlice: 1,
-  aiDifficulty: 1,
+  cpuDifficulty: 1,
   volleyPriority: true,
 });
 
@@ -26,7 +26,7 @@ const LIMITS = {
   powerSensitivity: [0.2, 2],
   swingCooldown: [0, 1.2],
   lobSlice: [0, 2],
-  aiDifficulty: [0, 1],
+  cpuDifficulty: [0, 1],
 };
 
 let current = { ...DEFAULT_TUNING };

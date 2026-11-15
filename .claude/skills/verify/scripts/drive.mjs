@@ -1761,6 +1761,8 @@ async function tennisCpu(run) {
   })));
   const cpuBodies = bodies.filter((p) => p.controlledBy === 'cpu');
   run.check('the CPU brings a partner and Ada brings hers', bodies.length === 4 && cpuBodies.length === 2, JSON.stringify(bodies));
+  const split = await host.evaluate(() => document.querySelector('.tennis-court')?.dataset.split ?? '');
+  run.check('a CPU opponent keeps one camera', split === '0', split);
 
   await ada.waitForFunction(
     () => document.querySelector('#tennis-label')?.textContent === 'Swing',

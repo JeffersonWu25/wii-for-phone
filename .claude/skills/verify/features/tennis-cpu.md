@@ -5,7 +5,7 @@ One phone sits on side B, Add CPU fills side A, and the CPU serves the first poi
 ## Sub-features
 
 - `seat-cpu`: one phone is not a match until Add CPU makes it 1v1.
-- `cpu-serve`: the court has four bodies, the CPU owns two, and the point reaches a flight with no phone swing. Both players are already on a forehand or a backhand.
+- `cpu-serve`: the court has four bodies, the CPU owns two, and the point reaches a flight with no phone swing. Both players are already on a forehand or a backhand. `.tennis-court` `data-split` stays `0`.
 
 ## How to get to it (user POV)
 

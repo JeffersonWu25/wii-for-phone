@@ -1,7 +1,7 @@
 {
   "feature": "tennis-tune",
   "passed": true,
-  "finishedAt": "2026-11-14T19:43:34.818Z",
+  "finishedAt": "2026-11-15T18:59:09.793Z",
   "error": null,
   "checks": [
     {
@@ -12,12 +12,12 @@
     {
       "name": "a 1v1 match puts four bodies on court",
       "ok": true,
-      "detail": "[{\"id\":\"34374197\",\"role\":\"solo\",\"controlledBy\":\"34374197\"},{\"id\":\"34374197~partner\",\"role\":\"net\",\"controlledBy\":\"34374197\"},{\"id\":\"3faff6ff\",\"role\":\"solo\",\"controlledBy\":\"3faff6ff\"},{\"id\":\"3faff6ff~partner\",\"role\":\"net\",\"controlledBy\":\"3faff6ff\"}]"
+      "detail": "[{\"id\":\"e083c3ec\",\"role\":\"solo\",\"controlledBy\":\"e083c3ec\"},{\"id\":\"e083c3ec~partner\",\"role\":\"net\",\"controlledBy\":\"e083c3ec\"},{\"id\":\"dbf5f9de\",\"role\":\"solo\",\"controlledBy\":\"dbf5f9de\"},{\"id\":\"dbf5f9de~partner\",\"role\":\"net\",\"controlledBy\":\"dbf5f9de\"}]"
     },
     {
       "name": "each human controls the net partner",
       "ok": true,
-      "detail": "[{\"id\":\"34374197~partner\",\"role\":\"net\",\"controlledBy\":\"34374197\"},{\"id\":\"3faff6ff~partner\",\"role\":\"net\",\"controlledBy\":\"3faff6ff\"}]"
+      "detail": "[{\"id\":\"e083c3ec~partner\",\"role\":\"net\",\"controlledBy\":\"e083c3ec\"},{\"id\":\"dbf5f9de~partner\",\"role\":\"net\",\"controlledBy\":\"dbf5f9de\"}]"
     },
     {
       "name": "the tune panel starts closed",

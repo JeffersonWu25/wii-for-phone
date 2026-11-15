@@ -44,6 +44,28 @@ export function cpuPlayer(index) {
   return { playerId: `cpu-${n}`, name: `CPU ${n}` };
 }
 
+export function isCpuId(id) {
+  return id === 'cpu' || (typeof id === 'string' && /^cpu-[1-9]\d*$/.test(id));
+}
+
+function humanOnSide(players, side) {
+  return players.some((player) => player.side === side && !isCpuId(player.controlledBy || player.id));
+}
+
+// 'split' when a phone is on both sides. A CPU side keeps the camera behind the phone.
+// 'A' or 'B' is the single camera. An empty list looks from side A.
+export function courtFraming(players) {
+  const list = Array.isArray(players) ? players : [];
+  const humanA = humanOnSide(list, 'A');
+  const humanB = humanOnSide(list, 'B');
+  if (humanA && humanB) return 'split';
+  if (humanB && !humanA) return 'B';
+  if (humanA) return 'A';
+  const hasA = list.some((player) => player.side === 'A');
+  const hasB = list.some((player) => player.side === 'B');
+  return hasB && !hasA ? 'B' : 'A';
+}
+
 // The new CPU joins the smaller side, or side B when the counts match.
 // A side of three is not a seat, so this returns null instead of making one.
 export function seatForCpu(players, assignments) {

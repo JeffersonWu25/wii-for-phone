@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lineupFromAssignments, seatPlayers } from './teamSeat.js';
+import { courtFraming, lineupFromAssignments, seatPlayers } from './teamSeat.js';
 
 function players(count) {
   return Array.from({ length: count }, (_, index) => ({
@@ -94,4 +94,14 @@ test('an empty side is not a match, and 1v2 is legal with the pair on either sid
     format: '1v2',
     legal: true,
   });
+});
+
+test('the court splits only when a phone is on both sides', () => {
+  const phone = (id, side) => ({ id, side, controlledBy: id });
+  const cpu = (id, side) => ({ id, side, controlledBy: 'cpu' });
+  assert.equal(courtFraming([phone('a', 'A'), phone('b', 'B')]), 'split');
+  assert.equal(courtFraming([cpu('cpu', 'A'), cpu('cpu~partner', 'A'), phone('a', 'B'), phone('a~partner', 'B')]), 'B');
+  assert.equal(courtFraming([phone('a', 'A'), phone('a~partner', 'A'), cpu('cpu', 'B')]), 'A');
+  assert.equal(courtFraming([phone('a', 'A'), phone('b', 'A')]), 'A');
+  assert.equal(courtFraming([]), 'A');
 });
